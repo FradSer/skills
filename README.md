@@ -7,21 +7,6 @@ A repo for managing skills (specialized workflows and domain knowledge).
 
 English | [简体中文](README.zh-CN.md)
 
-## Structure
-
-```
-skills/
-├── README.md
-├── README.zh-CN.md
-└── skills/
-    └── apple-events/
-        ├── SKILL.md          # Required – agent instructions
-        └── evals/
-            └── evals.json    # Optional – evaluation cases
-```
-
-Each skill is a directory with a `SKILL.md` file (YAML frontmatter: `name`, `description`) and optional `evals/evals.json`.
-
 ## Available Skills
 
 | Skill | Description |

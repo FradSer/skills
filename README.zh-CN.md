@@ -7,21 +7,6 @@
 
 [English](README.md) | 简体中文
 
-## 结构
-
-```
-skills/
-├── README.md
-├── README.zh-CN.md
-└── skills/
-    └── apple-events/
-        ├── SKILL.md          # 必选 – 技能说明
-        └── evals/
-            └── evals.json    # 可选 – 评估用例
-```
-
-每个技能是一个目录，包含 `SKILL.md`（YAML frontmatter：`name`、`description`），以及可选的 `evals/evals.json`。
-
 ## 可用技能
 
 | 技能 | 说明 |
