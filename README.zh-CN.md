@@ -9,9 +9,13 @@
 
 ## 可用技能
 
-| 技能 | 说明 |
-|------|------|
-| [apple-events](skills/apple-events/) | 使用 `event` CLI 管理 Apple 提醒事项与日历时使用：创建、查看、更新、删除提醒与日历事件（macOS）。 |
+### [apple-events](skills/apple-events/)
+使用 `event` CLI 管理 Apple 提醒事项与日历时使用：创建、查看、更新、删除提醒与日历事件（macOS）。
+
+**安装命令:**
+```bash
+npx skills add https://github.com/FradSer/skills --skill apple-events
+```
 
 安装 `event` CLI（apple-events 依赖），使用 Homebrew：
 

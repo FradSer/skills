@@ -9,9 +9,13 @@ English | [简体中文](README.zh-CN.md)
 
 ## Available Skills
 
-| Skill | Description |
-|-------|-------------|
-| [apple-events](skills/apple-events/) | Use when managing Apple Reminders or Calendars with the `event` CLI: create, view, update, delete reminders and calendar events (macOS). |
+### [apple-events](skills/apple-events/)
+Use when managing Apple Reminders or Calendars with the `event` CLI: create, view, update, delete reminders and calendar events (macOS).
+
+**Installation:**
+```bash
+npx skills add https://github.com/FradSer/skills --skill apple-events
+```
 
 Install `event` CLI (required by apple-events) via Homebrew:
 
