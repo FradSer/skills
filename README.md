@@ -27,6 +27,16 @@ brew tap FradSer/brew
 brew install event
 ```
 
+### [tropes](skills/tropes/)
+Use when generating any text content, writing documentation, creating code comments, or reviewing writing style. Provides guidance on avoiding common AI writing patterns and tropes that make text sound artificial or formulaic.
+
+**Source:** [tropes.fyi](https://tropes.fyi/tropes-md)
+
+**Installation:**
+```bash
+npx skills add https://github.com/FradSer/skills --skill tropes
+```
+
 ## Adding a Skill
 
 1. Create a directory under `skills/<skill-name>/`.
