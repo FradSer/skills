@@ -29,7 +29,7 @@ For README.zh-CN.md, reverse the language toggle:
 [English](README.md) | **简体中文**
 ```
 
-Choose badges that reflect what is genuinely true about the project (CI tool, shell, terminal, language, license, etc.). Use shields.io static badges when there is no live endpoint.
+Choose badges that reflect what is genuinely true about the project. Common types: CI status, license, language/runtime version, package registry version, code coverage. Use shields.io static badges when there is no live endpoint. Prefer reference-style Markdown links for badge rows with more than two badges — it keeps the source readable. Broken or always-failing badges are worse than no badges; only include ones that are maintained.
 
 ## Process
 
@@ -48,15 +48,25 @@ Write from ground truth, not from memory or assumption.
 
 Use `references/template.md` as the structural starting point. Adapt section names to the project's domain — the template shows the skeleton, not the words.
 
-The README is a directory, not a tutorial. Keep each component description to one or two sentences. Omit sections that do not apply.
+**Section order** (omit what doesn't apply, don't add sections just to fill space):
+1. Header — title + badges + language toggle
+2. One-liner description (one sentence)
+3. Logo, banner, or demo GIF — optional, but place it early if the project has one
+4. Main content sections (Available Items, Usage, etc.)
+5. Contributing / Adding a new item
+6. License
+
+For READMEs over ~300 lines, add a Table of Contents after the one-liner.
+
+The README is a directory, not a tutorial. Keep each component description to one or two sentences. Installation commands must be copy-pasteable — exact commands, no ambiguity. Always use fenced code blocks with a language tag (` ```bash `, ` ```json `).
 
 Write with a human voice. README prose is some of the most AI-trope-prone writing that exists — it tends to accumulate "robust", bold-first bullet points, and "serves as" constructions without anyone noticing. Specific things to watch for:
 
-- **Word choice**: avoid "leverage", "streamline", "robust", "utilize", "delve". Say the plain thing.
-- **Bullets**: don't start every item with a bolded phrase. It reads as AI-generated documentation.
-- **Descriptions**: say what the component does, not what it "serves as" or "stands as".
-- **Marketing tone**: "powerful", "seamless", "comprehensive" add nothing. Cut them.
-- **Filler transitions**: "It's worth noting", "Importantly", "Notably" — delete these.
+- Word choice: avoid "leverage", "streamline", "robust", "utilize", "delve". Say the plain thing.
+- Bullets: don't start every item with a bolded phrase. It reads as AI-generated documentation.
+- Descriptions: say what the component does, not what it "serves as" or "stands as".
+- Marketing tone: "powerful", "seamless", "comprehensive" add nothing. Cut them.
+- Filler transitions: "It's worth noting", "Importantly", "Notably" — delete these.
 
 A useful test: read each sentence aloud. If it sounds like promotional copy, rewrite it as a plain statement of fact.
 

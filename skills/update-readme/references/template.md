@@ -6,6 +6,8 @@
 
 <One sentence: what this repo is and who it is for.>
 
+<!-- Optional: project logo, banner image, or demo GIF here -->
+
 ## Available <Items>
 
 ### [<item-name>](<item-dir>/)
@@ -17,8 +19,7 @@
 <install command>
 ```
 
-<If the item requires a separate prerequisite, add it here with commands. Omit this block if there are none.>
-
+<!-- If the item requires a separate prerequisite, add it here. Omit if none. -->
 ```bash
 <prerequisite install command>
 ```
@@ -30,3 +31,7 @@
 1. Create a directory under `<items>/<item-name>/`.
 2. Add the descriptor file with the required frontmatter and body.
 3. Run `/update-readme` to sync both README files.
+
+## License
+
+[MIT](LICENSE)
