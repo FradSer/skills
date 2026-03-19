@@ -1,0 +1,23 @@
+{
+  "skill_name": "update-readme",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Update the README files based on the current state of the project. The repo is at /Users/FradSer/Developer/FradSer/skills. Use this header format for README.md:\n\n# Skills by Frad ![](https://img.shields.io/badge/Claude-Skills-blue)\n\n[![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT) [![Twitter Follow](https://img.shields.io/twitter/follow/FradSer?style=social)](https://twitter.com/FradSer)\n\n**English** | [简体中文](README.zh-CN.md)",
+      "expected_output": "Updated README.md and README.zh-CN.md that accurately list all skills (apple-events, tropes, update-readme) with correct installation commands, proper header format, and consistent bilingual content",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The README is out of date. I just added a new skill called 'update-readme' to the skills/ folder. Please update both README.md and README.zh-CN.md to reflect the current state of the project at /Users/FradSer/Developer/FradSer/skills.",
+      "expected_output": "Both README files updated to include the new update-readme skill with a description, installation command, and no stale content",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Sync my bilingual README files with the repo. Check what skills are actually in the repo under skills/ and make sure README.md and README.zh-CN.md both match. Header badges should reflect the actual tools used (chezmoi, zsh, etc. if relevant, otherwise appropriate alternatives).",
+      "expected_output": "Both README files are in sync, covering all and only the skills that exist, with accurate badge choices and consistent structure between EN and ZH versions",
+      "files": []
+    }
+  ]
+}
