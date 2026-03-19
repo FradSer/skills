@@ -50,3 +50,7 @@ npx skills add https://github.com/FradSer/skills --skill update-readme
 2. 添加 `SKILL.md`，包含 YAML frontmatter（`name`、`description`）及技能正文。
 3. 可选：添加 `evals/evals.json` 作为评估用例。
 4. 运行 `/update-readme` 同步两个 README 文件。
+
+## License
+
+[MIT](LICENSE)
