@@ -1,0 +1,3 @@
+scopes:
+    - name: skills
+      description: AI agent skill modules and their associated references and evaluation data
