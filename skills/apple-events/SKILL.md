@@ -40,8 +40,8 @@ All commands support the `--json` flag to output results in JSON format, which i
 
 ### List Management
 - List all reminder lists: `event reminders lists list`
-- Create a new list: `event reminders lists create "New List Name"`
-- Delete a list: `event reminders lists delete "List Name"`
+- Create a new list: `event reminders lists create --name "New List Name"`
+- Delete a list: `event reminders lists delete --name "List Name"`
 
 ### Subtasks
 - List subtasks for a reminder: `event reminders subtasks list --id <UUID>`
