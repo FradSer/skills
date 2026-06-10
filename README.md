@@ -1,12 +1,21 @@
-# Skills by Frad ![](https://img.shields.io/badge/Claude-Skills-blue)
+# Skills by Frad ![](https://img.shields.io/badge/Agent-Skills-blue)
 
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT) [![Twitter Follow](https://img.shields.io/twitter/follow/FradSer?style=social)](https://twitter.com/FradSer)
 
 **English** | [简体中文](README.zh-CN.md)
 
-A collection of skills (specialized workflows and domain knowledge) for Claude Code.
+A collection of agent skills: specialized workflows and domain knowledge that can be used across agent runtimes.
 
 ## Available Skills
+
+### [agent-browser](skills/agent-browser/)
+
+Use when an agent needs to automate browser actions, test web apps, take screenshots, scrape pages, or control Electron apps through the `agent-browser` CLI.
+
+**Installation:**
+```bash
+npx skills add https://github.com/FradSer/skills --skill agent-browser
+```
 
 ### [apple-events](skills/apple-events/)
 
@@ -22,6 +31,35 @@ Install the `event` CLI (required by apple-events) via Homebrew:
 ```bash
 brew tap FradSer/brew
 brew install event
+```
+
+### [create-prd](skills/create-prd/)
+
+Use when turning product ideas into Chinese PRDs, with local Markdown output or Feishu/Lark document creation through `lark-cli`.
+
+**Installation:**
+```bash
+npx skills add https://github.com/FradSer/skills --skill create-prd
+```
+
+### [lark](skills/lark/)
+
+Use when operating Feishu/Lark resources with `lark-cli`, including docs, sheets, base, calendar, IM, mail, tasks, OKRs, drive, wiki, slides, whiteboards, approvals, attendance, contacts, meetings, and events.
+
+**Installation:**
+```bash
+npx skills add https://github.com/FradSer/skills --skill lark
+```
+
+Install `lark-cli` separately before using this skill.
+
+### [patent-architect](skills/patent-architect/)
+
+Use when researching prior art and generating Chinese patent application forms for technical inventions.
+
+**Installation:**
+```bash
+npx skills add https://github.com/FradSer/skills --skill patent-architect
 ```
 
 ### [tropes](skills/tropes/)
@@ -49,7 +87,7 @@ npx skills add https://github.com/FradSer/skills --skill update-readme
 1. Create a directory under `skills/<skill-name>/`.
 2. Add `SKILL.md` with YAML frontmatter (`name`, `description`) and the skill body.
 3. Optionally add `evals/evals.json` for evaluation cases.
-4. Run `/update-readme` to sync both README files.
+4. Run the `update-readme` skill to sync both README files.
 
 ## License
 

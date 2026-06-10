@@ -1,12 +1,21 @@
-# Skills by Frad ![](https://img.shields.io/badge/Claude-Skills-blue)
+# Skills by Frad ![](https://img.shields.io/badge/Agent-Skills-blue)
 
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT) [![Twitter Follow](https://img.shields.io/twitter/follow/FradSer?style=social)](https://twitter.com/FradSer)
 
 [English](README.md) | **简体中文**
 
-面向 Claude Code 的技能集合（专项工作流与领域知识）。
+面向多种 agent 运行环境的技能集合，包含专项工作流与领域知识。
 
 ## 可用技能
+
+### [agent-browser](skills/agent-browser/)
+
+当 agent 需要自动化浏览器操作、测试 Web 应用、截图、抓取页面或通过 `agent-browser` CLI 控制 Electron 应用时使用。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill agent-browser
+```
 
 ### [apple-events](skills/apple-events/)
 
@@ -22,6 +31,35 @@ npx skills add https://github.com/FradSer/skills --skill apple-events
 ```bash
 brew tap FradSer/brew
 brew install event
+```
+
+### [create-prd](skills/create-prd/)
+
+将产品想法转化为中文 PRD 时使用，支持输出本地 Markdown，也支持通过 `lark-cli` 创建飞书/Lark 文档。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill create-prd
+```
+
+### [lark](skills/lark/)
+
+使用 `lark-cli` 操作飞书/Lark 资源时使用，覆盖文档、表格、多维表格、日历、消息、邮箱、任务、OKR、云盘、知识库、幻灯片、白板、审批、考勤、通讯录、会议和事件等场景。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill lark
+```
+
+使用此技能前需单独安装 `lark-cli`。
+
+### [patent-architect](skills/patent-architect/)
+
+为技术发明检索现有技术并生成中文专利申请表时使用。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill patent-architect
 ```
 
 ### [tropes](skills/tropes/)
@@ -49,7 +87,7 @@ npx skills add https://github.com/FradSer/skills --skill update-readme
 1. 在 `skills/<skill-name>/` 下新建目录。
 2. 添加 `SKILL.md`，包含 YAML frontmatter（`name`、`description`）及技能正文。
 3. 可选：添加 `evals/evals.json` 作为评估用例。
-4. 运行 `/update-readme` 同步两个 README 文件。
+4. 运行 `update-readme` skill 同步两个 README 文件。
 
 ## License
 
