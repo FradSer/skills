@@ -17,22 +17,6 @@ Use when an agent needs to automate browser actions, test web apps, take screens
 npx skills add https://github.com/FradSer/skills --skill agent-browser
 ```
 
-### [apple-events](skills/apple-events/)
-
-Use when managing Apple Reminders or Calendars with the `event` CLI: create, view, update, and delete reminders and calendar events (macOS only).
-
-**Installation:**
-```bash
-npx skills add https://github.com/FradSer/skills --skill apple-events
-```
-
-Install the `event` CLI (required by apple-events) via Homebrew:
-
-```bash
-brew tap FradSer/brew
-brew install event
-```
-
 ### [create-prd](skills/create-prd/)
 
 Use when turning product ideas into Chinese PRDs, with local Markdown output or Feishu/Lark document creation through `lark-cli`.

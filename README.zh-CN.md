@@ -17,22 +17,6 @@
 npx skills add https://github.com/FradSer/skills --skill agent-browser
 ```
 
-### [apple-events](skills/apple-events/)
-
-使用 `event` CLI 管理 Apple 提醒事项与日历时使用：创建、查看、更新、删除提醒与日历事件（仅限 macOS）。
-
-**安装命令：**
-```bash
-npx skills add https://github.com/FradSer/skills --skill apple-events
-```
-
-通过 Homebrew 安装 `event` CLI（apple-events 依赖）：
-
-```bash
-brew tap FradSer/brew
-brew install event
-```
-
 ### [create-prd](skills/create-prd/)
 
 将产品想法转化为中文 PRD 时使用，支持输出本地 Markdown，也支持通过 `lark-cli` 创建飞书/Lark 文档。

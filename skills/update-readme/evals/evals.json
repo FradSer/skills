@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "Update the README files based on the current state of the project. The repo is at /Users/FradSer/Developer/FradSer/skills. Use this header format for README.md:\n\n# Skills by Frad ![](https://img.shields.io/badge/Agent-Skills-blue)\n\n[![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT) [![Twitter Follow](https://img.shields.io/twitter/follow/FradSer?style=social)](https://twitter.com/FradSer)\n\n**English** | [简体中文](README.zh-CN.md)",
-      "expected_output": "Updated README.md and README.zh-CN.md that accurately list all skills (agent-browser, apple-events, create-prd, lark, patent-architect, tropes, update-readme) with correct installation commands, proper header format, and consistent bilingual content",
+      "expected_output": "Updated README.md and README.zh-CN.md that accurately list all skills (agent-browser, create-prd, lark, patent-architect, tropes, update-readme) with correct installation commands, proper header format, and consistent bilingual content",
       "files": []
     },
     {
