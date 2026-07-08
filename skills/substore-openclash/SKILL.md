@@ -263,6 +263,112 @@ The user reported "WeChat images broken" AND "Xiaomi login fails" together, whic
 
 **Before touching SubStore/Clash/gateway for any "domestic service fails" report, first test from the client with `curl` and native `fetch` against the failing URL.** If those succeed, the gateway is fine — stop chasing the network and look at the client's HTTP library. The hour spent moving rules into SubStore for the Xiaomi case was wasted because the real bug was in the plugin. (The WeChat and tfo fixes were still legitimate and kept.)
 
+## homebridge-miot 426 "Upgrade Required" = SERVICETOKEN_EXPIRED (recurring every ~7 days)
+
+A SEPARATE failure mode from "Premature close" above. The user hits this repeatedly (~once a week), so recognize it fast and do NOT chase HTTP/2 / node-fetch / gateway.
+
+**Symptom:** `docker logs homebridge` shows, every poll cycle:
+```
+[空调插座] Using cached session for MiCloud connection! Session login time: <date ~7 days ago>
+[空调插座] Successfully connected to MiCloud! Setting up miot device from MiCloud connection!
+[空调插座] MiCloud connect error: Error: Request error with status 426 Upgrade Required
+```
+The cached session still "logs in" fine (login time is old but the cached serviceToken is accepted at login), then the FIRST device data request (`https://api.io.mi.com/app/home/device_list`, encrypted POST with `x-xiaomi-protocal-flag-cli: PROTOCAL-HTTP2`) returns **HTTP 426** with body `{"code":0,"message":"SERVICETOKEN_EXPIRED"}`.
+
+**Root cause:** Xiaomi serviceTokens expire every ~7 days. `useCachedSession: true` means the plugin reuses the cached token forever and never auto-relogs. When the token expires, the device-list endpoint returns 426+SERVICETOKEN_EXPIRED. The 426 status code is misleading — it looks like an HTTP/2 protocol issue but is NOT (verified: HTTP/2 and HTTP/1.1 both return 401 when unauthenticated; 426 only appears when the expired-but-signed token is presented). Confirmed expiry cadence from cachedSession file timestamps: ~7-8 days.
+
+**Diagnose (confirms it is token expiry, not network):**
+```bash
+# Add a temporary debug line before the throw in lib/protocol/MiCloud.js _requestEncrypted (~line 397)
+# to print res.status + body. 426 + SERVICETOKEN_EXPIRED body = token expiry. Then REVERT the debug line.
+# Or just: check the cachedSession file age. If >6 days, it's expiry.
+ssh frad-nas 'docker exec homebridge ls -la /homebridge/.miot_micloud/'
+```
+
+**Two resolution paths:**
+
+### Path A (temporary, if you MUST keep MiCloud): re-run 2FA
+```bash
+ssh frad-nas 'docker exec homebridge mv /homebridge/.miot_micloud/cachedSession /homebridge/.miot_micloud/cachedSession.expired-$(date +%Y%m%d)'
+ssh frad-nas 'docker restart homebridge'
+# logs now print: "Two factor authentication required, please visit the following url..."
+# Open that URL in a browser, complete 2FA, get the ticket, submit it in the Homebridge UI (port 8581) homebridge-miot plugin settings (verifyUrl + twoFaTicket).
+# New cachedSession is saved. Good for ~7 days, then repeats.
+```
+This is why the user reports "又不能用了" every week. Use Path B to break the cycle.
+
+### Path B (permanent root fix): switch the device to LOCAL MiIO
+
+The `lumi.acpartner.mcn02` (空调插座) has a stable LAN IP `10.10.0.198` and a valid token `000662ac87cd9dc57bc36b5a9816f917` (verify with a raw miio `miIO.info` UDP request — device returns model + the same token). Local MiIO needs no MiCloud, no serviceToken, no 2FA — eliminates the 7-day cycle entirely.
+
+**Verify local MiIO works before switching** (raw UDP, no plugin involved):
+```bash
+ssh frad-nas 'docker exec homebridge node -e "
+const dgram=require(\"dgram\"),crypto=require(\"crypto\");
+const ADDR=\"10.10.0.198\",TOKEN=\"000662ac87cd9dc57bc36b5a9816f917\";
+const t=Buffer.from(TOKEN,\"hex\"),k=crypto.createHash(\"md5\").update(t).digest(),iv=crypto.createHash(\"md5\").update(k).update(t).digest();
+const s=dgram.createSocket(\"udp4\");let did=0,stamp=0,st=0;
+const id=Math.floor(Math.random()*1000)+1;
+function cmd(){const j=JSON.stringify({id,method:\"miIO.info\",params:[]});const c=crypto.createCipheriv(\"aes-128-cbc\",k,iv);const e=Buffer.concat([c.update(Buffer.from(j)),c.final()]);const h=Buffer.alloc(32);h.writeInt16BE(0x2131,0);h.writeUInt16BE(32+e.length,2);h.writeUInt32BE(did,8);h.writeUInt32BE(stamp+Math.floor((Date.now()-st)/1000),12);crypto.createHash(\"md5\").update(h.slice(0,16)).update(t).update(e).digest().copy(h,16);s.send(Buffer.concat([h,e]),0,32+e.length,54321,ADDR);}
+s.on(\"message\",m=>{if(m.length===32){did=m.readUInt32BE(8);stamp=m.readUInt32BE(12);st=Date.now();cmd();}else{const d=crypto.createDecipheriv(\"aes-128-cbc\",k,iv);console.log(Buffer.concat([d.update(m.slice(32)),d.final()]).toString().replace(/\\\\0+\$/,\"\")).slice(0,200));s.close();process.exit(0);}});
+s.bind(()=>{const b=Buffer.from(\"21310020ffffffffffffffffffffffffffffffffffffffffffffffffffffffff\",\"hex\");s.send(b,0,b.length,54321,ADDR);});
+setTimeout(()=>{console.log(\"timeout\");process.exit(1);},4000);
+"'
+```
+Expect a JSON with `"model":"lumi.acpartner.mcn02"` and `"token":"000662ac..."`. If `miIO.info` works, local mode will work.
+
+**Three changes to switch permanently:**
+
+1. **config.json** (`/mnt/user/appdata/homebridge/config.json`): in the `miot` platform, DELETE the device-level `micloud` block AND the global `micloud` block. With no credentials present, the plugin cannot attempt MiCloud. (`forceMiCloud` defaults to false once the block is gone — do NOT just set it false, remove the whole block, otherwise the plugin still tries to log in with the leftover username/password and throws `Missing information required to connect to the MiCloud!`.) Back up first: `cp config.json config.json.bak.$(date +%Y%m%d_%H%M%S)`.
+2. **Patch the device module's `requiresMiCloud()` override.** This is the catch: `lib/modules/airconditioner/devices/lumi.acpartner.mcn02.js` hardcodes `requiresMiCloud() { return true; }`. Even with no micloud config, `shouldUseMiCloud()` returns true via `requiresMiCloud()`, so the plugin throws `MissingMiCloudCredentials` and never polls locally. Patch: `return true;` -> `return false;` in that method. Backup: `cp lumi.acpartner.mcn02.js lumi.acpartner.mcn02.js.bak`.
+3. `docker restart homebridge`.
+
+```bash
+# Patch the device module (idempotent-ish; back up first)
+ssh frad-nas 'docker exec homebridge sh -c "cp /homebridge/node_modules/homebridge-miot/lib/modules/airconditioner/devices/lumi.acpartner.mcn02.js /homebridge/node_modules/homebridge-miot/lib/modules/airconditioner/devices/lumi.acpartner.mcn02.js.bak"'
+ssh frad-nas 'docker exec homebridge node -e "
+const fs=require(\"fs\");
+const f=\"/homebridge/node_modules/homebridge-miot/lib/modules/airconditioner/devices/lumi.acpartner.mcn02.js\";
+let c=fs.readFileSync(f,\"utf8\");
+c=c.replace(/requiresMiCloud\(\) \{\n    return true;\n  \}/, \"requiresMiCloud() {\n    return false;\n  }\");
+fs.writeFileSync(f,c);
+"'
+```
+
+config.json change (remove micloud blocks) — write a local node script and scp it (avoid heredoc escaping):
+```javascript
+// /tmp/rm_micloud.js
+const fs = require("fs");
+const F = "/homebridge/config.json";
+const d = JSON.parse(fs.readFileSync(F, "utf8"));
+for (const p of d.platforms || []) {
+  if (p.platform !== "miot") continue;
+  delete p.micloud;                       // global
+  for (const dev of p.devices || []) delete dev.micloud;  // per-device
+}
+fs.writeFileSync(F, JSON.stringify(d, null, 2));
+```
+```bash
+scp /tmp/rm_micloud.js frad-nas:/tmp/
+ssh frad-nas 'docker cp /tmp/rm_micloud.js homebridge:/tmp/ && docker exec homebridge node /tmp/rm_micloud.js && docker exec homebridge rm /tmp/rm_micloud.js && docker restart homebridge'
+```
+
+**Verify local mode is active:**
+```bash
+ssh frad-nas 'docker logs --since 2m homebridge 2>&1 | grep 空调插座 | tail -6'
+```
+Should show: `Device found! Setting up miot device from local connection!` -> `Connected to device: lumi.acpartner.mcn02` -> `Doing initial property fetch.` -> `Starting property polling.` with NO `MiCloud connect error`, NO `426`, NO `Two factor authentication required`. If you see `Missing information required to connect to the MiCloud!`, the `requiresMiCloud` patch is missing (re-apply after plugin upgrade).
+
+**Persistence:** config.json and the patched `.js` are both under the bind mount `/mnt/user/appdata/homebridge -> /homebridge`, so they survive container restarts. Both are LOST on homebridge-miot reinstall/upgrade — re-apply (same caveat as the node-fetch patch above). After an upgrade, re-check `requiresMiCloud` in the device module and re-patch if it returned to `true`, and re-delete the micloud blocks from config.json if the UI re-added them.
+
+**When NOT to use local mode:** if the device has no stable LAN IP, or the token is unknown/unobtainable, or the device model genuinely requires MiCloud (some devices have cloud-only properties).
+
+**`lumi.acpartner.mcn02` (空调插座) CANNOT use local mode — do not attempt.** Tried 2026-07-01: after the config + requiresMiCloud patch, the accessory appeared in HomeKit but could NOT be controlled, and logs showed `Poll failed 4 times in a row! ... Call to device timed out` every poll. Root cause: homebridge-miot local mode uses miot-spec commands `get_properties`/`set_properties` (siid/piid), but this device's firmware `2.1.8_0016` (miio_ver 0.0.9, esp32) only supports the OLD `get_prop`/`set_prop` API. Verified with raw UDP: `get_prop ["power"]` → `["on"]` (works); `get_properties` with siid/piid → timeout. This is exactly why the device module hardcodes `requiresMiCloud() return true` — MiCloud's gateway does miot-spec→old-prop protocol translation that the local device cannot. So for this device, stay on MiCloud and mitigate the 7-day expiry via a scheduled re-login reminder (Path A), not local mode (Path B).
+
+**If you tried local mode and need to revert:** restore `lumi.acpartner.mcn02.js` from `lumi.acpartner.mcn02.js.bak`, restore `config.json` from the latest `config.json.bak.*` (the one made before removing micloud blocks), `docker restart homebridge`, then re-run 2FA (the cachedSession was deleted during the local-mode attempt) per Path A.
+
+**Lesson:** the recurring weekly 426 was not a bug to fix repeatedly — it was the wrong connection mode for a device that supports local MiIO. When a miot device has a stable LAN IP and known token, prefer local mode. This is the root fix; Path A (re-run 2FA) is only a band-aid for the ~7-day cycle. See memory [[homebridge-miot-local-mode]].
+
 ## tfo string type fix
 
 Symptom: `mihomo -t` reports `proxy N: 'tfo' expected type 'bool', got unconvertible type 'string'`. Root cause: airports put `tfo` as string `"0"` in node data; the `组合订阅` collection's Quick Setting Operator had `tfo: DEFAULT`, and `DEFAULT` preserves the original value without type coercion, so the string `"0"` flowed into the generated YAML.
