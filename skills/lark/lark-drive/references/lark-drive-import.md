@@ -1,6 +1,6 @@
 # drive +import
 
-> **前置条件：** 先阅读 [`../lark-shared/lark-shared.md`](../../lark-shared/lark-shared.md) 了解认证、全局参数和安全规则。
+> **前置条件：** 先阅读 [`../lark-shared/lark-shared.md`](../lark-shared/lark-shared.md) 了解认证、全局参数和安全规则。
 
 将本地文件（如 Word、TXT、Markdown、Excel、PPTX 等）导入并转换为飞书在线云文档（docx、sheet、bitable、slides）。底层统一通过 `POST /open-apis/drive/v1/import_tasks` 接口创建导入任务，并在 shortcut 内做有限次数轮询 `GET /open-apis/drive/v1/import_tasks/:ticket`。
 
@@ -175,4 +175,4 @@ lark-cli drive +task_result --scenario import --ticket <TICKET>
 ## 参考
 
 - [lark-drive](../lark-drive.md) -- 云空间（云盘/云存储）全部命令
-- [lark-shared](../../lark-shared/lark-shared.md) -- 认证和全局参数
+- [lark-shared](../lark-shared/lark-shared.md) -- 认证和全局参数

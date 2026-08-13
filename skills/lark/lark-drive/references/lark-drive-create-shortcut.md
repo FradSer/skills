@@ -1,7 +1,7 @@
 
 # drive +create-shortcut
 
-> **前置条件：** 先阅读 [`../lark-shared/lark-shared.md`](../../lark-shared/lark-shared.md) 了解认证、全局参数和安全规则。
+> **前置条件：** 先阅读 [`../lark-shared/lark-shared.md`](../lark-shared/lark-shared.md) 了解认证、全局参数和安全规则。
 
 在目标文件夹中为一个现有 Drive 文件创建快捷方式。
 
@@ -100,4 +100,4 @@ lark-cli drive +create-shortcut \
 ## 参考
 
 - [lark-drive](../lark-drive.md) -- 云空间（云盘/云存储）全部命令
-- [lark-shared](../../lark-shared/lark-shared.md) -- 认证和全局参数
+- [lark-shared](../lark-shared/lark-shared.md) -- 认证和全局参数

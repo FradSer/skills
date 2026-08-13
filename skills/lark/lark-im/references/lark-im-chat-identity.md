@@ -52,4 +52,4 @@ If a bot creates a group and `--users` includes users who are mutually invisible
 ## References
 
 - [lark-im](../lark-im.md) - all IM commands
-- [lark-shared](../../lark-shared/lark-shared.md) - authentication and global parameters
+- [lark-shared](../lark-shared/lark-shared.md) - authentication and global parameters

@@ -76,6 +76,7 @@
 | 「从下周开始改时间」「后面的都改」 | 编辑此次及后续 |
 | 「从下周开始不要了」「后面的都删」 | 删除此次及后续 |
 | 「就改这一次」「只删这一次」 | 仅此次 |
+| 「给明天的日程加个会议室」（且为重复日程） | 范围不明确，**必须询问用户** |
 | 未明确范围 | **必须询问用户** |
 
 ## 注意事项
@@ -87,4 +88,4 @@
 - [lark-calendar](../lark-calendar.md) — 日历全部命令
 - [lark-calendar-update](lark-calendar-update.md) — 更新日程 Shortcut
 - [lark-calendar-create](lark-calendar-create.md) — 创建日程 Shortcut
-- [lark-shared](../../lark-shared/lark-shared.md) — 认证和全局参数
+- [lark-shared](../lark-shared/lark-shared.md) — 认证和全局参数

@@ -1,6 +1,6 @@
 # wiki +move-to-drive
 
-> **前置条件：** 先阅读 [`../lark-shared/lark-shared.md`](../../lark-shared/lark-shared.md) 了解认证、全局参数和安全规则。
+> **前置条件：** 先阅读 [`../lark-shared/lark-shared.md`](../lark-shared/lark-shared.md) 了解认证、全局参数和安全规则。
 
 将已有 Wiki 节点移出知识库，并放到指定 Drive 文件夹；省略目标文件夹时放到当前调用身份的“我的空间”根目录。该操作始终创建异步任务，shortcut 会自动有限轮询。
 
@@ -119,4 +119,4 @@ lark-cli drive +task_result \
 - [lark-wiki](../lark-wiki.md) -- 知识库全部命令
 - [wiki +move](lark-wiki-move.md) -- Wiki 内移动与 Drive 文档迁入 Wiki
 - [drive +task_result](../../lark-drive/references/lark-drive-task-result.md) -- 超时后的任务续跑
-- [lark-shared](../../lark-shared/lark-shared.md) -- 认证和全局参数
+- [lark-shared](../lark-shared/lark-shared.md) -- 认证和全局参数

@@ -10,9 +10,9 @@
 
 执行本文档规则前：
 
-1. 按 [`../../lark-shared/lark-shared.md`](../../lark-shared/lark-shared.md) 处理身份、认证和权限。
+1. 按 [`../lark-shared/lark-shared.md`](../lark-shared/lark-shared.md) 处理身份、认证和权限。
 2. 解析 Drive 目标时，遵循 [`lark-drive-inspect.md`](lark-drive-inspect.md)、[`lark-drive-create-folder.md`](lark-drive-create-folder.md) 和 [`lark-drive-search.md`](lark-drive-search.md)。
-3. 解析 Wiki 目标时，遵循 [`../../lark-wiki/lark-wiki.md`](../../lark-wiki/lark-wiki.md)、[`../../lark-wiki/references/lark-wiki-node-get.md`](../../lark-wiki/references/lark-wiki-node-get.md) 和 [`../../lark-wiki/references/lark-wiki-node-create.md`](../../lark-wiki/references/lark-wiki-node-create.md)。
+3. 解析 Wiki 目标时，遵循 [`../lark-wiki/lark-wiki.md`](../lark-wiki/lark-wiki.md)、[`../../lark-wiki/references/lark-wiki-node-get.md`](../../lark-wiki/references/lark-wiki-node-get.md) 和 [`../../lark-wiki/references/lark-wiki-node-create.md`](../../lark-wiki/references/lark-wiki-node-create.md)。
 
 ## 状态：`PARSE_INPUT`
 

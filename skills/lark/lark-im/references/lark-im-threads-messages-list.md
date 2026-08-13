@@ -1,6 +1,6 @@
 # im +threads-messages-list
 
-> **Prerequisite:** Read [`../lark-shared/lark-shared.md`](../../lark-shared/lark-shared.md) first to understand authentication, global parameters, and safety rules.
+> **Prerequisite:** Read [`../lark-shared/lark-shared.md`](../lark-shared/lark-shared.md) first to understand authentication, global parameters, and safety rules.
 
 Fetch the reply message list inside a thread. When `im +chat-messages-list` returns messages that include a `thread_id` field, use this command to inspect all replies in that thread.
 
@@ -23,6 +23,9 @@ lark-cli im +threads-messages-list --thread omt_xxx --page-size 20
 # Pagination
 lark-cli im +threads-messages-list --thread omt_xxx --page-token <PAGE_TOKEN>
 
+# Fetch multiple pages automatically, up to 10 pages by default
+lark-cli im +threads-messages-list --thread omt_xxx --page-all
+
 # Output format options
 lark-cli im +threads-messages-list --thread omt_xxx --format pretty
 lark-cli im +threads-messages-list --thread omt_xxx --format table
@@ -43,8 +46,10 @@ lark-cli im +threads-messages-list --thread omt_xxx --dry-run
 | `--no-reactions` | No | Skip auto-fetching the `reactions` block |
 | `--download-resources` | No | Download message resources (image/file/audio/video/media + post-embedded, excluding stickers) into `./lark-im-resources/` and attach a `resources` block. Off by default |
 | `--order <order>` | No | Sort order: `asc` (default) / `desc` |
-| `--page-size <n>` | No | Number of items per page (default 50, range 1-500) |
-| `--page-token <token>` | No | Pagination token for the next page |
+| `--page-size <n>` | No | Number of items per page (default 50, range 1-50) |
+| `--page-token <token>` | No | Starting cursor, normally returned by a previous response |
+| `--page-all` | No | Automatically fetch and merge subsequent pages; capped by `--page-limit` |
+| `--page-limit <n>` | No | Maximum pages fetched by `--page-all` (default 10, range 1-1000) |
 | `--format <fmt>` | No | Output format: `json` (default) / `pretty` / `table` / `ndjson` / `csv` |
 | `--as <identity>` | No | Identity type: `user` (default) / `bot` |
 | `--dry-run` | No | Print the request only, do not execute it |
@@ -61,8 +66,7 @@ Thread messages do not support `start_time` / `end_time` filtering because of Fe
 
 ### 3. Pagination (`has_more` / `page_token`)
 
-- When the result includes `has_more=true`, use `page_token` to fetch the next page
-- If you need the complete thread, keep paginating; if you only need an overview, the first page is often enough
+Default is one page. With `--page-all`, `--page-token` sets the starting cursor; if `meta.pagination.complete=false`, resume from `meta.pagination.next_token` or raise `--page-limit`.
 
 ### 4. Recommended expansion strategy
 
@@ -112,4 +116,4 @@ Pass `--download-resources` to download every eligible resource (image/file/audi
 
 - [lark-im](../lark-im.md) - all message-related commands
 - [lark-im-chat-messages-list](lark-im-chat-messages-list.md) - fetch conversation messages (source of `thread_id`)
-- [lark-shared](../../lark-shared/lark-shared.md) - authentication and global parameters
+- [lark-shared](../lark-shared/lark-shared.md) - authentication and global parameters

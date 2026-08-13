@@ -24,7 +24,9 @@ TEMP_DIR="/tmp/lark-cli-sync-$$"
 
 # 本地文件（不被覆盖）
 # 本地文件（不被覆盖）；SYNC.md 位于插件根目录（$SCRIPT_DIR/../SYNC.md），不在本树内
-LOCAL_FILES=("SKILL.md")
+# 注意：本仓库布局中 scripts/（同步脚本自身所在目录）与 README.md 也在目标树内，
+# 必须列入保护，否则删除循环会把同步脚本自身删掉。
+LOCAL_FILES=("SKILL.md" "SYNC.md" "README.md" "scripts")
 
 # 共享 denest / 索引生成工具（repo 根 tools/skill-sync/）
 DENEST_SCRIPT="$SCRIPT_DIR/../../../tools/skill-sync/denest.py"
@@ -248,6 +250,8 @@ check_diff() {
         for lf in "${LOCAL_FILES[@]}"; do
             [ "$basename" = "$lf" ] && [ "$dirname" = "." ] && skip=true && break
         done
+        # 本仓库布局中 scripts/ 目录内是本地维护内容（同步脚本自身），不计入删除
+        [[ "$rel_path" == scripts/* ]] && skip=true
         [[ "$rel_path" == .backup* ]] && skip=true
         [ "$skip" = true ] && continue
 

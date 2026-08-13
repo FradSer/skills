@@ -1,6 +1,6 @@
 # im +chat-update
 
-> **Prerequisite:** Read [`../lark-shared/lark-shared.md`](../../lark-shared/lark-shared.md) first to understand authentication, global parameters, and safety rules.
+> **Prerequisite:** Read [`../lark-shared/lark-shared.md`](../lark-shared/lark-shared.md) first to understand authentication, global parameters, and safety rules.
 
 Update a group's name or description. Supports both **TAT (bot)** and **UAT (user)** identity.
 
@@ -81,4 +81,4 @@ Identity choice should follow [Group Chat Identity Rules](lark-im-chat-identity.
 ## References
 
 - [lark-im](../lark-im.md) - all IM commands
-- [lark-shared](../../lark-shared/lark-shared.md) - authentication and global parameters
+- [lark-shared](../lark-shared/lark-shared.md) - authentication and global parameters

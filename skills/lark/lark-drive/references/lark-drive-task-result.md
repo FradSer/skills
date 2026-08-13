@@ -1,7 +1,7 @@
 
 # drive +task_result
 
-> **前置条件：** 先阅读 [`../lark-shared/lark-shared.md`](../../lark-shared/lark-shared.md) 了解认证、全局参数和安全规则。
+> **前置条件：** 先阅读 [`../lark-shared/lark-shared.md`](../lark-shared/lark-shared.md) 了解认证、全局参数和安全规则。
 
 查询异步任务结果。该 shortcut 聚合了导入、导出、Drive 文件/文件夹移动/删除、Wiki 节点 / 文档迁入 Wiki、Wiki 节点移出 Wiki、Wiki 删除等多种异步任务的结果查询，统一接口方便调用。
 
@@ -329,6 +329,9 @@ lark-cli drive +export --token <SOURCE_DOC_TOKEN> --doc-type docx --file-extensi
 # 2. 继续查询导出结果
 lark-cli drive +task_result --scenario export --ticket <EXPORT_TICKET> --file-token <SOURCE_DOC_TOKEN>
 
+# 如果返回 rate_limit / 99991400：至少等待 1 分钟后重试同一条 +task_result；
+# 若仍限频，以 1 分钟为起点继续指数退避。
+
 # 3. 拿到 file_token 后下载
 lark-cli drive +export-download --file-token <EXPORTED_FILE_TOKEN>
 ```
@@ -352,4 +355,4 @@ lark-cli drive +export-download --file-token <EXPORTED_FILE_TOKEN>
 
 - [lark-drive](../lark-drive.md) -- 云空间（云盘/云存储）全部命令
 - [wiki +move-to-drive](../../lark-wiki/references/lark-wiki-move-to-drive.md) -- 将 Wiki 节点移出知识库并放入 Drive
-- [lark-shared](../../lark-shared/lark-shared.md) -- 认证和全局参数
+- [lark-shared](../lark-shared/lark-shared.md) -- 认证和全局参数

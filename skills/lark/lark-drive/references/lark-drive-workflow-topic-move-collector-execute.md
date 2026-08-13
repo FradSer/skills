@@ -10,7 +10,7 @@
 
 执行本文档规则前：
 
-1. 按 [`../../lark-shared/lark-shared.md`](../../lark-shared/lark-shared.md) 处理写操作确认、高风险操作、身份、认证和权限。
+1. 按 [`../lark-shared/lark-shared.md`](../lark-shared/lark-shared.md) 处理写操作确认、高风险操作、身份、认证和权限。
 2. 按 [`lark-drive-create-folder.md`](lark-drive-create-folder.md) 创建 Drive 文件夹。
 3. 按 [`lark-drive-move.md`](lark-drive-move.md) 执行 Drive 移动。
 4. 按 [`../../lark-wiki/references/lark-wiki-node-create.md`](../../lark-wiki/references/lark-wiki-node-create.md) 创建 Wiki 节点。

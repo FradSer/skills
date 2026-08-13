@@ -239,4 +239,4 @@ feishu-approval 可创建 disabled 配置，并读取或更新 `event_type`、�
 ## 不在本 skill 范围
 
 - 审批定义查询、Webhook 消费端实现、实时触发日志 tail：本期不支持。
-- 身份选择、权限不足处理、exit-10 审批、通用「禁输出密钥」红线、高风险操作通用框架：见 [`../../lark-shared/lark-shared.md`](../../lark-shared/lark-shared.md)，不在此重复。
+- 身份选择、权限不足处理、exit-10 审批、通用「禁输出密钥」红线、高风险操作通用框架：见 [`../lark-shared/lark-shared.md`](../lark-shared/lark-shared.md)，不在此重复。

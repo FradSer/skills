@@ -95,11 +95,11 @@ lark-cli vc +detail --meeting-ids <meeting.id>
 ## 参考
 
 - [lark-vc-agent-meeting-join](lark-vc-agent-meeting-join.md) — 对应的入会命令
-- [lark-vc-agent-meeting-list-active](lark-vc-agent-meeting-list-active.md) — 发现当前可读事件的进行中会议 ID
-- [lark-vc-agent-meeting-events](lark-vc-agent-meeting-events.md) — 会中事件流
+- [lark-vc-meeting-list-active](../../lark-vc/references/lark-vc-meeting-list-active.md) — 发现当前可读事件的进行中会议 ID
+- [lark-vc-meeting-events](../../lark-vc/references/lark-vc-meeting-events.md) — 会中事件流
 - [lark-vc-search](../../lark-vc/references/lark-vc-search.md) — 搜索历史会议（获取 meeting_id）
 - [lark-vc-recording](../../lark-vc/references/lark-vc-recording.md) — 查询 minute_token
 - [lark-vc-detail](../../lark-vc/references/lark-vc-detail.md) — 获取会议详情
 - [lark-vc-agent](../lark-vc-agent.md) — Agent 参会能力（本 skill）
-- [lark-vc](../../lark-vc/lark-vc.md) — 视频会议原子域（Meeting / Note 等核心概念）
-- [lark-shared](../../lark-shared/lark-shared.md) — 认证和全局参数
+- [lark-vc](../lark-vc/lark-vc.md) — 视频会议原子域（Meeting / Note 等核心概念）
+- [lark-shared](../lark-shared/lark-shared.md) — 认证和全局参数

@@ -1,6 +1,6 @@
 # OKR 量化指标管理
 
-> **前置条件：** 先阅读 [`lark-shared/lark-shared.md`](../../lark-shared/lark-shared.md) 了解认证、全局参数和安全规则。
+> **前置条件：** 先阅读 [`lark-shared/SKILL.md`](../lark-shared/lark-shared.md) 了解认证、全局参数和安全规则。
 
 管理 OKR 目标（Objective）和关键结果（Key Result）的量化指标，包括查询和更新指标。
 
@@ -268,5 +268,5 @@ lark-cli okr indicators patch \
 ## 参考
 
 - [lark-okr](../lark-okr.md) -- 所有 OKR 命令
-- [lark-shared](../../lark-shared/lark-shared.md) -- 认证和全局参数
+- [lark-shared](../lark-shared/lark-shared.md) -- 认证和全局参数
 - [okr +indicator-update](lark-okr-indicator-update.md) -- 快捷更新指标当前值（推荐）

@@ -4,7 +4,7 @@ Workflow id: `topic_move_collector`
 
 Risk / Structure: `R2-R3` / `S3`
 
-本文档实现已注册的主题资料收集 workflow。执行前必须先阅读 [`lark-drive-workflow.md`](lark-drive-workflow.md) 和 [`../../lark-shared/lark-shared.md`](../../lark-shared/lark-shared.md)，并遵循共享执行协议、Artifact Contract、Workflow Loading、认证和写入确认规则。
+本文档实现已注册的主题资料收集 workflow。执行前必须先阅读 [`lark-drive-workflow.md`](lark-drive-workflow.md) 和 [`../lark-shared/lark-shared.md`](../lark-shared/lark-shared.md)，并遵循共享执行协议、Artifact Contract、Workflow Loading、认证和写入确认规则。
 
 本文档负责定义本 workflow 的全局约束、状态机和渐进加载关系。具体阶段规则放在配套文档中，只有进入对应状态时才加载。
 
@@ -12,13 +12,13 @@ Risk / Structure: `R2-R3` / `S3`
 
 ## 必读上下文
 
-执行本 workflow 前，必须先阅读 [`../../lark-shared/lark-shared.md`](../../lark-shared/lark-shared.md)，用于处理身份、认证、权限和写操作确认规则。
+执行本 workflow 前，必须先阅读 [`../lark-shared/lark-shared.md`](../lark-shared/lark-shared.md)，用于处理身份、认证、权限和写操作确认规则。
 
 按阶段渐进加载其他 skill / 引用文档：
 
-- 目标是 Wiki 或个人文档库：[`../../lark-wiki/lark-wiki.md`](../../lark-wiki/lark-wiki.md)
-- 需要读取文档内容：[`../../lark-doc/lark-doc.md`](../../lark-doc/lark-doc.md) 和 [`../../lark-doc/references/lark-doc-fetch.md`](../../lark-doc/references/lark-doc-fetch.md)
-- 需要验证 Sheet 内容：[`../../lark-sheets/lark-sheets.md`](../../lark-sheets/lark-sheets.md)
+- 目标是 Wiki 或个人文档库：[`../lark-wiki/lark-wiki.md`](../lark-wiki/lark-wiki.md)
+- 需要读取文档内容：[`../lark-doc/lark-doc.md`](../lark-doc/lark-doc.md) 和 [`../../lark-doc/references/lark-doc-fetch.md`](../../lark-doc/references/lark-doc-fetch.md)
+- 需要验证 Sheet 内容：[`../lark-sheets/lark-sheets.md`](../lark-sheets/lark-sheets.md)
 - 需要 Drive 搜索：[`lark-drive-search.md`](lark-drive-search.md)
 - 需要资源解析：[`lark-drive-inspect.md`](lark-drive-inspect.md)
 
