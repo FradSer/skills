@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: Creates comprehensive GitHub pull requests with automated quality validation and security scanning, then hands off to review-pr for CI monitoring and reviewer-comment triage. This skill should be used when the user asks to "create a PR", "submit a pull request", or needs to merge completed work with full compliance checks.
+description: Creates comprehensive GitHub pull requests with automated quality validation and security scanning, then hands off to review-pr for automatic CI monitoring, reviewer-comment triage, and auto-merge. This skill should be used when the user asks to "create a PR", "submit a pull request", or needs to merge completed work with full compliance checks.
 ---
 
 # Create GitHub Pull Request
@@ -12,8 +12,8 @@ Execute automated PR creation workflow with comprehensive quality validation and
 - **Skill invocation**: hand the PR over to the sibling `review-pr` skill using the
   runtime's own skill-invocation mechanism — the handoff contract in
   `references/pr-creation-handoff.md` is what matters, not the call syntax.
-- **Tools**: asking the user happens in the conversation; the CI/comment watch is the
-  review-pr skill's script loop (`scripts/review-loop.sh`, persistent or re-entrant).
+- **Tools**: the CI/comment watch is the review-pr skill's script loop
+  (`scripts/review-loop.sh`, persistent or re-entrant). The pipeline never asks the user.
 
 ## Context
 
@@ -62,9 +62,7 @@ See `references/repository-templates.md` for template detection and compliance d
    - An **issue reference** (`Closes #456`, `Fixes #12`, or a bare `#456`) — use it verbatim as the auto-closing keyword in the PR body; do not re-derive or second-guess it. `resolve-issues` delegates here and passes the issue it just resolved this way.
    - A **free-text description** — use it as the basis for the PR title and the What/Why section.
    - `--draft` — pass through to `gh pr create` in step 6.
-   - `--no-monitor` — a Phase 4 opt-out only; never treat it as description text.
-   - `--auto-merge` — pass through to `review-pr` in Phase 4; turns on auto-merge on green in the review loop. Never treat it as description text.
-   Strip the flags before using the remainder as description/issue text.
+   Strip the flag before using the remainder as description/issue text.
 2. Identify and link any *further* related issues using GitHub CLI (in addition to any reference from `$ARGUMENTS`)
 3. Generate PR title (≤70 chars, imperative, no emojis)
 4. Assemble PR body following template in `references/pr-structure.md`
@@ -75,17 +73,15 @@ See `references/repository-templates.md` for template detection and compliance d
    - Set reviewers with `--reviewer` and assignees with `--assignee` when requested
    - Fill title/body automatically using `--fill` for simple changes
 8. Report final PR URL and status to user. Do NOT run a foreground `gh pr checks --watch` here — Phase 4 hands off to `review-pr`, which owns the persistent CI watch; a blocking `--watch` would stall the turn and duplicate that watch.
-9. **CRITICAL: Proceed to Phase 4.** Creating the PR is not the end of this skill. Skip Phase 4 only if `$ARGUMENTS` contains `--no-monitor` or the user explicitly opts out — never because CI looks green, no reviewers are assigned, or the change looks trivial.
+9. **CRITICAL: Proceed to Phase 4.** Creating the PR is not the end of this skill. Phase 4 always runs — never skip it because CI looks green, no reviewers are assigned, or the change looks trivial.
 
-## Phase 4: Post-PR Handoff (default on)
+## Phase 4: Post-PR Handoff (always on)
 
-**Trigger**: Default behavior — hand off unless `$ARGUMENTS` contains `--no-monitor` or the user opts out.
+**Trigger**: Unconditional — every PR created by this skill enters the review loop.
 
-**Goal**: Delegate CI monitoring and reviewer-comment triage to the dedicated skill.
+**Goal**: Delegate CI monitoring, reviewer-comment triage, and the merge to the dedicated skill. The loop runs fully automatically with no questions to the user.
 
-**Action**: After the PR is created, hand it to the `review-pr` skill to run the baseline review and launch the persistent CI + comment watch. The review-pr skill owns the watch script, the skeptical triage agent, the review → fix → commit+push → wait-for-review loop, through to the merge decision and the post-merge branch hygiene (remote + local head cleanup, `fetch --prune`, fast-forward `main`/`develop`). **Once CI is green and every comment is triaged, review-pr asks the user whether to merge (merge commit/squash/rebase/don't) BEFORE its closeout ceremony** — the summary comment and body rewrite run only on a merge choice. The merge ask is enforced by closeout state (`arm-closeout.sh`/`clear-closeout.sh` + stop-hook/in-prompt enforcement where the runtime supports it): review-pr arms a closeout state the moment the stop conditions hold and one turn-end per user turn is blocked until the decision resolves — the handoff cannot silently skip the ask. See `references/pr-creation-handoff.md` for the handoff contract including post-merge hygiene. This skill does not duplicate that cleanup; it is the handoff target's responsibility.
-
-**`--auto-merge` passthrough**: If `$ARGUMENTS` carried `--auto-merge`, pass it through to the review-pr invocation. It instructs review-pr to skip the merge question — the closeout ceremony (summary comment + body rewrite) still runs first — and auto-merge with `gh pr merge --merge` once CI is green and every non-escalate comment is triaged — see `references/pr-creation-handoff.md` for the contract and the escalate fallback. Pass it through **only** when the user explicitly set it; never infer it.
+**Action**: After the PR is created, hand it to the `review-pr` skill to run the baseline review and launch the persistent CI + comment watch. The review-pr skill owns the watch script, the skeptical triage agent, the review → fix → commit+push → wait-for-review loop, the auto-merge, and the post-merge branch hygiene (remote + local head cleanup, `fetch --prune`, fast-forward `main`/`develop`). **Once CI is green and every comment is triaged, review-pr runs its closeout ceremony (summary comment + body rewrite) and auto-merges with `gh pr merge --merge` — no merge question is asked.** Escalate/ambiguous comments are documented in the summary comment and the merge proceeds; the pipeline never pauses for user input. See `references/pr-creation-handoff.md` for the handoff contract including post-merge hygiene. This skill does not duplicate that cleanup; it is the handoff target's responsibility.
 
 **CRITICAL: this skill is the only PR-creating path.** Other skills (e.g. `resolve-issues`) delegate here instead of calling `gh pr create` themselves, precisely so no PR escapes the quality gate or this handoff. See `references/pr-creation-handoff.md` for the full contract. Do not add a bypass.
 

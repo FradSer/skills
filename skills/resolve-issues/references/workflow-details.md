@@ -69,15 +69,13 @@ During the TDD cycle, run project-specific quality checks for fast local feedbac
 1. **Push branch**: `git push -u origin <branch-name>`
 2. **Create PR**: **CRITICAL: never call `gh pr create` from this skill.** Invoke the
    `create-pr` skill with the issue reference (e.g. `create-pr: Closes #456`) — see
-   `pr-creation-handoff.md` for the full contract. Pass `--no-monitor` through only on an
-explicit user opt-out. Pass `--auto-merge` through only on an explicit user opt-in (it
-forwards through create-pr to `review-pr`, which auto-merges with a merge commit once CI is
-green and every non-escalate comment is triaged — escalate items suspend it and fall back to
-the explicit question).
-3. **After merge**: `review-pr` owns the merge decision and the post-merge cleanup — it
+   `pr-creation-handoff.md` for the full contract. The review loop is unconditional and
+   fully automatic: CI watch, comment triage, fixes, closeout ceremony, and auto-merge
+   with a merge commit run without any user question.
+3. **After merge**: `review-pr` owns the automatic closeout and the post-merge cleanup — it
    removes the linked worktree (`git worktree remove <path>`), switches to `main`, and syncs
    `main`/`develop` with origin. resolve-issues Phase 4 only runs as a fallback if review-pr's
-   cleanup was skipped (e.g. "Don't merge", an interrupt, or a fresh session) — check
+   cleanup was skipped (a merge failure or interrupt, or a fresh session) — check
    `git worktree list` first and `git worktree remove <path>` only if the worktree persists.
    - If uncommitted changes exist, removal will refuse; confirm with the user before
      discarding them.

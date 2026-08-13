@@ -59,12 +59,11 @@ Use isolated worktrees to avoid disrupting main development. Follow TDD cycle (r
 1. Push branch to remote with `git push -u origin <branch-name>`
 2. **CRITICAL: Do NOT call `gh pr create` here.** Invoke the `create-pr` skill with the issue reference (e.g. `create-pr: Closes #456`) via the runtime's skill mechanism. It is the only PR-creating path and owns the quality/security gate, the auto-closing-keyword linkage, the non-default-branch warning, and the mandatory `review-pr` handoff. See `references/pr-creation-handoff.md` for the full contract. Creating the PR directly skips all of it.
    - Append `--draft` to the arguments if the fix requires further feedback before review
-   - Append `--no-monitor` only when the user explicitly opts out of the review loop
-3. **This skill does not resume here.** `create-pr` reports the PR URL, and `review-pr` then owns the PR for the rest of its life: a persistent watch spanning turns, the triage/fix/push rounds, and the merge decision it asks the user to make. Do NOT wait inline, do NOT re-report the URL, and do NOT run Phase 4 speculatively.
+3. **This skill does not resume here.** `create-pr` reports the PR URL, and `review-pr` then owns the PR for the rest of its life: a persistent watch spanning turns, the triage/fix/push rounds, and the automatic closeout (summary comment + body rewrite + auto-merge). Do NOT wait inline, do NOT re-report the URL, and do NOT run Phase 4 speculatively.
 
 ## Phase 4: Post-Merge Cleanup (later turn, fallback)
 
-**Trigger**: The PR from Phase 3 has actually merged — normally a later turn, after `review-pr` completed its merge decision. **`review-pr`'s closeout now owns the post-merge cleanup** (worktree removal via `git worktree remove <path>`, switch to `main`, sync with origin), so this Phase runs only as a **fallback** when that cleanup was skipped: the user chose "Don't merge", an interrupt left the worktree behind, or this is a fresh session that cannot remove the worktree created by an earlier session. Never assume the worktree is gone — verify first.
+**Trigger**: The PR from Phase 3 has actually merged — normally a later turn, after `review-pr` completed its automatic closeout. **`review-pr`'s closeout now owns the post-merge cleanup** (worktree removal via `git worktree remove <path>`, switch to `main`, sync with origin), so this Phase runs only as a **fallback** when that cleanup was skipped: a merge failure or interrupt left the worktree behind, or this is a fresh session that cannot remove the worktree created by an earlier session. Never assume the worktree is gone — verify first.
 
 **Actions**:
 1. Verify the merge with `gh pr view <PR#> --json state -q .state` returning `MERGED`; never assume.

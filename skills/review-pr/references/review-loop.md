@@ -208,13 +208,15 @@ Be terse. One line per comment, verdict first.
 **After the triage agent returns:**
 1. Parse verdicts — apply ONLY `fix` verdicts
 2. Reply to each `reject` comment explaining why it was declined
-3. Surface each `escalate` verdict to the user with comment body + author + file context
+3. Record each `escalate` verdict (comment body + author + file context) for the closeout
+   summary comment — they are documented in the summary, never asked about and never
+   blocking.
 4. Commit and push all `fix` changes together in one round
 5. **Close out resolved comments** — for each comment that is now fully addressed (a `fix`
    that you applied and pushed, OR a `reject` you replied to with a reason), hide it as
    `OUTDATED` and resolve its thread. This keeps the PR review clean: only genuinely open
    comments stay visible. See "Closing out resolved comments" below for the exact commands.
-   `escalate` comments stay open until the user decides.
+   `escalate` comments stay open; each one is recorded for the closeout summary.
 
 Apply the validated fixes, commit and push them via inline git commands (`git add`, `git commit`, `git push`), then acknowledge each. **The reply endpoint depends on comment type** — the `/pulls/$PR/comments/<id>/replies` endpoint ONLY accepts inline review-comment ids; using it for an issue-level comment or a review summary hits the wrong resource and fails:
 
@@ -283,9 +285,9 @@ gh api graphql -f query="mutation { resolveReviewThread(input: {threadId: \"$THR
 Order per comment: for inline comments, reply first, then resolve the thread, then minimize
 the comment (minimize-after-resolve is fine; minimizing a comment does not resolve its thread).
 For issue-level comments, reply then minimize (no thread to resolve). Do NOT hide or resolve
-`escalate` comments — they stay open for the user.
+`escalate` comments — they stay open, and each is recorded for the closeout summary comment.
 
-### `[comment]` ambiguous — surface to the user
+### `[comment]` ambiguous — record and defer
 
 Ambiguous when ANY are true: questions a design decision; requests a scope change or new
 feature; unclear intent; needs business context not in the diff; multiple valid readings.
@@ -293,8 +295,10 @@ feature; unclear intent; needs business context not in the diff; multiple valid 
 Examples: "Why not use X instead of Y?", "This feels over-engineered",
 "Can we also handle Z?", "I'm not sure this is the right approach".
 
-For these: notify the user in the conversation (they may have stepped away), report the comment
-body + author + file context, and let the user decide. Do NOT reply to or guess at these.
+For these: do not guess, reply, or hide. Post a one-line reply stating the point is deferred
+(via the comment-type-appropriate reply endpoint above), record the comment (body + author +
+file context) for the closeout summary comment, and continue. Never notify the user and wait
+— the pipeline never pauses for user input.
 
 ## Lifecycle
 
@@ -307,11 +311,12 @@ body + author + file context, and let the user decide. Do NOT reply to or guess 
     1. Every `[ci]` check is terminal AND passing.
     2. Every review comment received so far has been reflected on (triaged, replied to,
        or fixed) AND every fully-resolved one is hidden + its thread resolved. The only
-       comments left visible on the PR are unresolved `escalate` items awaiting the user.
-    3. The user signals they are done with live coverage.
-  - **Hard cap (overrides the above)**: the ~2-hour max wall-clock is reached, OR the
-    user explicitly opts out. Surface the unsettled state to the user first (state which
-    of #1/#2 is still open), then stop — do NOT keep polling just because CI is still red
-    or comments remain. The cap exists so a stuck PR (red CI the skill correctly won't
-    auto-fix) cannot hold the watch open forever.
-- If the user wants ongoing review coverage, leave it persistent and stop on their signal.
+       comments left visible on the PR are unresolved `escalate` items, each recorded for
+       the closeout summary comment.
+    3. The pipeline has run to completion (closeout + auto-merge done).
+  - **Hard cap (overrides the above)**: the ~2-hour max wall-clock is reached. Surface the
+    unsettled state in the conversation first (state which of #1/#2 is still open), then
+    stop — do NOT keep polling just because CI is still red or comments remain. The cap
+    exists so a stuck PR (red CI the skill correctly won't auto-fix) cannot hold the watch
+    open forever.
+- The watch runs automatically; there is no user signal to wait for.

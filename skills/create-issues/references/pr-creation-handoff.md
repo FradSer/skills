@@ -10,15 +10,13 @@ No other skill calls `gh pr create`. Other skills (`resolve-issues`, and any fut
 
 1. **Pre-creation quality + security gate** — lint/test/build/type-check + secret scan, all must pass before `gh pr create`.
 2. **Auto-closing-keyword linkage + non-default-branch warning** — see `auto-closing-keywords.md`.
-3. **Mandatory handoff to `review-pr`** — the review → fix → commit+push → wait-for-review loop, until CI is green and every comment is triaged, then asks the user whether to merge (merge commit/squash/rebase/don't) **before** the closeout ceremony — the summary comment and body rewrite run only on a merge choice. This handoff is default-on; skipped only on explicit `--no-monitor` or user opt-out.
+3. **Mandatory handoff to `review-pr`** — the review → fix → commit+push → wait-for-review loop, until CI is green and every comment is triaged, then the closeout ceremony (summary comment + body rewrite) and auto-merge with `gh pr merge --merge`. The loop is fully automatic; no user input is requested at any point. Escalate/ambiguous comments are recorded in the summary comment, not asked about. This handoff is unconditional — there is no opt-out flag.
 4. **Post-merge branch + worktree hygiene** — delegated onward to `review-pr` (Phase 5 closeout), which deletes the remote + local head branches (when stack-safe and in the main worktree), removes the linked worktree (`git worktree remove <path>`), switches to `main`, fast-forwards local `main`/`develop` with origin, drops all other already-merged locals, runs `git worktree prune`, and scans for stale worktree directories. See `closeout.md`.
 
 ## Caller contract (resolve-issues and any future caller)
 
 - Invoke the `create-pr` skill with the issue reference **verbatim** — do not re-derive or second-guess the auto-closing keyword.
 - Pass `--draft` through if early feedback is needed.
-- Pass `--no-monitor` through **only** on an explicit user opt-out (never infer it).
-- Pass `--auto-merge` through **only** on an explicit user opt-in (never infer it). create-pr forwards it to `review-pr`; review-pr then skips the merge question — the closeout ceremony (summary comment + body rewrite) still runs first — and runs `gh pr merge --merge` once CI is green and every non-escalate comment is triaged. `escalate` items suspend the opt-in and fall back to the explicit question — see the `review-pr` skill closeout reference (Auto-merge branch).
 - Do NOT wait inline for the PR URL; do NOT re-report the PR; do NOT call `gh pr create`.
 - Creating the PR directly skips the quality gate, the auto-closing-keyword linkage, the non-default-branch warning, and the review-pr loop — all of it.
 
@@ -26,7 +24,7 @@ No other skill calls `gh pr create`. Other skills (`resolve-issues`, and any fut
 
 - No direct pushes to `main`/`develop`.
 - All changes go through PR + review + CI.
-- Every PR enters the `review-pr` loop after creation — review, fix what is verified, commit+push, wait for the next review round — until CI is green and every comment is triaged, then the user is asked whether to merge before the closeout ceremony.
+- Every PR enters the `review-pr` loop after creation — review, fix what is verified, commit+push, wait for the next review round — until CI is green and every comment is triaged, then the closeout ceremony runs and the PR auto-merges. The pipeline never asks the user to decide.
 - Use worktrees to isolate development work; clean up after successful merge.
 
-This file consolidates the four copies of the "only PR-creating path" contract that had drifted in their enumerated sub-items (duty order, `--no-monitor` placement, owned-duties list).
+This file consolidates the four copies of the "only PR-creating path" contract that had drifted in their enumerated sub-items (duty order, owned-duties list).
