@@ -2,10 +2,12 @@
 
 The watch is driven by a single bash script (`scripts/review-loop.sh`) that emits
 one tagged stdout line per new event for BOTH CI checks and PR comments. How the lines
-are consumed depends on the runtime: a persistent background watch that delivers each
-line as a notification across turns (the script was designed for that mode), or a
-re-entrant loop — run the script once per turn, read its output, and stop when the stop
-conditions hold. Do not block on a manual `while true` loop.
+are consumed depends on the runtime: the runtime's generic **monitor** (e.g. pi's
+`monitor_start`) runs the script in the background and delivers each line as a
+notification across turns (the script was designed for that mode), or a re-entrant
+loop — run the script once per turn, read its output, and stop when the stop
+conditions hold. The script is a plain executable emitting lines on stdout, so it
+works under any generic monitor: start it with `monitor_start command="PR=<n> REPO=<o>/<r> INTERVAL=<s> bash <skill-dir>/scripts/review-loop.sh" description="CI + new comments on PR #<n>"` and react to each `[ci]`/`[comment]` notification. Do not block on a manual `while true` loop.
 
 ## Poll interval by PR size
 
@@ -27,7 +29,7 @@ Read size via `gh pr view <PR> --repo <REPO> --json additions,deletions` and pic
 
 ## One Watch for CI and Comments
 
-Launch one persistent watch (or one re-entrant invocation per turn). The script below
+Launch one monitor (or one re-entrant invocation per turn). The script below
 emits:
 
 - `[ci] <name>: <bucket>` once per check reaching a terminal bucket (pass/fail/cancel/skipping)
@@ -47,11 +49,11 @@ Run it — it reads `PR`, `REPO`, and `INTERVAL` from env
 (or `--pr`/`--repo`/`--interval` flags) and emits the tagged lines above.
 
 ```bash
-# Persistent watch (runtimes with a background-watch tool):
+# Monitor (runtimes with a generic background monitor, e.g. pi's monitor_start):
 PR=<pr-number> REPO=<owner>/<repo> INTERVAL=<sec> \
   bash <skill-dir>/scripts/review-loop.sh
 
-# Re-entrant (no background tool): run once per turn, capture output, act on lines,
+# Re-entrant (no monitor): run once per turn, capture output, act on lines,
 # and re-run next turn until the stop conditions hold.
 PR=<pr-number> REPO=<owner>/<repo> INTERVAL=<sec> \
   bash <skill-dir>/scripts/review-loop.sh --once
@@ -71,9 +73,9 @@ Behavior notes:
 - `|| true` / `2>/dev/null` on every API call keeps one transient failure from killing
   the watch; `INTERVAL` is floored at 60s.
 
-Run it via a persistent background watch (runtimes that have one) with a specific
-description (e.g. `"CI + new comments on PR #<n> (5m poll)"`), or re-invoke it each turn
-with `--once` (runtimes without one). Stop it when done — never
+Run it under the runtime's generic monitor (runtimes that have one, e.g. pi's
+`monitor_start`) with a specific description (e.g. `"CI + new comments on PR #<n> (5m poll)"`),
+or re-invoke it each turn with `--once` (runtimes without one). Stop it when done — never
 leave it running once the PR is settled.
 
 ## You do not have to adopt review comments

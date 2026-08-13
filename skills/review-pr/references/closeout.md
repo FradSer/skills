@@ -19,6 +19,54 @@ comment with their one-line outcome and the merge proceeds. The merge is automat
 only deviations are a merge failure (surface the error, stop, leave the PR open) or a
 hard-cap stop (see `review-loop.md`).
 
+### Arm the closeout state first
+
+The moment the Phase 4 gate holds, arm the closeout state **before anything else**:
+
+```bash
+bash <skill-dir>/scripts/arm-closeout.sh "$PR"
+```
+
+Arming writes `.git/review-pr-closeout.json` (resolved via `git rev-parse --git-dir`, so it
+works from any cwd in the repo). While the file exists, the runtime must not end the turn
+until the closeout is resolved. On runtimes with stop hooks, `scripts/closeout-stop.sh`
+blocks one turn-end per user turn with a message naming the PR and the pending closeout;
+on runtimes without hooks, the agent enforces the same rule in-prompt: never end the turn
+while the state file exists — the reminder must not loop, so it fires once per turn. A
+user interrupt also bypasses it — the message always names the clear script as the escape
+hatch.
+
+Clear it the moment the closeout is resolved:
+
+```bash
+bash <skill-dir>/scripts/clear-closeout.sh "$PR"
+```
+
+Clear after the auto-merge completes or aborts (merge failure, interrupt, or the gate no
+longer holds). Leaving it armed blocks the next stop; the enforcement message repeats the
+clear path as the escape hatch. The clear script only removes state matching `$PR`, so an
+interrupted closeout for one PR never deletes a pending one for another.
+
+### When enforcement fires: verify the problem is real
+
+Enforcement blocks on the state file alone — it cannot know whether the closeout was
+already resolved and the clear step was simply missed. That happens after an interrupt (the
+closeout ran, then the turn died before the clear), a resumed session, a summary already
+posted, or a merge that already landed. So before acting on a block, **verify the pending
+closeout actually exists**:
+
+- **Simple checks — judge directly.** e.g. `gh pr view "$PR" --repo "$REPO" --json state,mergedAt`
+  (a MERGED PR means the closeout is done and the state is stale), or the
+  `<!-- review-pr:summary -->` marker lookup (a posted summary means the ceremony already
+  ran).
+- **Complex or ambiguous situations — spawn an independent subagent with clean context.**
+  e.g. reconstructing whether the ceremony ran earlier in the session, or whether the gate
+  (CI green, every comment triaged) still holds after events that landed after arming.
+
+A verified-stale state means the enforcement already did its job: clear it
+(`clear-closeout.sh "$PR"`) and end the turn — do not re-run the ceremony or the merge. A
+verified-real state: proceed with the closeout as below.
+
 ## The ceremony
 
 The PR page should read as an accurate, self-contained record of the change: a summary
@@ -172,10 +220,12 @@ gh pr merge "$PR" --repo "$REPO" --merge --delete-branch
   stack-safe, leave the local branch for the worktree removal (`git worktree remove <path>`).
 - Report the merge in the conversation (one line, e.g. "PR #<n>: CI green, comments triaged —
   merged."). This is a notification, not a question.
+- Clear the closeout state (`clear-closeout.sh "$PR"`) immediately after the merge lands.
 
 **If the merge fails** (branch protection, required reviews, stale base): surface the error
-in the conversation, stop the watch, and leave the PR open for manual handling. Do not retry
-with different flags, do not force-push, do not re-run the ceremony.
+in the conversation, clear the closeout state (`clear-closeout.sh "$PR"`), stop the watch,
+and leave the PR open for manual handling. Do not retry with different flags, do not
+force-push, do not re-run the ceremony.
 
 ## After a successful merge
 
@@ -247,18 +297,21 @@ land docs after the code PR merges so the author can grep the real value.
 
 1. The Phase 4 gate holds (CI green, every comment reflected on). Escalate items are
    recorded for the summary; they do not block.
-2. Hide + resolve the fully-addressed comments (Phase 3 closeout) **first** — the summary
+2. **Arm the closeout state** (`arm-closeout.sh "$PR"`) — enforcement requires the
+   automatic closeout from here on; the state file is cleared at step 5.
+3. Hide + resolve the fully-addressed comments (Phase 3 closeout) **first** — the summary
    comment should land on a clean PR. Re-sweep if a final CI push landed after the last
    closeout pass.
-3. Post the summary comment, capturing its URL.
-4. Rewrite the title/body, linking the Review-cycle line to that URL.
-5. Auto-merge with `gh pr merge --merge --delete-branch` (omitting `--delete-branch` in a
-   linked worktree, same rule as above).
-6. After a successful merge: remove the linked worktree (with `git worktree remove <path>` or
+4. Post the summary comment, capturing its URL.
+5. Rewrite the title/body, linking the Review-cycle line to that URL.
+6. Auto-merge with `gh pr merge --merge --delete-branch` (omitting `--delete-branch` in a
+   linked worktree, same rule as above), then **clear the closeout state**
+   (`clear-closeout.sh "$PR"`) — completed or aborted.
+7. After a successful merge: remove the linked worktree (with `git worktree remove <path>` or
    the runtime's own mechanism) + switch to `main` + sync `main`/`develop` + delete merged
    local branches + `git worktree prune` + scan stale worktrees (see "After a successful
    merge" above).
-7. Stop the watch.
+8. Stop the watch (monitor) — the closeout state is already cleared.
 
 Steps 2–4 (the ceremony) are idempotent: re-running `gh pr edit` with the same title/body is
 a no-op, and the marker lookup patches the existing summary rather than duplicating it (which
@@ -274,6 +327,10 @@ stop. Do not re-ask anything — the pipeline never asks.
 - Do not ask the user whether to merge, which strategy to use, or how to handle an escalate
   or ambiguous comment. The pipeline is fully automatic; escalate items are documented in
   the summary comment with their one-line outcome.
+- Do not end the turn with the closeout state armed — enforcement blocks it. Clear it
+  (`clear-closeout.sh "$PR"`) as soon as the closeout resolves (merge completed or aborted);
+  while it stays armed, one turn-end per user turn is blocked with a message naming the PR
+  and the pending closeout.
 - Do not run the ceremony (summary comment + body rewrite) before the gate holds.
 - Do not rewrite the title/body to claim something the diff does not deliver.
 - Do not include the closeout summary inside the PR body AND as a comment — the body

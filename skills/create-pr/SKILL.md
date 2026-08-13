@@ -13,7 +13,8 @@ Execute automated PR creation workflow with comprehensive quality validation and
   runtime's own skill-invocation mechanism — the handoff contract in
   `references/pr-creation-handoff.md` is what matters, not the call syntax.
 - **Tools**: the CI/comment watch is the review-pr skill's script loop
-  (`scripts/review-loop.sh`, persistent or re-entrant). The pipeline never asks the user.
+  (`scripts/review-loop.sh`), run under the runtime's generic monitor (e.g. pi's
+  `monitor_start`) or re-entrant per turn. The pipeline never asks the user.
 
 ## Context
 

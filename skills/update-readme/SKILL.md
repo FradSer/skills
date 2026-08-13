@@ -1,9 +1,17 @@
 ---
 name: update-readme
-description: Updates README.md and README.zh-CN.md to reflect the project's current state. Use this skill whenever the user asks to "update the README", "sync the docs", "update documentation", "reflect latest changes in README", or wants both the English and Chinese READMEs to match the current project.
+description: Updates ONLY the root-level README.md and README.zh-CN.md. NEVER update README files in subdirectories, packages, modules, or nested paths. Use this skill whenever the user asks to "update the README", "sync the docs", "update documentation", "reflect latest changes in README", or wants both the English and Chinese READMEs to match the current project.
 ---
 
 # Update README
+
+## CRITICAL: Root-Only Scope
+
+> **This skill operates ONLY on the root-level `README.md` and `README.zh-CN.md` of the project. It NEVER touches README files in subdirectories, packages, modules, or any nested path.**
+
+Root-level means the directory that contains the project's main manifest (`package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`, etc.) or the git repository root.
+
+If the user asks about a README in a subdirectory, do NOT apply this skill. Handle it as a plain file edit without the update-readme workflow.
 
 Keep README.md (English, primary) and README.zh-CN.md (Simplified Chinese, secondary) in sync with the project's actual current state. Both files must be accurate, complete, and consistent with each other.
 
