@@ -7,13 +7,13 @@ closeout ceremony (summary comment + body rewrite) runs only on a merge choice; 
 merge" skips it and wraps up.
 
 Do this exactly once, at the end, after the Phase 4 stop conditions hold. The merge step is
-the last action before `TaskStop`.
+the last action before the watch is stopped.
 
 ## Merge decision — ask first
 
 The Phase 4 gate holds: every `[ci]` check terminal + passing, every comment reflected on
 (resolved ones hidden + threads resolved; only `escalate` items remain visible). Ask the
-user — via `AskUserQuestion` — whether to merge, before writing anything. **Merging is
+user — in the conversation — whether to merge, before writing anything. **Merging is
 hard to reverse and outward-facing**, so it requires an explicit user choice every time;
 never auto-merge, and never merge past open `escalate` comments without surfacing them.
 
@@ -27,12 +27,12 @@ bash <skill-dir>/scripts/arm-closeout.sh "$PR" --auto-merge   # opt-in
 ```
 
 Arming writes `.git/review-pr-closeout.json` (resolved via `git rev-parse --git-dir`, so it
-works from any cwd in the repo). While the file exists, the skill's Stop hook
-(`scripts/closeout-stop.sh`) blocks one turn-end per user turn with a message naming the PR and
-the missing step — the merge ask cannot be skipped by a premature or hallucinated stop, and
-the reminder does not loop: the hook passes through (`stop_hook_active`) on the second
-end-attempt of the same turn, so the turn ends once the reminder is injected. A user
-interrupt also bypasses it — the hook's message always names the clear script as the escape
+works from any cwd in the repo). While the file exists, the runtime must not end the turn
+until the closeout is resolved. On runtimes with stop hooks, `scripts/closeout-stop.sh`
+blocks one turn-end per user turn with a message naming the PR and the missing step; on
+runtimes without hooks, the agent enforces the same rule in-prompt: never end the turn
+while the state file exists — the reminder must not loop, so it fires once per turn. A
+user interrupt also bypasses it — the message always names the clear script as the escape
 hatch.
 
 Clear it the moment the decision is resolved:
@@ -44,13 +44,13 @@ bash <skill-dir>/scripts/clear-closeout.sh "$PR"
 Clear after the user answers (any choice, including "Don't merge"), after the auto-merge
 completes, or after the opt-in aborts (merge failure, user interrupt, or the gate no longer
 holds — auto-merge is single-shot and consumed either way). Leaving it armed blocks the next
-stop; the hook's message repeats the clear path as the escape hatch. The clear script only
+stop; the enforcement message repeats the clear path as the escape hatch. The clear script only
 removes state matching `$PR`, so an interrupted closeout for one PR never deletes a pending
 one for another.
 
-### When the hook fires: verify the problem is real
+### When enforcement fires: verify the problem is real
 
-The Stop hook blocks on the state file alone — it cannot know whether the closeout was
+Enforcement blocks on the state file alone — it cannot know whether the closeout was
 already resolved and the clear step was simply missed. That happens after an interrupt (the
 ask was answered, then the turn died before the clear), a resumed session, a summary already
 posted, or a merge that already landed (manual or otherwise). So before acting on a block,
@@ -85,10 +85,11 @@ with eyes open. The user may still choose to merge — that is their call, not t
   (`--merge --delete-branch` / `--squash --subject "<title>" --delete-branch` / `--rebase --delete-branch`).
   `--delete-branch` is safe only in the main worktree when no open PR still bases on that head.
   If the closeout runs in a linked worktree (`resolve-issues`), omit `--delete-branch`
-  — delete the remote head separately if stack-safe, leave the local branch for `ExitWorktree`.
+  — delete the remote head separately if stack-safe, leave the local branch for the
+  worktree removal (`git worktree remove <path>`).
   Never `--auto`.
-- **On "Don't merge"**: skip the ceremony and post-merge hygiene entirely; fall through to
-  `TaskStop`. The ceremony is idempotent — if the user later wants the record, re-running
+- **On "Don't merge"**: skip the ceremony and post-merge hygiene entirely; stop the watch.
+  The ceremony is idempotent — if the user later wants the record, re-running
   closeout patches the existing summary rather than duplicating it.
 
 ## The ceremony (only on a merge choice)
@@ -230,7 +231,7 @@ the linked comment holds the full comment-by-comment audit trail, and neither re
 
 ## Auto-merge branch (`--auto-merge` opt-in)
 
-When `--auto-merge` was parsed in Phase 1, the closeout swaps the `AskUserQuestion` step for
+When `--auto-merge` was parsed in Phase 1, the closeout swaps the merge-question step for
 an automatic merge — but only under the same stop conditions that gate the question. The flag
 is an opt-out from the *prompt*, not from the *readiness gate* or the *ceremony*: the summary
 comment + body rewrite still run first, so the merged PR carries the record.
@@ -242,8 +243,8 @@ comment + body rewrite still run first, so the merged PR carries the record.
 3. No open `escalate` comments. ← this is the hard switch
 
 **If any `escalate` comment is still open, the auto-merge opt-in is suspended for this closeout.**
-**Re-arm the closeout state without `--auto-merge`** (`arm-closeout.sh "$PR"`) so the Stop
-hook enforces the explicit ask, then fall back to the explicit `AskUserQuestion` (four
+**Re-arm the closeout state without `--auto-merge`** (`arm-closeout.sh "$PR"`) so the
+enforcement requires the explicit ask, then fall back to the explicit question (four
 options, merge listed first as Recommended) and include the escalate count in the question
 text. Do not merge past escalate items just because the flag was set — escalate means "needs
 human judgment", and auto-merging past it is exactly the over-reach the explicit-choice rule
@@ -252,13 +253,13 @@ exists to prevent. The user may still pick merge from the question; that is thei
 **If the gate holds (CI green, zero open escalate), execute:**
 1. Run the ceremony first — summary comment + body rewrite (above), so the record is on the
    PR before the merge lands.
-2. Send a `PushNotification` that the PR is about to auto-merge — merge is hard to reverse and
+2. Warn the user the PR is about to auto-merge — merge is hard to reverse and
    outward-facing, so warn the user before it lands (they may still interrupt to stop it).
    One line: e.g. "PR #<n>: CI green, no open comments — auto-merging with a merge commit."
 3. Run `gh pr merge "$PR" --repo "$REPO" --merge --delete-branch` (safe only in the main
    worktree when no open PR still bases on that head; in a linked worktree, omit
    `--delete-branch` — delete the remote head separately if stack-safe, leave the local
-   branch for `ExitWorktree`). Never `--auto`.
+   branch for the worktree removal). Never `--auto`.
 4. Clear the closeout state (`clear-closeout.sh "$PR"`) — the opt-in is consumed by the merge.
 
 **Single-shot.** Auto-merge is a one-shot choice for this PR. If the merge fails (branch
@@ -271,7 +272,7 @@ once the opt-in is resolved (completed or aborted) — while it stays armed, one
 user turn is blocked until the decision is settled.
 
 **On a successful auto-merge**, proceed to "After a successful merge" hygiene exactly as the
-explicit-choice path would. `TaskStop` the Monitor.
+explicit-choice path would. Stop the watch.
 
 If merge fails (branch protection, required reviews, stale base), surface the error; do not
 retry with different flags or force-push.
@@ -285,9 +286,10 @@ Default cleanup — run all of these unconditionally on a merge choice (no opt-o
    ```bash
    [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ] && echo "linked worktree"
    ```
-   If linked, `ExitWorktree action:"remove"` — it deletes the worktree and its local branch
+   If linked, remove the worktree with `git worktree remove <path>` (or the runtime's own
+   worktree-exit mechanism) — it deletes the worktree and its local branch
    and returns the session to the main worktree. If it refuses (uncommitted changes), confirm
-   with the user before `discard_changes: true`. Then delete the remote head separately if
+   with the user before discarding them. Then delete the remote head separately if
    stack-safe (no open PR still bases on it).
 2. **Switch to `main` and sync.** Now in the main worktree, run:
    ```bash
@@ -344,8 +346,8 @@ land docs after the code PR merges so the author can grep the real value.
 ## Order and idempotency
 
 1. **Arm the closeout state** (`arm-closeout.sh "$PR"`, appending `--auto-merge` when opted
-   in) — the Stop hook enforces the merge decision from here on.
-2. **Ask the merge question** via `AskUserQuestion` (Phase 4 gate holds). This is the first
+   in) — the enforcement requires the merge decision from here on.
+2. **Ask the merge question** in the conversation (Phase 4 gate holds). This is the first
    closeout step — the ceremony below runs only on a merge choice. Clear the closeout state
    (`clear-closeout.sh "$PR"`) the moment the answer is in, any choice.
 3. On a merge choice: hide + resolve the fully-addressed comments (Phase 3 closeout)
@@ -362,14 +364,17 @@ until the comment is posted. Never rewrite the body first and backfill the link 
      strategy the user chose, appending `--delete-branch` (see "Merge decision" above for
      the linked-worktree caveat). Never `--auto`.
    - **`--auto-merge` opt-in**: the gate held with zero open `escalate` items, so step 2
-     was skipped; after the ceremony (steps 3–5), send a `PushNotification` then run
+     was skipped; after the ceremony (steps 3–5), warn the user then run
      `gh pr merge --merge --delete-branch` directly (omitting `--delete-branch` in a linked
      worktree, same rule as the explicit path). If any `escalate` item is open, suspend
      auto-merge and fall back to the explicit question. Clear the closeout state after the
      merge completes or after the opt-in aborts (failure, interrupt, or gate no longer holds)
      — it is single-shot, consumed either way.
-7. After a successful merge: remove the linked worktree (`ExitWorktree action:"remove"`) + switch to `main` + sync `main`/`develop` + delete merged local branches + `git worktree prune` + scan stale worktrees (see "After a successful merge" above).
-8. `TaskStop` the Monitor (the closeout state is already cleared).
+7. After a successful merge: remove the linked worktree (with `git worktree remove <path>` or
+   the runtime's own mechanism) + switch to `main` + sync `main`/`develop` + delete merged
+   local branches + `git worktree prune` + scan stale worktrees (see "After a successful
+   merge" above).
+8. Stop the watch (the closeout state is already cleared).
 
 Steps 3–5 (the ceremony) are idempotent: re-running `gh pr edit` with the same title/body is
 a no-op, and the marker lookup patches the existing summary rather than duplicating it (which
@@ -387,7 +392,7 @@ per user turn is blocked until then.
 
 - Do not ask to merge or post the summary while comments are still open or CI is still red —
   the gate must hold first, and the summary would claim a merge-ready state that is not true.
-- Do not end the turn with the closeout state armed — the Stop hook blocks it. Clear it
+- Do not end the turn with the closeout state armed — enforcement blocks it. Clear it
   (`clear-closeout.sh "$PR"`) as soon as the decision resolves; while it stays armed, one
   turn-end per user turn is blocked with a message naming the PR and the missing step.
 - Do not run the ceremony (summary comment + body rewrite) before the user's merge choice —
@@ -402,7 +407,7 @@ per user turn is blocked until then.
 - Do not write the summary in the AI's voice or sign it as AI-generated; the user asked for
   it in their name.
 - Do not merge without the user's explicit choice OR the `--auto-merge` opt-in — the merge
-  requires an explicit `AskUserQuestion` choice every time, unless the user set `--auto-merge`
+  requires an explicit user choice every time, unless the user set `--auto-merge`
   AND the pre-merge gate holds with zero open `escalate` items. Never call
   `gh pr merge --auto` (GitHub's background auto-merge feature, which fires whenever it can and
   bypasses your own gate); under `--auto-merge` use `gh pr merge --merge` (a direct merge you

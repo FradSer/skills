@@ -1,18 +1,22 @@
 #!/usr/bin/env bash
 #
-# Stop hook — enforce the review-pr closeout: the merge decision must be
-# resolved before the turn ends.
+# Stop-hook adapter — enforce the review-pr closeout on runtimes with stop hooks.
+# The DEFAULT enforcement is in-prompt (see SKILL.md Runtime notes): never end
+# the turn while the closeout state is armed. On runtimes that provide stop
+# hooks (e.g. Claude Code), wire this script as the Stop hook so the rule is
+# enforced mechanically; on runtimes without hooks, apply the same rule in the
+# prompt. The script fails open everywhere else.
 #
 # Background: the review-pr skill runs on prompt alone, so the Phase 5 merge ask
 # ("ask the user whether to merge before any closeout ceremony") can be skipped
 # by a hallucinated or premature stop. The skill arms a state file
 # (.git/review-pr-closeout.json) the moment Phase 4's stop conditions hold and
 # clears it once the user's merge choice is in (or the --auto-merge closeout ran
-# or aborted). While the file exists, this hook blocks one turn-end per user
+# or aborted). While the file exists, this adapter blocks one turn-end per user
 # turn with a message naming the PR and the missing step — the ask cannot
 # silently vanish, and it does not loop: after the single block the turn ends.
 #
-# Guard rails (this hook fires on EVERY turn end — Stop has no matcher):
+# Guard rails (a Stop hook fires on EVERY turn end — Stop has no matcher):
 #   - Fails open: no jq, no git repo, no state file, or a subagent stop
 #     (agent_id present in the input — a subagent cannot ask the user) all pass.
 #   - Fires at most once per user turn: stop_hook_active is true when the turn
@@ -26,7 +30,6 @@
 #
 # Input (stdin JSON): Stop common fields + stop_hook_active,
 #   last_assistant_message, background_tasks, session_crons.
-# Reference: https://code.claude.com/docs/en/hooks (Stop)
 
 set -uo pipefail
 
@@ -72,11 +75,11 @@ SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CLEAR_SCRIPT="$SKILL_DIR/scripts/clear-closeout.sh"
 
 if [ "$MODE" = "auto" ]; then
-  msg="review-pr closeout for PR #${PR} is pending in --auto-merge mode: verify the pre-merge gate still holds (CI green, no open escalate comments), then run the closeout — post the summary comment, rewrite the title/body, then gh pr merge --merge. First verify the pending closeout is real: the state file is stale (a false alarm) if the closeout was already resolved — ask already answered, summary already posted, or the PR already merged. Judge simple checks directly (e.g. gh pr view --json state,mergedAt, the <!-- review-pr:summary --> marker lookup); for complex or ambiguous situations spawn an independent subagent with clean context to verify. If the state is stale, the merge already failed, the user interrupted, or the gate does not hold (new comments, CI re-ran red), do NOT merge: run bash ${CLEAR_SCRIPT} ${PR} and fall back to the explicit AskUserQuestion, or stop if the user declined."
+  msg="review-pr closeout for PR #${PR} is pending in --auto-merge mode: verify the pre-merge gate still holds (CI green, no open escalate comments), then run the closeout — post the summary comment, rewrite the title/body, then gh pr merge --merge. First verify the pending closeout is real: the state file is stale (a false alarm) if the closeout was already resolved — ask already answered, summary already posted, or the PR already merged. Judge simple checks directly (e.g. gh pr view --json state,mergedAt, the <!-- review-pr:summary --> marker lookup); for complex or ambiguous situations spawn an independent subagent with clean context to verify. If the state is stale, the merge already failed, the user interrupted, or the gate does not hold (new comments, CI re-ran red), do NOT merge: run bash ${CLEAR_SCRIPT} ${PR} and fall back to the explicit merge question, or stop if the user declined."
 else
-  msg="review-pr closeout for PR #${PR} is pending: ask the user whether to merge via AskUserQuestion before ending this turn — the closeout ceremony (summary comment + body rewrite) runs only on a merge choice, and \"Don't merge\" skips it. First verify the pending closeout is real: the state file is stale (a false alarm) if the closeout was already resolved — ask already answered, summary already posted, or the PR already merged. Judge simple checks directly (e.g. gh pr view --json state,mergedAt, the <!-- review-pr:summary --> marker lookup); for complex or ambiguous situations spawn an independent subagent with clean context to verify. If the state is stale, or the user already answered or explicitly declined, run bash ${CLEAR_SCRIPT} ${PR} to release the closeout."
+  msg="review-pr closeout for PR #${PR} is pending: ask the user whether to merge before ending this turn — the closeout ceremony (summary comment + body rewrite) runs only on a merge choice, and \"Don't merge\" skips it. First verify the pending closeout is real: the state file is stale (a false alarm) if the closeout was already resolved — ask already answered, summary already posted, or the PR already merged. Judge simple checks directly (e.g. gh pr view --json state,mergedAt, the <!-- review-pr:summary --> marker lookup); for complex or ambiguous situations spawn an independent subagent with clean context to verify. If the state is stale, or the user already answered or explicitly declined, run bash ${CLEAR_SCRIPT} ${PR} to release the closeout."
 fi
-msg="${msg} Full verification procedure: ${SKILL_DIR}/references/closeout.md (When the hook fires)."
+msg="${msg} Full verification procedure: ${SKILL_DIR}/references/closeout.md (When enforcement fires)."
 
 jq -n --arg c "$msg" '{hookSpecificOutput:{hookEventName:"Stop",additionalContext:$c}}'
 exit 0

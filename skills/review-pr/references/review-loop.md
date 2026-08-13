@@ -1,9 +1,11 @@
-# Review Loop: Monitor, Triage, Auto-Fix
+# Review Loop: Watch, Triage, Auto-Fix
 
-Monitoring uses the **Monitor tool** — a single persistent background watch that emits
-one tagged stdout line per new event for BOTH CI checks and PR comments. Each line
-arrives as a notification across turns, so react to events instead of blocking on a
-manual `while true` loop.
+The watch is driven by a single bash script (`scripts/review-loop.sh`) that emits
+one tagged stdout line per new event for BOTH CI checks and PR comments. How the lines
+are consumed depends on the runtime: a persistent background watch that delivers each
+line as a notification across turns (the script was designed for that mode), or a
+re-entrant loop — run the script once per turn, read its output, and stop when the stop
+conditions hold. Do not block on a manual `while true` loop.
 
 ## Poll interval by PR size
 
@@ -23,10 +25,10 @@ to the PR's size and pass it as `INTERVAL` (in seconds) to the script below.
 
 Read size via `gh pr view <PR> --repo <REPO> --json additions,deletions` and pick the row.
 
-## One Monitor for CI and Comments
+## One Watch for CI and Comments
 
-Launch one Monitor with `persistent: true` (PR reviews arrive on no fixed schedule).
-The command below emits:
+Launch one persistent watch (or one re-entrant invocation per turn). The script below
+emits:
 
 - `[ci] <name>: <bucket>` once per check reaching a terminal bucket (pass/fail/cancel/skipping)
 - `[comment] issue node=<id> id=<n> @<user>: <body>` for new issue-level comments
@@ -41,14 +43,22 @@ Every `[comment]` line carries two IDs so the closeout steps never need a second
   not a comment id — it does not feed the replies endpoint.)
 
 The script lives at `<skill-dir>/scripts/review-loop.sh` (executable, `#!/usr/bin/env bash`). The skill runs in the PR's repository cwd, not the skill dir, so the bare path `scripts/review-loop.sh` does NOT resolve — always address the script by its absolute skill path.
-Run it via the Monitor tool — it reads `PR`, `REPO`, and `INTERVAL` from env
+Run it — it reads `PR`, `REPO`, and `INTERVAL` from env
 (or `--pr`/`--repo`/`--interval` flags) and emits the tagged lines above.
 
 ```bash
-# From the skill, launch under a persistent Monitor:
+# Persistent watch (runtimes with a background-watch tool):
 PR=<pr-number> REPO=<owner>/<repo> INTERVAL=<sec> \
   bash <skill-dir>/scripts/review-loop.sh
+
+# Re-entrant (no background tool): run once per turn, capture output, act on lines,
+# and re-run next turn until the stop conditions hold.
+PR=<pr-number> REPO=<owner>/<repo> INTERVAL=<sec> \
+  bash <skill-dir>/scripts/review-loop.sh --once
 ```
+
+Stop the watch when done (stop the background task, or simply stop re-invoking the
+re-entrant loop) — never leave it running once the PR is settled.
 
 Behavior notes:
 - `since` is seeded to the PR's **creation time** (not launch time), so comments posted
@@ -61,8 +71,9 @@ Behavior notes:
 - `|| true` / `2>/dev/null` on every API call keeps one transient failure from killing
   the watch; `INTERVAL` is floored at 60s.
 
-Run via the Monitor tool with `persistent: true` and a specific `description`
-(e.g. `"CI + new comments on PR #<n> (5m poll)"`). Stop it with TaskStop when done — never
+Run it via a persistent background watch (runtimes that have one) with a specific
+description (e.g. `"CI + new comments on PR #<n> (5m poll)"`), or re-invoke it each turn
+with `--once` (runtimes without one). Stop it when done — never
 leave it running once the PR is settled.
 
 ## You do not have to adopt review comments
@@ -197,7 +208,7 @@ Be terse. One line per comment, verdict first.
 **After the triage agent returns:**
 1. Parse verdicts — apply ONLY `fix` verdicts
 2. Reply to each `reject` comment explaining why it was declined
-3. Send PushNotification for each `escalate` verdict with comment body + author + file context
+3. Surface each `escalate` verdict to the user with comment body + author + file context
 4. Commit and push all `fix` changes together in one round
 5. **Close out resolved comments** — for each comment that is now fully addressed (a `fix`
    that you applied and pushed, OR a `reject` you replied to with a reason), hide it as
@@ -274,7 +285,7 @@ the comment (minimize-after-resolve is fine; minimizing a comment does not resol
 For issue-level comments, reply then minimize (no thread to resolve). Do NOT hide or resolve
 `escalate` comments — they stay open for the user.
 
-### `[comment]` ambiguous — PushNotification and report
+### `[comment]` ambiguous — surface to the user
 
 Ambiguous when ANY are true: questions a design decision; requests a scope change or new
 feature; unclear intent; needs business context not in the diff; multiple valid readings.
@@ -282,16 +293,16 @@ feature; unclear intent; needs business context not in the diff; multiple valid 
 Examples: "Why not use X instead of Y?", "This feels over-engineered",
 "Can we also handle Z?", "I'm not sure this is the right approach".
 
-For these: send a **PushNotification** (the user may have stepped away), report the comment
+For these: notify the user in the conversation (they may have stepped away), report the comment
 body + author + file context, and let the user decide. Do NOT reply to or guess at these.
 
 ## Lifecycle
 
-- The Monitor runs across turns; you keep working and react as lines arrive.
-- A pushed fix triggers a fresh CI run that the same Monitor re-emits — no need to relaunch it.
+- The watch runs across turns; you keep working and react as lines arrive.
+- A pushed fix triggers a fresh CI run that the same watch re-emits — no need to relaunch it.
 - A temporarily empty comment queue is NOT a stop signal — other agents may post more
   comments later. Keep the watch running.
-- Stop with **TaskStop** when EITHER holds:
+- Stop the watch when EITHER holds:
   - **Normal stop (all three must hold)**:
     1. Every `[ci]` check is terminal AND passing.
     2. Every review comment received so far has been reflected on (triaged, replied to,

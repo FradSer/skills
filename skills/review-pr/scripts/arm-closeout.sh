@@ -7,7 +7,7 @@
 # merge decision is resolved.
 #
 # Usage:
-#   bash arm-closeout.sh <PR>                # explicit AskUserQuestion closeout
+#   bash arm-closeout.sh <PR>                # explicit merge-question closeout
 #   bash arm-closeout.sh <PR> --auto-merge   # --auto-merge opt-in closeout
 
 set -u

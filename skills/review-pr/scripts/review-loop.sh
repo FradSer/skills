@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # review-loop.sh — persistent CI + PR-comment watch for review-pr.
 #
-# Emits one tagged stdout line per new event (consumed by the Monitor tool as
-# per-turn notifications). Designed to run under `Monitor(persistent: true)`.
+# Emits one tagged stdout line per new event (consumed by a background watch as
+# per-turn notifications, or read once per turn with --once).
 #
 # Output format:
 #   [ci] <name>: <bucket>                  — CI check reaching a terminal bucket
@@ -13,6 +13,7 @@
 # Usage:
 #   PR=<n> REPO=<owner>/<repo> INTERVAL=<sec> bash review-loop.sh
 #   bash review-loop.sh --pr <n> --repo <owner>/<repo> [--interval <sec>]
+#   bash review-loop.sh --pr <n> --repo <owner>/<repo> --once   # one poll, then exit
 #
 # Env vars (PR / REPO / INTERVAL) take precedence over flags so the skill can
 # pass them through Monitor's env.
@@ -22,6 +23,7 @@ set -u
 PR="${PR:-}"
 REPO="${REPO:-}"
 INTERVAL="${INTERVAL:-}"
+ONCE=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -33,6 +35,7 @@ while [ $# -gt 0 ]; do
     --pr)        if [ $# -ge 2 ]; then [ -z "${PR:-}" ] && PR="$2"; shift 2; else echo "review-loop.sh: $1 requires a value" >&2; exit 2; fi ;;
     --repo)      if [ $# -ge 2 ]; then [ -z "${REPO:-}" ] && REPO="$2"; shift 2; else echo "review-loop.sh: $1 requires a value" >&2; exit 2; fi ;;
     --interval)  if [ $# -ge 2 ]; then [ -z "${INTERVAL:-}" ] && INTERVAL="$2"; shift 2; else echo "review-loop.sh: $1 requires a value" >&2; exit 2; fi ;;
+    --once)      ONCE=1; shift ;;
     -h|--help)
       sed -n '2,20p' "$0"; exit 0 ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
@@ -173,5 +176,6 @@ while true; do
   fi
 
   [ "$api_ok" = true ] && since=$now
+  [ "$ONCE" = 1 ] && exit 0
   sleep "$INTERVAL"
 done
