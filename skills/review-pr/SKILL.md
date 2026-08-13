@@ -1,0 +1,86 @@
+---
+name: review-pr
+description: 'Reviews a pull request: runs its own baseline review of the PR diff, then a persistent Monitor watches CI and incoming reviewer comments, triages each comment through an independent skeptical agent, applies only verified fixes, and commits+pushes via inline git commands until CI passes and no comments remain to adopt — then asks whether to merge. Use this skill when the user asks to "review a PR", "monitor PR review comments", "address reviewer feedback on #123", or "watch CI on a pull request".'
+---
+
+# Review a Pull Request
+
+Run the baseline review of the PR diff, then keep a persistent watch over CI and new reviewer comments until the PR settles.
+
+## Runtime notes
+
+- **Script paths**: every `bash <skill-dir>/scripts/...` command below needs the absolute path to this skill's installed directory (e.g. `~/.claude/skills/review-pr` in Claude Code). Resolve it once at the start, export it as `SKILL_DIR`, and use `$SKILL_DIR/scripts/<name>.sh` everywhere. The scripts live in this skill's `scripts/`, never in the repository you are working in.
+- **Monitor**: this skill relies on a persistent background watch (the `Monitor` tool in Claude Code). On runtimes without one, run `$SKILL_DIR/scripts/review-loop.sh` with `PR`/`REPO`/`INTERVAL` env vars, re-enter across turns (each run emits one tagged line per new event), and stop once the stop conditions hold. Never use a blocking foreground `while` loop.
+- **Tools**: `AskUserQuestion`, `Task` (independent subagent), `PushNotification`, and `TaskStop` are Claude Code tools. On other runtimes, ask in the conversation, spawn a clean-context subagent, notify the user, and stop the watch respectively — the workflow is tool-agnostic.
+- **Stop-hook enforcement**: the closeout state (`arm-closeout.sh`/`clear-closeout.sh` + `.git/review-pr-closeout.json`) is designed for Claude Code's Stop hook via `scripts/closeout-stop.sh`. On runtimes without hooks, enforce the rule in-prompt: never end the turn while the closeout state is armed — resolve the merge ask or clear the state first.
+
+## Context
+
+
+- PR argument: `$ARGUMENTS`
+- PR metadata: !`gh pr view "$ARGUMENTS" --json number,title,headRepository,headRepositoryOwner,additions,deletions,headRefName 2>/dev/null || printf 'set %s to a PR number or URL\n' "$ARGUMENTS"`
+- Remote: !`git remote -v 2>/dev/null | head -2`
+- Auth: !`gh auth status 2>&1 | head -3`
+
+## Phase 1: Baseline Review and Sizing
+
+**Goal**: Run the initial review, resolve the repo, and pick a poll interval sized to the PR.
+
+**Actions**:
+1. Parse the PR number or URL from `$ARGUMENTS`. If absent, list open PRs with `gh pr list` and ask the user which to review. **Normalize `PR` to the bare number** before any `gh api` REST call: `gh pr *` commands accept a URL, but `gh api repos/$REPO/issues/$PR/...` interpolates `$PR` into the URL path and breaks on a full URL — run `PR=$(gh pr view "$ARGUMENTS" --json number -q .number)` (the Context block already fetches `--json number`) and use `$PR` as the number everywhere downstream. **Parse `--auto-merge` from `$ARGUMENTS` and strip it before resolving the PR number** — it is a closeout opt-in (see Phase 5), not part of the PR identifier; treat its absence as the default (explicit `AskUserQuestion` merge).
+2. **Run the baseline review** — spawn an independent review agent via `Task` with clean context (it did not author the code) to review the PR diff. Pull the diff with `gh pr diff <PR>`; pass the agent the PR title/body and the diff, and ask for findings as `path:line: issue` lines (full prompt in `references/review-loop.md`, Baseline review agent). Treat its findings as the **first `[comment]` batch** — feed them straight into the Phase 3 triage flow before launching the Monitor. Do not act on them inline; the main context is biased (it likely authored the PR) and the same skeptical gatekeeping must apply to the baseline as to live comments.
+3. Resolve `REPO=<owner>/<repo>` from the PR metadata above (fallback: `git remote get-url origin` parsed into `owner/repo`).
+4. Read PR size from `additions+deletions` and pick `INTERVAL` (seconds) from the size table in `references/review-loop.md`: 180 / 300 / 480 for small / medium / large; floor 60s, cap 7200s (~2h).
+
+## Phase 2: Launch the Persistent Monitor
+
+**Goal**: One background watch streaming CI + comment events across turns.
+
+**Action**: Launch a single `Monitor` with `persistent: true` running `<skill-dir>/scripts/review-loop.sh`. The bare path `scripts/review-loop.sh` does NOT resolve — the skill runs in the PR's repository cwd, not the skill dir, so the script must be addressed by its absolute skill path. Pass `PR`, `REPO`, and `INTERVAL` as env vars (the script also accepts `--pr`/`--repo`/`--interval`). Use a specific `description` like `"CI + new comments on PR #<n> (<m> poll)"`. Do NOT run a foreground `while` loop. The script is documented in `references/review-loop.md`.
+
+**CRITICAL: Do NOT skip the watch based on a launch-time snapshot.** "This repo has no CI workflow, so the watch would spin idly" is a **false** inference and not a valid reason to skip: CI is only one of the two things watched. Third-party auto-review services (GitHub Copilot code review, CodeRabbit, Greptile, Codex, Sourcery, and similar), org-level bots, and human reviewers post comments on no fixed schedule and are invisible in a launch-time snapshot — a repo with zero workflows can still accumulate a full review thread minutes after the PR opens. An empty `.github/workflows/` proves nothing about who will comment.
+
+The only valid skip is an explicit user opt-out ("just baseline review, don't watch"). If CI and reviewers both appear absent AND the user still wants coverage, launch the watch anyway; it costs nothing and emits nothing until something changes.
+
+## Phase 3: React to Each Monitor Event
+
+**Goal**: Fix what is actionable, reject the noise, escalate the ambiguous. Full rules, prompt template, verdict format, and reply/hide/resolve lifecycle in `references/review-loop.md`.
+
+- `[ci] <name>: fail|cancel` → fetch logs (`gh run view <run-id> --log-failed`), apply the fix, commit+push via inline git commands (`git add <file> && git commit -m "<type>(<scope>): <summary>" && git push`). The push triggers a fresh CI run the same Monitor re-emits. **CRITICAL: stop and report (do NOT auto-fix) for auth/permission, missing-secret, flaky, or infrastructure failures.**
+- `[comment]` batch → **CRITICAL: spawn an independent review-triage Task agent with clean context.** Apply ONLY the `fix` verdicts; reject/escalate the rest. **CRITICAL: reply by comment type** — inline review comment → `gh api repos/$REPO/pulls/$PR/comments/<id>/replies`; issue-level comment → `gh pr comment` (no reply endpoint); review summary → skip reply. Use the `id=<n>`/`node=<id>` tokens from each emitted line. Commit+push all `fix` changes in one round; then hide each fully-addressed comment (`fix` pushed or `reject` replied) as `OUTDATED` via `minimizeComment` and resolve its thread via `resolveReviewThread` (inline only). Leave `escalate` comments open. Send a `PushNotification` per `escalate`.
+- `[comment]` ambiguous (design disagreement, scope change, unclear intent) → `PushNotification` and report; do not guess, reply, hide, or resolve.
+
+**CRITICAL mindset**: Comments are mostly from other agents (linters, code-review bots) and human reviewers — suggestions to *consider*, not orders. Default to skepticism; verify each claim against the diff and adopt only what is demonstrably correct and safe. Rejecting a comment is the normal outcome for noise and false positives.
+
+## Phase 4: Stop Conditions
+
+Stop the Monitor with `TaskStop` when EITHER holds — full conditions in `references/review-loop.md`:
+- **Normal stop (all three)**: every `[ci]` check terminal + passing; every comment reflected on with resolved ones hidden + threads resolved (only `escalate` items remain visible); user signals done.
+- **Hard cap (overrides the above)**: ~2h wall-clock reached OR user explicitly opts out — surface the unsettled state first (which of CI/comments is still open), then stop. Do NOT keep polling because CI is red or comments remain; the cap exists so a stuck PR cannot hold the watch open forever. If the cap hits with everything actually settled (CI terminal + passing, comments all reflected on), that is a closeout trigger, not a stop: proceed to Phase 5's merge ask.
+
+**CRITICAL: a temporarily empty comment queue is NOT a stop signal** — other agents may post more comments later.
+
+## Phase 5: Closeout — Merge Decision First, Then Ceremony
+
+**Goal**: Once Phase 4 holds, ask the user whether to merge FIRST — before any ceremony. The summary comment and body rewrite run only on a merge choice; "Don't merge" skips the ceremony and goes straight to `TaskStop`. On a merge choice, post-merge hygiene (linked-worktree removal, switch to `main`, sync with origin) runs unconditionally. Full templates and ordered steps in `references/closeout.md`.
+
+**CRITICAL constraints (hold even when detail is delegated to L3)**:
+1. **Arm the closeout state the moment Phase 4 holds — before anything else**: `bash <skill-dir>/scripts/arm-closeout.sh "$PR"` (append `--auto-merge` when the opt-in was parsed in Phase 1). This writes the repo's `.git/review-pr-closeout.json`, arming the skill's Stop hook: while the file exists, one turn-end per user turn is blocked with a message naming the missing merge decision — the Phase 5 ask cannot be skipped by a premature stop, and the hook passes through (`stop_hook_active`) on later end-attempts of the same turn so it does not loop (a user interrupt also bypasses it). **When the hook blocks, first verify the pending closeout is real** — a stale state file (ask already answered, summary posted, or PR merged without clearing) is a false alarm: judge simple checks directly (`gh pr view --json state,mergedAt`, the `<!-- review-pr:summary -->` marker lookup), spawn an independent subagent with clean context for complex or ambiguous situations — see `references/closeout.md` (When the hook fires). A verified-stale state is cleared, not re-asked. Clear it the moment the decision is resolved — `bash <skill-dir>/scripts/clear-closeout.sh "$PR"`: after the user answers (any choice, including "Don't merge"), after the auto-merge completes, or after the opt-in aborts. A stale file blocks the next stop; its message repeats the clear path.
+2. **Ask the merge question the moment Phase 4 holds.** Do not post the summary or rewrite the body first — the user's choice gates the ceremony. When everything is settled, the closeout ask is the next step, not more polling.
+3. The ceremony runs ONLY on a merge choice: capture the summary comment URL from `gh pr comment` stdout (`SUMMARY_URL=$(gh pr comment …)`).
+4. The Review-cycle line in the rewritten body MUST contain that literal URL — a count with no link is not a pointer, and the quoted heredoc will not expand `$SUMMARY_URL`, so paste it.
+5. Steps are ordered — the body needs the comment URL, so summary first, body second.
+6. Do not sign the summary as AI-generated; body describes the change, comment records the review cycle — keep them distinct.
+7. Do not ask to merge or run the ceremony while CI is red or comments remain open; never auto-merge past open `escalate` items.
+8. Merge only after an explicit `AskUserQuestion` choice (merge [Recommended]/squash/rebase/don't); never `--auto`. **`--auto-merge` opt-in**: when the flag was parsed in Phase 1, skip the `AskUserQuestion` but still run the ceremony first, then auto-merge with `gh pr merge --merge` (NOT `--auto`) once CI is green AND every non-escalate comment is triaged — see `references/closeout.md` (Merge decision → Auto-merge branch). If any `escalate` comment remains open, the opt-in is suspended: **re-arm the closeout state without `--auto-merge`** (`arm-closeout.sh "$PR"`) so the hook enforces the explicit ask, fall back to the `AskUserQuestion` and surface the escalate items in the question text. Auto-merge is a single-shot choice for this PR; it does not re-arm after a failure or an interrupt.
+9. Never force long-lived branch updates; `--delete-branch` is the default (omitted only in linked worktrees). Post-merge hygiene runs unconditionally: remove the linked worktree (`ExitWorktree action:"remove"`), switch to `main`, and fast-forward-sync `main`/`develop` with origin — see `references/closeout.md` (After a successful merge).
+
+`TaskStop` the Monitor after closeout completes — with the closeout state already cleared.
+
+## References
+
+- **Review Loop**: `references/review-loop.md` - Monitor script, size→INTERVAL table, triage agent prompt, verdict format, lifecycle/stop conditions
+- **Closeout**: `references/closeout.md` - Summary comment, body rewrite, merge decision, post-merge hygiene constraints
+- **Commit Standards**: `references/commit-standards.md` - Commit message format for the inline git commit rounds
+- **Repository Templates**: `references/repository-templates.md` - Contributing guidelines conformance for fixes
+- **Examples**: `references/examples.md` - Commit message examples
