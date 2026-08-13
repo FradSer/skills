@@ -1,6 +1,6 @@
 # GitFlow Plugin Invariants
 
-Core rules enforced by this plugin.
+Core rules enforced by this skill suite.
 
 ## Pre-operation Checks
 

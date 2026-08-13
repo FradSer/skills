@@ -31,23 +31,20 @@
 
 ## 同步方法
 
-使用 `office/scripts/sync-agent-browser.sh` 脚本进行同步:
+在仓库内使用 `git sparse-checkout` 同步整个目录（自动处理新增/删除文件）:
 
 ```bash
-# 检查更新
-./office/scripts/sync-agent-browser.sh --check
-
-# 同步所有文件
-./office/scripts/sync-agent-browser.sh
-
-# 强制同步
-./office/scripts/sync-agent-browser.sh --force
+# 将 agent-browser 上游加入 sparse-checkout
+# 以 vercel-labs/agent-browser 仓库为例：
+#   git remote add upstream https://github.com/vercel-labs/agent-browser
+#   git config core.sparseCheckout true
+#   echo 'skills/agent-browser/' > .git/info/sparse-checkout
+#   git pull upstream main
 ```
 
 ## 注意事项
 
-- 脚本使用 `git sparse-checkout` 同步整个目录，自动处理新增/删除文件
+- 使用 `git sparse-checkout` 同步整个目录，自动处理新增/删除文件
 - 本地 `SYNC.md` 不会被上游覆盖
 - 本地修改会在同步时被覆盖（其他文件）
-- 脚本会自动创建备份到 `.backup/` 目录
-- 使用 `--no-backup` 选项可跳过备份
+- 同步前建议先备份本地修改，避免被上游覆盖

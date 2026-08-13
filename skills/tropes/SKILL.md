@@ -33,7 +33,7 @@ CRITICAL: User preferences live in `office.*.json` files, merged by `load-prefer
 Run the loader script to get the merged preferences as a single JSON object:
 
 ```bash
-bash office/scripts/load-preferences.sh
+bash <skill-dir>/scripts/load-preferences.sh
 ```
 
 The script reads up to four files in precedence order (highest first): `.agents/office.local.json` (project, personal) > `.agents/office.json` (project, shared) > `~/.agents/office.local.json` (global, personal) > `~/.agents/office.json` (global, shared). It deep-merges them (scalars replaced by higher layer, lists concatenated and deduped, pattern_caps deduped by `id`, dead_metaphors.entries by `word`), and prints the merged JSON to stdout. If jq is missing or all files are absent, it fails open to `{}` and default rules apply.

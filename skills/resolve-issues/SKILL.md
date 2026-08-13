@@ -7,6 +7,11 @@ description: Resolves GitHub issues using isolated worktrees and test-driven dev
 
 Execute issue resolution workflow using isolated worktrees, TDD methodology, and agent collaboration.
 
+## Runtime notes
+
+- **Worktree tools**: `EnterWorktree`/`ExitWorktree` are Claude Code tools. On other runtimes use plain git: `git worktree add -b <branch> <path> <base>` to create the isolated worktree and `git worktree remove <path>` (plus `git branch -D <branch>` if needed) to clean it up — same isolation, manual commands.
+- **Skill invocation**: `Skill("create-pr", ...)` is Claude Code syntax. On other runtimes, invoke the sibling `create-pr` skill with the runtime's own mechanism (e.g. `/skill:create-pr` in pi) — the handoff contract in `references/pr-creation-handoff.md` is what matters, not the call syntax.
+
 ## Context
 
 - Current git status: !`git status`
@@ -47,7 +52,7 @@ Use isolated worktrees to avoid disrupting main development. Follow TDD cycle (r
 
 **Actions**:
 1. Push branch to remote with `git push -u origin <branch-name>`
-2. **CRITICAL: Do NOT call `gh pr create` here.** Invoke `Skill("create-pr", "<issue reference>")` — e.g. `Skill("create-pr", "Closes #456")`. It is the plugin's only PR-creating path and owns the quality/security gate, the auto-closing-keyword linkage, the non-default-branch warning, and the mandatory `review-pr` handoff. See `references/pr-creation-handoff.md` for the full contract. Creating the PR directly skips all of it.
+2. **CRITICAL: Do NOT call `gh pr create` here.** Invoke `Skill("create-pr", "<issue reference>")` — e.g. `Skill("create-pr", "Closes #456")`. It is the only PR-creating path and owns the quality/security gate, the auto-closing-keyword linkage, the non-default-branch warning, and the mandatory `review-pr` handoff. See `references/pr-creation-handoff.md` for the full contract. Creating the PR directly skips all of it.
    - Append `--draft` to the arguments if the fix requires further feedback before review
    - Append `--no-monitor` only when the user explicitly opts out of the review loop
 3. **This skill does not resume here.** `create-pr` reports the PR URL, and `review-pr` then owns the PR for the rest of its life: a persistent Monitor spanning turns, the triage/fix/push rounds, and the merge decision it asks the user to make. Do NOT wait inline, do NOT re-report the URL, and do NOT run Phase 4 speculatively.

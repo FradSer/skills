@@ -90,7 +90,7 @@ Save file after validation:
 
 Create Feishu document after validation:
 
-1. **CRITICAL** — Confirm standalone `lark` plugin (`lark@frad-dotclaude`) is installed; follow its `lark-shared` skill for authentication
+1. **CRITICAL** — Confirm standalone `lark` plugin is installed; follow its `lark-shared` skill for authentication
 2. Follow the lark plugin's `lark-doc` skill for document creation guidance
 3. Refer to `lark-doc-create.md` for full `docs +create` parameters and Lark-flavored Markdown syntax
 4. Convert PRD content to Lark-flavored Markdown (see Feishu enhancements section)
@@ -163,4 +163,4 @@ Insert whiteboards for: user journeys, system architecture, data flows, mileston
 - `references/prd-template-onepager.md` — One-pager template
 - `references/prd-best-practices.md` — Best practices guide
 - `references/prd-examples.md` — High-quality PRD examples
-- Standalone `lark` plugin (`lark@frad-dotclaude`) — Lark CLI skills (`--lark` mode)
+- Standalone `lark` plugin — Lark CLI skills (`--lark` mode)

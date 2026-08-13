@@ -13,7 +13,7 @@ Evaluate open issues from context and prioritize the next actionable item:
 Create an isolated worktree session using the EnterWorktree tool:
 
 1. **Create worktree session**:
-   Use the EnterWorktree tool with a descriptive name (e.g., `fix-456-auth-redirect`). This creates a worktree in `.claude/worktrees/` and switches the session into it automatically. `.claude/worktrees/` must be ignored in the repo's tracked `.gitignore` (not only a local `.git/info/exclude` entry) so a fresh clone doesn't show the worktree directory as untracked — verify with `git check-ignore -v .claude/worktrees` before relying on it.
+   Use the EnterWorktree tool with a descriptive name (e.g., `fix-456-auth-redirect`). This creates a worktree in `.agents/worktrees/` and switches the session into it automatically. `.agents/worktrees/` must be ignored in the repo's tracked `.gitignore` (not only a local `.git/info/exclude` entry) so a fresh clone doesn't show the worktree directory as untracked — verify with `git check-ignore -v .agents/worktrees` before relying on it.
 
 2. **Rename branch to match conventions**:
    EnterWorktree generates a branch named `worktree-<name>`. Rename it before committing:
@@ -54,11 +54,11 @@ Follow the red-green-refactor cycle with agent collaboration:
 
 ## Quality Validation
 
-During the TDD cycle, run project-specific quality checks for fast local feedback — see `references/quality-validation.md` for commands. `create-pr` re-runs the full quality and security gate before it opens the PR, so these checks are not the gate itself.
+During the TDD cycle, run project-specific quality checks for fast local feedback — see `quality-validation.md` for commands. `create-pr` re-runs the full quality and security gate before it opens the PR, so these checks are not the gate itself.
 
 ## PR Creation and Cleanup
 
 1. **Push branch**: `git push -u origin <branch-name>`
-2. **Create PR**: **CRITICAL: never call `gh pr create` from this skill.** Invoke `Skill("create-pr", "Closes #456")` with the issue reference — see `references/pr-creation-handoff.md` for the full contract. Pass `--no-monitor` through only on an explicit user opt-out. Pass `--auto-merge` through only on an explicit user opt-in (it forwards through create-pr to `review-pr`, which auto-merges with a merge commit once CI is green and every non-escalate comment is triaged — escalate items suspend it and fall back to the explicit question).
+2. **Create PR**: **CRITICAL: never call `gh pr create` from this skill.** Invoke `Skill("create-pr", "Closes #456")` with the issue reference — see `pr-creation-handoff.md` for the full contract. Pass `--no-monitor` through only on an explicit user opt-out. Pass `--auto-merge` through only on an explicit user opt-in (it forwards through create-pr to `review-pr`, which auto-merges with a merge commit once CI is green and every non-escalate comment is triaged — escalate items suspend it and fall back to the explicit question).
 3. **After merge**: `review-pr` owns the merge decision and the post-merge cleanup — it removes the linked worktree via `ExitWorktree action:"remove"`, switches to `main`, and syncs `main`/`develop` with origin. resolve-issues Phase 4 only runs as a fallback if review-pr's cleanup was skipped (e.g. "Don't merge", an interrupt, or a fresh session) — check `git worktree list` first and `ExitWorktree action:"remove"` only if the worktree persists.
    - If uncommitted changes exist, ExitWorktree will refuse; confirm with the user before setting `discard_changes: true`

@@ -1,6 +1,6 @@
 # User Preferences Schema
 
-Writing preferences for the tropes skill, stored as `office.local.json`. The tropes skill loads and merges preferences at the start of each detection workflow via `office/scripts/load-preferences.sh`, then applies them as overrides or supplements to the default trope rules.
+Writing preferences for the tropes skill, stored as `office.local.json`. The tropes skill loads and merges preferences at the start of each detection workflow via `scripts/load-preferences.sh` (bundled with this skill), then applies them as overrides or supplements to the default trope rules.
 
 ---
 
@@ -105,7 +105,7 @@ When preferences conflict with default trope rules:
 
 ## Merge Rules
 
-Implemented by `office/scripts/load-preferences.sh` (jq deep merge). When both global and project files exist:
+Implemented by `scripts/load-preferences.sh` (jq deep merge). When both global and project files exist:
 
 | Field type | Merge strategy |
 |------------|----------------|
@@ -124,7 +124,7 @@ The tropes skill handles preference management during the detection workflow:
 
 - **Create**: If no file exists, offer to generate `~/.agents/office.local.json` (global personal) with defaults. For team-shared rules, suggest `.agents/office.json` (committed); for personal project overrides, `.agents/office.local.json` (gitignored).
 - **Update**: After a detection run, offer to save newly discovered preferences. Default target is `~/.agents/office.local.json` unless the user specifies otherwise. Present a diff preview (file, field, merged JSON) before writing.
-- **Read**: `bash office/scripts/load-preferences.sh` returns the merged JSON across all four layers.
+- **Read**: `bash <skill-dir>/scripts/load-preferences.sh` returns the merged JSON across all four layers.
 
 Users may also edit either file directly with any text editor.
 

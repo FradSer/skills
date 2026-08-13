@@ -10,56 +10,151 @@
 
 ### [agent-browser](skills/agent-browser/)
 
-当 agent 需要自动化浏览器操作、测试 Web 应用、截图、抓取页面或通过 `agent-browser` CLI 控制 Electron 应用时使用。
+面向 AI agent 的浏览器自动化 CLI。用于浏览页面、填写表单、截图、抓取数据、测试 Web 应用，或自动化 Electron 桌面应用。
 
 **安装命令：**
 ```bash
 npx skills add https://github.com/FradSer/skills --skill agent-browser
 ```
 
+### [commit](skills/commit/)
+
+使用标准 git 创建规范、原子的 Conventional Commit。当用户要求 "commit"、"git commit" 或提交已暂存/未暂存的更改时使用。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill commit
+```
+
+### [commit-and-push](skills/commit-and-push/)
+
+创建 Conventional Commit 并推送到远程仓库。当用户要求 "commit and push" 或 "push changes" 时使用。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill commit-and-push
+```
+
+### [create-issues](skills/create-issues/)
+
+遵循测试驱动开发原则和标签规范创建 GitHub issue。当用户要求 "create an issue"、"file a bug" 或记录新需求、epic、PR 范围内的任务时使用。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill create-issues
+```
+
+### [create-pr](skills/create-pr/)
+
+创建 GitHub Pull Request，包含自动化质量校验与安全扫描，随后交给 `review-pr` 进行 CI 监控与评论分类处理。当用户要求 "create a PR" 或 "submit a pull request" 时使用。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill create-pr
+```
+
 ### [create-prd](skills/create-prd/)
 
-将产品想法转化为中文 PRD 时使用，支持输出本地 Markdown，也支持通过 `lark-cli` 创建飞书/Lark 文档。
+将产品想法转化为中文 PRD 文档，支持本地 Markdown 输出，也支持通过 `lark-cli` 创建飞书/Lark 文档。
 
 **安装命令：**
 ```bash
 npx skills add https://github.com/FradSer/skills --skill create-prd
 ```
 
-### [lark](skills/lark/)
+### [finish-feature](skills/finish-feature/)
 
-使用 `lark-cli` 操作飞书/Lark 资源时使用，覆盖文档、表格、多维表格、日历、消息、邮箱、任务、OKR、云盘、知识库、幻灯片、白板、审批、考勤、通讯录、会议和事件等场景。
-
-**安装命令：**
-```bash
-npx skills add https://github.com/FradSer/skills --skill lark
-```
-
-使用此技能前需单独安装 `lark-cli`。
-
-### [missav](skills/missav/)
-
-使用 `agent-browser` 浏览 missav.ws 列表页，从卡片提取标题/时长/链接，并根据用户偏好（女优、番号、关键词、时长）排序推荐 AV。
+使用 git-flow 完成功能分支并合并到 develop，随后清理过期分支与 worktree。当用户要求 "finish a feature" 或 "complete feature" 时使用。
 
 **安装命令：**
 ```bash
-npx skills add https://github.com/FradSer/skills --skill missav
+npx skills add https://github.com/FradSer/skills --skill finish-feature
 ```
 
-使用此技能前需单独安装 `agent-browser`。
+### [finish-hotfix](skills/finish-hotfix/)
+
+使用 git-flow 完成 hotfix 并合并到 main 和 develop，随后清理过期分支与 worktree。当用户要求 "finish a hotfix" 或 "complete hotfix" 时使用。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill finish-hotfix
+```
+
+### [finish-release](skills/finish-release/)
+
+使用 git-flow 完成 release 并以标签合并到 main 和 develop，随后清理过期分支与 worktree。当用户要求 "finish a release" 或 "complete release" 时使用。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill finish-release
+```
 
 ### [patent-architect](skills/patent-architect/)
 
-为技术发明检索现有技术并生成中文专利申请表时使用。
+通过 SerpAPI 检索现有技术并生成中文专利申请表。当用户想要保护技术创新或提到 "patents"、"inventions" 时使用。
 
 **安装命令：**
 ```bash
 npx skills add https://github.com/FradSer/skills --skill patent-architect
 ```
 
+### [resolve-issues](skills/resolve-issues/)
+
+使用隔离 worktree 和测试驱动开发解决 GitHub issue，随后交给 `create-pr` 创建 PR，确保质量关卡与 review 流程始终执行。当用户要求 "resolve an issue" 或 "fix issue #123" 时使用。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill resolve-issues
+```
+
+### [review-pr](skills/review-pr/)
+
+审查 Pull Request：对 diff 进行基线审查、监控 CI 与评审评论、由独立 sceptic agent 分类处理每条评论、只应用已验证的修复，并持续提交直到 CI 通过。当用户要求 "review a PR" 或 "watch CI on a pull request" 时使用。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill review-pr
+```
+
+### [start-feature](skills/start-feature/)
+
+使用 git-flow 开启新的功能分支。接受分支名/版本号或自然语言描述。当用户要求 "start a feature" 或 "git flow feature start" 时使用。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill start-feature
+```
+
+### [start-hotfix](skills/start-hotfix/)
+
+使用 git-flow 开启新的 hotfix 分支。接受分支名/版本号或自然语言描述。当用户要求 "start a hotfix" 或 "git flow hotfix start" 时使用。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill start-hotfix
+```
+
+### [start-release](skills/start-release/)
+
+使用 git-flow 开启新的 release 分支。接受分支名/版本号或自然语言描述。当用户要求 "start a release" 或 "git flow release start" 时使用。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill start-release
+```
+
+### [substore-openclash](skills/substore-openclash/)
+
+管理 SubStore 到 OpenClash 的配置管道，用于微信图片直连路由与 mihomo 配置修复，同时修复 homebridge-miot 小米登录错误。当用户提到 "微信图片看不到"、TFO、fake-ip、代理组或 MiCloud 登录失败时使用。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill substore-openclash
+```
+
 ### [tropes](skills/tropes/)
 
-生成文本内容、编写文档、创建代码注释或审阅写作风格时使用。提供避免常见 AI 写作模式的指导，使文本更自然、更少公式化。
+检测并消除使文本显得生硬或公式化的 AI 写作套路。生成文本内容、编写文档、创建代码注释或审阅写作风格时使用。
 
 **来源：** [tropes.fyi](https://tropes.fyi/tropes-md)
 
@@ -70,7 +165,7 @@ npx skills add https://github.com/FradSer/skills --skill tropes
 
 ### [update-readme](skills/update-readme/)
 
-需要将 README.md 和 README.zh-CN.md 同步到项目最新状态时使用。自动扫描所有技能，检查过期条目，并按正确的头部格式输出双语文件。
+将 README.md 和 README.zh-CN.md 同步到项目最新状态。扫描所有技能、检查过期条目，并按正确的头部格式输出双语文件。
 
 **安装命令：**
 ```bash

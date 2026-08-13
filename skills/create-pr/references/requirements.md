@@ -13,4 +13,4 @@
 - Security scan completed without issues
 - Related issues identified and linked
 - Proper branch naming and commit messages following standards
-- **Branch Target Validation**: auto-closing keywords only fire on the default branch — see `references/auto-closing-keywords.md`.
+- **Branch Target Validation**: auto-closing keywords only fire on the default branch — see `auto-closing-keywords.md`.

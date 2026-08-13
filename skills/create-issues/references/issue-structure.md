@@ -79,7 +79,7 @@ body:
 
 ## Auto-Closing Keywords
 
-Auto-closing keywords (`Closes`/`Fixes`/`Resolves #N`) only close the linked issue when the PR merges into the default branch — see `references/auto-closing-keywords.md` for the limitation, keyword table, and rules.
+Auto-closing keywords (`Closes`/`Fixes`/`Resolves #N`) only close the linked issue when the PR merges into the default branch — see `auto-closing-keywords.md` for the limitation, keyword table, and rules.
 
 ## Template Compliance
 

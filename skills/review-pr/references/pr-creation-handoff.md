@@ -9,9 +9,9 @@ No other skill calls `gh pr create`. Other skills (`resolve-issues`, and any fut
 ## Duties owned by create-pr (not duplicated by callers)
 
 1. **Pre-creation quality + security gate** — lint/test/build/type-check + secret scan, all must pass before `gh pr create`.
-2. **Auto-closing-keyword linkage + non-default-branch warning** — see `references/auto-closing-keywords.md`.
+2. **Auto-closing-keyword linkage + non-default-branch warning** — see `auto-closing-keywords.md`.
 3. **Mandatory handoff to `review-pr`** — the review → fix → commit+push → wait-for-review loop, until CI is green and every comment is triaged, then asks the user whether to merge via `AskUserQuestion` (merge commit/squash/rebase/don't) **before** the closeout ceremony — the summary comment and body rewrite run only on a merge choice. This handoff is default-on; skipped only on explicit `--no-monitor` or user opt-out.
-4. **Post-merge branch + worktree hygiene** — delegated onward to `review-pr` (Phase 5 closeout), which deletes the remote + local head branches (when stack-safe and in the main worktree), removes the linked worktree (`ExitWorktree action:"remove"`), switches to `main`, fast-forwards local `main`/`develop` with origin, drops all other already-merged locals, runs `git worktree prune`, and scans for stale worktree directories. See `references/closeout.md`.
+4. **Post-merge branch + worktree hygiene** — delegated onward to `review-pr` (Phase 5 closeout), which deletes the remote + local head branches (when stack-safe and in the main worktree), removes the linked worktree (`ExitWorktree action:"remove"`), switches to `main`, fast-forwards local `main`/`develop` with origin, drops all other already-merged locals, runs `git worktree prune`, and scans for stale worktree directories. See `closeout.md`.
 
 ## Caller contract (resolve-issues and any future caller)
 

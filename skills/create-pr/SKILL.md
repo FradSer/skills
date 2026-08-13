@@ -7,6 +7,11 @@ description: Creates comprehensive GitHub pull requests with automated quality v
 
 Execute automated PR creation workflow with comprehensive quality validation and security scanning.
 
+## Runtime notes
+
+- **Skill invocation**: `Skill("review-pr", ...)` is Claude Code syntax. On other runtimes, invoke the sibling `review-pr` skill with the runtime's own mechanism (e.g. `/skill:review-pr` in pi, or another agent referencing the skill by name) — the handoff contract in `references/pr-creation-handoff.md` is what matters, not the call syntax.
+- **Tools**: `AskUserQuestion` and `Monitor` are Claude Code tools; on other runtimes ask in the conversation and use the runtime's background-watch equivalent (or the review-pr skill's re-entrant script loop).
+
 ## Context
 
 - Current git status: !`git status`
@@ -75,11 +80,11 @@ See `references/repository-templates.md` for template detection and compliance d
 
 **Goal**: Delegate CI monitoring and reviewer-comment triage to the dedicated skill.
 
-**Action**: After the PR is created, invoke `Skill("review-pr", "<PR#>")` to run the baseline review and launch the persistent CI + comment watch. The review-pr skill owns the Monitor script, the skeptical triage agent, the review → fix → commit+push → wait-for-review loop, through to the merge decision and the post-merge branch hygiene (remote + local head cleanup, `fetch --prune`, fast-forward `main`/`develop`). **Once CI is green and every comment is triaged, review-pr asks the user whether to merge via `AskUserQuestion` (merge commit/squash/rebase/don't) BEFORE its closeout ceremony** — the summary comment and body rewrite run only on a merge choice. The merge ask is enforced by the plugin's Stop hook: review-pr arms a closeout state the moment the stop conditions hold and one turn-end per user turn is blocked until the decision resolves — the handoff cannot silently skip the ask. See `references/pr-creation-handoff.md` for the handoff contract including post-merge hygiene. This skill does not duplicate that cleanup; it is the handoff target's responsibility.
+**Action**: After the PR is created, invoke `Skill("review-pr", "<PR#>")` to run the baseline review and launch the persistent CI + comment watch. The review-pr skill owns the Monitor script, the skeptical triage agent, the review → fix → commit+push → wait-for-review loop, through to the merge decision and the post-merge branch hygiene (remote + local head cleanup, `fetch --prune`, fast-forward `main`/`develop`). **Once CI is green and every comment is triaged, review-pr asks the user whether to merge via `AskUserQuestion` (merge commit/squash/rebase/don't) BEFORE its closeout ceremony** — the summary comment and body rewrite run only on a merge choice. The merge ask is enforced by the skill's Stop hook (where the runtime supports hooks): review-pr arms a closeout state the moment the stop conditions hold and one turn-end per user turn is blocked until the decision resolves — the handoff cannot silently skip the ask. See `references/pr-creation-handoff.md` for the handoff contract including post-merge hygiene. This skill does not duplicate that cleanup; it is the handoff target's responsibility.
 
 **`--auto-merge` passthrough**: If `$ARGUMENTS` carried `--auto-merge`, pass it through to the review-pr invocation as `Skill("review-pr", "<PR#> --auto-merge")`. It instructs review-pr to skip the merge `AskUserQuestion` — the closeout ceremony (summary comment + body rewrite) still runs first — and auto-merge with `gh pr merge --merge` once CI is green and every non-escalate comment is triaged — see `references/pr-creation-handoff.md` for the contract and the escalate fallback. Pass it through **only** when the user explicitly set it; never infer it.
 
-**CRITICAL: this skill is the plugin's only PR-creating path.** Other skills (e.g. `resolve-issues`) delegate here instead of calling `gh pr create` themselves, precisely so no PR escapes the quality gate or this handoff. See `references/pr-creation-handoff.md` for the full contract. Do not add a bypass.
+**CRITICAL: this skill is the only PR-creating path.** Other skills (e.g. `resolve-issues`) delegate here instead of calling `gh pr create` themselves, precisely so no PR escapes the quality gate or this handoff. See `references/pr-creation-handoff.md` for the full contract. Do not add a bypass.
 
 ## References
 

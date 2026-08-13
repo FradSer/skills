@@ -28,7 +28,7 @@ bash <skill-dir>/scripts/arm-closeout.sh "$PR" --auto-merge   # opt-in
 
 Arming writes `.git/review-pr-closeout.json` (resolved via `git rev-parse --git-dir`, so it
 works from any cwd in the repo). While the file exists, the skill's Stop hook
-(`hooks/closeout-stop.sh`) blocks one turn-end per user turn with a message naming the PR and
+(`scripts/closeout-stop.sh`) blocks one turn-end per user turn with a message naming the PR and
 the missing step — the merge ask cannot be skipped by a premature or hallucinated stop, and
 the reminder does not loop: the hook passes through (`stop_hook_active`) on the second
 end-attempt of the same turn, so the turn ends once the reminder is injected. A user
@@ -301,7 +301,7 @@ Default cleanup — run all of these unconditionally on a merge choice (no opt-o
    git branch --merged main | grep -v '^\*\|main\|develop' | xargs -r git branch -d
    ```
 4. `git worktree prune` to remove stale administrative records.
-5. Scan `.claude/worktrees/` for stale worktree directories whose branch is already merged
+5. Scan `.agents/worktrees/` for stale worktree directories whose branch is already merged
    or no longer exists. Report them to the user and suggest manual `rm -rf` removal.
 
 ## Stacked / chained PRs (base branch is a shared dependency)
