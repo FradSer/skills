@@ -30,7 +30,7 @@
 
 1. Create a directory under `<items>/<item-name>/`.
 2. Add the descriptor file with the required frontmatter and body.
-3. Run the `update-readme` skill to sync both README files.
+3. Run `/update-readme` to sync both README files.
 
 ## License
 

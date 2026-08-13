@@ -1,11 +1,17 @@
 ---
 name: update-readme
-description: Updates README.md and README.zh-CN.md to reflect the project's current state. Use this skill whenever the user asks to "update the README", "sync the docs", "update documentation", "reflect latest changes in README", or wants both the English and Chinese READMEs to match the current project. Always triggers when the user mentions updating or regenerating README files, especially for bilingual (EN/ZH) projects.
+description: Updates README.md and README.zh-CN.md to reflect the project's current state. Use this skill whenever the user asks to "update the README", "sync the docs", "update documentation", "reflect latest changes in README", or wants both the English and Chinese READMEs to match the current project.
 ---
 
 # Update README
 
 Keep README.md (English, primary) and README.zh-CN.md (Simplified Chinese, secondary) in sync with the project's actual current state. Both files must be accurate, complete, and consistent with each other.
+
+## CRITICAL: Ground Truth and Header Format
+
+- Write from ground truth, not from memory or assumption. Every skill/component listed in the README MUST exist in the repository at the time of writing. Verify existence before writing.
+- Every README MUST open with the exact header structure shown in the "Header Format" section below, including the language toggle. Adapt badges, project name, and description to the project; do not omit the structure.
+- Do not output README content as a code block in the conversation. Use the Edit or Write tool to write the files directly.
 
 ## Header Format (Required)
 
@@ -76,9 +82,9 @@ Translate the English README faithfully. Rules:
 
 - Use natural Simplified Chinese — do not translate technical terms that are universally used in English (CLI tool names, package manager commands, GitHub URLs, code blocks).
 - Keep all code blocks, commands, and file paths identical to the English version.
-- Section headings should be idiomatic Chinese (e.g., "可用技能", "添加新技能"), not word-for-word translations.
-- The language toggle must be `[English](README.md) | **简体中文**`.
-- Apply the same plain-language discipline as the English version. Chinese technical writing has its own AI tells — avoid 「赋能」, 「助力」, 「生态」 where a simpler word works.
+- Section headings should be idiomatic Chinese (e.g., "available skills", "adding a new skill"), not word-for-word translations.
+- The language toggle must be `[English](README.md) | **Simplified Chinese**`.
+- Apply the same plain-language discipline as the English version. Chinese technical writing has its own AI tells — avoid buzzwords where a simpler word works.
 
 ### 4. Review before writing
 
