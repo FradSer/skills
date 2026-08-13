@@ -37,6 +37,17 @@ npx skills add https://github.com/FradSer/skills --skill lark
 
 使用此技能前需单独安装 `lark-cli`。
 
+### [missav](skills/missav/)
+
+使用 `agent-browser` 浏览 missav.ws 列表页，从卡片提取标题/时长/链接，并根据用户偏好（女优、番号、关键词、时长）排序推荐 AV。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill missav
+```
+
+使用此技能前需单独安装 `agent-browser`。
+
 ### [patent-architect](skills/patent-architect/)
 
 为技术发明检索现有技术并生成中文专利申请表时使用。
