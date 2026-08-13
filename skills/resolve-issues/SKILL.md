@@ -9,8 +9,13 @@ Execute issue resolution workflow using isolated worktrees, TDD methodology, and
 
 ## Runtime notes
 
-- **Worktree tools**: `EnterWorktree`/`ExitWorktree` are Claude Code tools. On other runtimes use plain git: `git worktree add -b <branch> <path> <base>` to create the isolated worktree and `git worktree remove <path>` (plus `git branch -D <branch>` if needed) to clean it up — same isolation, manual commands.
-- **Skill invocation**: `Skill("create-pr", ...)` is Claude Code syntax. On other runtimes, invoke the sibling `create-pr` skill with the runtime's own mechanism (e.g. `/skill:create-pr` in pi) — the handoff contract in `references/pr-creation-handoff.md` is what matters, not the call syntax.
+- **Worktrees**: worktrees are plain git — `git worktree add -b <branch> <path> <base>` to
+  create the isolated worktree, `git worktree remove <path>` (plus `git branch -D <branch>`
+  if needed) to clean it up. Runtimes with a dedicated worktree tool may use it instead;
+  the result is the same.
+- **Skill invocation**: hand PR creation to the sibling `create-pr` skill using the
+  runtime's own skill-invocation mechanism — the handoff contract in
+  `references/pr-creation-handoff.md` is what matters, not the call syntax.
 
 ## Context
 
@@ -31,8 +36,8 @@ Use isolated worktrees to avoid disrupting main development. Follow TDD cycle (r
 **Actions**:
 1. Review open issues from context and select based on priority and `$ARGUMENTS`
 2. Check existing worktrees to determine if reuse is possible
-3. Use the EnterWorktree tool with a descriptive name (e.g., `fix-456-auth-redirect`) to create an isolated session
-4. Rename the auto-generated branch to match conventions: run `git branch -m <type>/<issue>-<description>` (see `references/workflow-details.md` for naming)
+3. Create the worktree with a descriptive name (e.g., `fix-456-auth-redirect`): `git worktree add -b worktree-<name> .agents/worktrees/<name>` (or the runtime's worktree tool)
+4. Rename the branch to match conventions: run `git branch -m <type>/<issue>-<description>` (see `references/workflow-details.md` for naming)
 5. Verify issue acceptance criteria and dependencies
 
 ## Phase 2: TDD Implementation
@@ -52,21 +57,21 @@ Use isolated worktrees to avoid disrupting main development. Follow TDD cycle (r
 
 **Actions**:
 1. Push branch to remote with `git push -u origin <branch-name>`
-2. **CRITICAL: Do NOT call `gh pr create` here.** Invoke `Skill("create-pr", "<issue reference>")` — e.g. `Skill("create-pr", "Closes #456")`. It is the only PR-creating path and owns the quality/security gate, the auto-closing-keyword linkage, the non-default-branch warning, and the mandatory `review-pr` handoff. See `references/pr-creation-handoff.md` for the full contract. Creating the PR directly skips all of it.
+2. **CRITICAL: Do NOT call `gh pr create` here.** Invoke the `create-pr` skill with the issue reference (e.g. `create-pr: Closes #456`) via the runtime's skill mechanism. It is the only PR-creating path and owns the quality/security gate, the auto-closing-keyword linkage, the non-default-branch warning, and the mandatory `review-pr` handoff. See `references/pr-creation-handoff.md` for the full contract. Creating the PR directly skips all of it.
    - Append `--draft` to the arguments if the fix requires further feedback before review
    - Append `--no-monitor` only when the user explicitly opts out of the review loop
-3. **This skill does not resume here.** `create-pr` reports the PR URL, and `review-pr` then owns the PR for the rest of its life: a persistent Monitor spanning turns, the triage/fix/push rounds, and the merge decision it asks the user to make. Do NOT wait inline, do NOT re-report the URL, and do NOT run Phase 4 speculatively.
+3. **This skill does not resume here.** `create-pr` reports the PR URL, and `review-pr` then owns the PR for the rest of its life: a persistent watch spanning turns, the triage/fix/push rounds, and the merge decision it asks the user to make. Do NOT wait inline, do NOT re-report the URL, and do NOT run Phase 4 speculatively.
 
 ## Phase 4: Post-Merge Cleanup (later turn, fallback)
 
-**Trigger**: The PR from Phase 3 has actually merged — normally a later turn, after `review-pr` completed its merge decision. **`review-pr`'s closeout now owns the post-merge cleanup** (worktree removal via `ExitWorktree action:"remove"`, switch to `main`, sync with origin), so this Phase runs only as a **fallback** when that cleanup was skipped: the user chose "Don't merge", an interrupt left the worktree behind, or this is a fresh session that cannot `ExitWorktree` the worktree created by an earlier session. Never assume the worktree is gone — verify first.
+**Trigger**: The PR from Phase 3 has actually merged — normally a later turn, after `review-pr` completed its merge decision. **`review-pr`'s closeout now owns the post-merge cleanup** (worktree removal via `git worktree remove <path>`, switch to `main`, sync with origin), so this Phase runs only as a **fallback** when that cleanup was skipped: the user chose "Don't merge", an interrupt left the worktree behind, or this is a fresh session that cannot remove the worktree created by an earlier session. Never assume the worktree is gone — verify first.
 
 **Actions**:
 1. Verify the merge with `gh pr view <PR#> --json state -q .state` returning `MERGED`; never assume.
 2. Check `git worktree list` whether the issue worktree still exists. If `review-pr` already removed it, skip straight to `git fetch --prune`.
-3. If it persists: **CRITICAL: confirm still on the issue branch** before `ExitWorktree action:"remove"`. If checkout drifted onto `main`/`develop`, stop — removing would delete a long-lived branch. Remote head may already be gone; that is fine.
-4. Use the ExitWorktree tool with action "remove" to clean up worktree and branch.
-   - If uncommitted changes exist, ExitWorktree refuses; confirm with the user before setting `discard_changes: true`
+3. If it persists: **CRITICAL: confirm still on the issue branch** before `git worktree remove <path>`. If checkout drifted onto `main`/`develop`, stop — removing would delete a long-lived branch. Remote head may already be gone; that is fine.
+4. Remove the worktree with `git worktree remove <path>` (and `git branch -D <branch>` if the branch persists).
+   - If uncommitted changes exist, removal refuses; confirm with the user before discarding them
 5. `git fetch --prune` to sync remote-tracking branches.
 6. Document resolution and any follow-up tasks
 

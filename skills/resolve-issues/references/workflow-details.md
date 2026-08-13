@@ -10,13 +10,21 @@ Evaluate open issues from context and prioritize the next actionable item:
 
 ## Worktree Setup
 
-Create an isolated worktree session using the EnterWorktree tool:
+Create an isolated worktree session with plain git (runtimes with a dedicated
+worktree tool may use it instead — the result is the same):
 
-1. **Create worktree session**:
-   Use the EnterWorktree tool with a descriptive name (e.g., `fix-456-auth-redirect`). This creates a worktree in `.agents/worktrees/` and switches the session into it automatically. `.agents/worktrees/` must be ignored in the repo's tracked `.gitignore` (not only a local `.git/info/exclude` entry) so a fresh clone doesn't show the worktree directory as untracked — verify with `git check-ignore -v .agents/worktrees` before relying on it.
+1. **Create worktree**:
+   Create a worktree under `.agents/worktrees/` with a descriptive name (e.g.,
+   `fix-456-auth-redirect`):
+   ```bash
+   git worktree add -b worktree-fix-456-auth-redirect .agents/worktrees/fix-456-auth-redirect
+   ```
+   `.agents/worktrees/` must be ignored in the repo's tracked `.gitignore` (not only a local
+   `.git/info/exclude` entry) so a fresh clone doesn't show the worktree directory as
+   untracked — verify with `git check-ignore -v .agents/worktrees` before relying on it.
 
 2. **Rename branch to match conventions**:
-   EnterWorktree generates a branch named `worktree-<name>`. Rename it before committing:
+   The branch was created as `worktree-<name>`. Rename it before committing:
    ```bash
    git branch -m fix/456-auth-redirect
    ```
@@ -59,6 +67,17 @@ During the TDD cycle, run project-specific quality checks for fast local feedbac
 ## PR Creation and Cleanup
 
 1. **Push branch**: `git push -u origin <branch-name>`
-2. **Create PR**: **CRITICAL: never call `gh pr create` from this skill.** Invoke `Skill("create-pr", "Closes #456")` with the issue reference — see `pr-creation-handoff.md` for the full contract. Pass `--no-monitor` through only on an explicit user opt-out. Pass `--auto-merge` through only on an explicit user opt-in (it forwards through create-pr to `review-pr`, which auto-merges with a merge commit once CI is green and every non-escalate comment is triaged — escalate items suspend it and fall back to the explicit question).
-3. **After merge**: `review-pr` owns the merge decision and the post-merge cleanup — it removes the linked worktree via `ExitWorktree action:"remove"`, switches to `main`, and syncs `main`/`develop` with origin. resolve-issues Phase 4 only runs as a fallback if review-pr's cleanup was skipped (e.g. "Don't merge", an interrupt, or a fresh session) — check `git worktree list` first and `ExitWorktree action:"remove"` only if the worktree persists.
-   - If uncommitted changes exist, ExitWorktree will refuse; confirm with the user before setting `discard_changes: true`
+2. **Create PR**: **CRITICAL: never call `gh pr create` from this skill.** Invoke the
+   `create-pr` skill with the issue reference (e.g. `create-pr: Closes #456`) — see
+   `pr-creation-handoff.md` for the full contract. Pass `--no-monitor` through only on an
+explicit user opt-out. Pass `--auto-merge` through only on an explicit user opt-in (it
+forwards through create-pr to `review-pr`, which auto-merges with a merge commit once CI is
+green and every non-escalate comment is triaged — escalate items suspend it and fall back to
+the explicit question).
+3. **After merge**: `review-pr` owns the merge decision and the post-merge cleanup — it
+   removes the linked worktree (`git worktree remove <path>`), switches to `main`, and syncs
+   `main`/`develop` with origin. resolve-issues Phase 4 only runs as a fallback if review-pr's
+   cleanup was skipped (e.g. "Don't merge", an interrupt, or a fresh session) — check
+   `git worktree list` first and `git worktree remove <path>` only if the worktree persists.
+   - If uncommitted changes exist, removal will refuse; confirm with the user before
+     discarding them.
