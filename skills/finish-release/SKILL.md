@@ -11,4 +11,7 @@ Follow the pipeline in `references/gitflow-finish-pipeline.md`:
 - **Workflow Type**: `release`
 - **Arguments**: $ARGUMENTS
 
+Mechanical steps (finish, push, return-to-develop, cleanup) run through
+`scripts/finish-branch.sh` — see the pipeline reference for usage.
+
 Pre-flight invariants (clean tree, correct branch) and testing requirements are enforced per `references/invariants.md`; cleanup after finishing follows `references/cleanup.md`.

@@ -34,6 +34,19 @@ See `invariants.md`.
 
 ## Phase 4: Execute GitFlow Finish & Push
 
+Run the deterministic steps through the bundled script (the agent still runs tests in
+Phase 2 and updates the changelog in Phase 3; the script executes git-flow finish,
+push, return-to-develop, and cleanup):
+
+```bash
+bash <skill-dir>/scripts/finish-branch.sh --type feature --name $NAME
+bash <skill-dir>/scripts/finish-branch.sh --type hotfix --version $VERSION
+bash <skill-dir>/scripts/finish-branch.sh --type release --version $VERSION
+# optional: --tagname v$VERSION --message "Release v$VERSION"
+```
+
+Equivalent manual commands (when the script is unavailable):
+
 ### Feature (`feature`)
 ```bash
 git flow feature finish $NAME
