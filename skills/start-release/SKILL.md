@@ -11,4 +11,7 @@ Follow the pipeline in `references/gitflow-start-pipeline.md`:
 - **Workflow Type**: `release`
 - **Arguments**: $ARGUMENTS
 
+Mechanical steps (branch start, version bump, push) run through
+`scripts/start-branch.sh` — see the pipeline reference for usage.
+
 Pre-flight invariants (clean working tree) are enforced per `references/invariants.md`.

@@ -42,6 +42,20 @@ Arguments (`$ARGUMENTS`) are **optional**. If `$ARGUMENTS` is empty or omitted, 
 
 ## Phase 1: Start GitFlow Branch & Version Bump
 
+Run the deterministic steps through the bundled script (the agent still decides the
+name/version in Phase 0; the script executes clean-tree check, `git flow start`,
+version-file bump commit, and push):
+
+```bash
+bash <skill-dir>/scripts/start-branch.sh --type <feature|hotfix|release> --name <NAME_OR_TARGET>
+# hotfix/release also pass the resolved version so the bump commit is created:
+bash <skill-dir>/scripts/start-branch.sh --type hotfix --version <TARGET>
+bash <skill-dir>/scripts/start-branch.sh --type release --version <TARGET>
+# add --no-push to skip the push (e.g. dry runs)
+```
+
+Equivalent manual commands (when the script is unavailable):
+
 1. Execute git-flow start command:
    ```bash
    git flow <type> start <NAME_OR_TARGET>
