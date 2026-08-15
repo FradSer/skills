@@ -6,6 +6,7 @@ metadata:
   sources:
     - https://github.com/Dimillian/Skills/tree/main/swiftui-liquid-glass
     - https://github.com/twostraws/swiftui-agent-skill
+    - https://github.com/AvdLee/SwiftUI-Agent-Skill
     - https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass
 ---
 
@@ -20,18 +21,36 @@ Read the focused reference before acting:
 | Request | Read |
 | --- | --- |
 | Add, migrate, diagnose, or review Liquid Glass | [references/liquid-glass.md](references/liquid-glass.md) |
-| Implement or review SwiftUI architecture, state, views, navigation, accessibility, performance, concurrency, or tests | [references/review.md](references/review.md) |
+| Implement or review SwiftUI architecture, state, views, navigation, accessibility, performance, concurrency, tests, or pure Swift style | [references/twostraws.md](references/twostraws.md) (authoritative full rules) |
+| State management and `@Observable` data flow | [references/state-management.md](references/state-management.md) |
+| View composition, extraction, and diffing | [references/view-structure.md](references/view-structure.md) |
+| Performance, invalidation, and `_logChanges()` | [references/performance-patterns.md](references/performance-patterns.md) |
+| Lists, `ForEach` identity, and `Table` | [references/list-patterns.md](references/list-patterns.md) |
+| Layout and `GeometryReader` alternatives | [references/layout-best-practices.md](references/layout-best-practices.md) |
+| Sheets, navigation, and Inspector | [references/sheet-navigation-patterns.md](references/sheet-navigation-patterns.md) |
+| Scroll views, scroll position, and geometry | [references/scroll-patterns.md](references/scroll-patterns.md) |
+| Focus management | [references/focus-patterns.md](references/focus-patterns.md) |
+| Animations (basics, transitions, advanced) | [references/animation-basics.md](references/animation-basics.md) · [animation-transitions.md](references/animation-transitions.md) · [animation-advanced.md](references/animation-advanced.md) |
+| Accessibility patterns | [references/accessibility-patterns.md](references/accessibility-patterns.md) |
+| Swift Charts and charts accessibility | [references/charts.md](references/charts.md) · [charts-accessibility.md](references/charts-accessibility.md) |
+| Image loading and optimization | [references/image-optimization.md](references/image-optimization.md) |
+| Text and localization | [references/text-patterns.md](references/text-patterns.md) · [localization.md](references/localization.md) |
+| macOS scenes, windows, and views | [references/macos-scenes.md](references/macos-scenes.md) · [macos-window-styling.md](references/macos-window-styling.md) · [macos-views.md](references/macos-views.md) |
+| Deprecated or soft-deprecated API handling | [references/latest-apis.md](references/latest-apis.md) · [soft-deprecation.md](references/soft-deprecation.md) |
+| Previews | [references/previews.md](references/previews.md) |
+| Instruments `.trace` recording or analysis | [references/trace-recording.md](references/trace-recording.md) · [trace-analysis.md](references/trace-analysis.md) |
 
-When a task spans both, read both files. Apple documentation is the source of truth whenever an API signature, platform availability, or behavior may have changed.
+When a task spans both, read both files. Apple documentation is the source of truth whenever an API signature, platform availability, or behavior may have changed. Topic references are vendored from [AvdLee/SwiftUI-Agent-Skill](https://github.com/AvdLee/SwiftUI-Agent-Skill) and [twostraws/swiftui-agent-skill](https://github.com/twostraws/swiftui-agent-skill) (authoritative baseline); the local Liquid Glass reference takes precedence where they differ.
 
 ## First decisions
 
-1. Identify the platform, deployment target, and supported OS versions from the project configuration. Treat macOS 26 and iOS 26 as the default for new apps.
-2. Preserve standard components before customizing. Build with the current SDK and inspect the app on macOS 26 and iOS 26 before adding custom effects.
-3. Classify each candidate surface:
+1. Consult [references/latest-apis.md](references/latest-apis.md) at the start of every task to avoid deprecated APIs.
+2. Identify the platform, deployment target, and supported OS versions from the project configuration. Treat macOS 26 and iOS 26 as the default for new apps.
+3. Preserve standard components before customizing. Build with the current SDK and inspect the app on macOS 26 and iOS 26 before adding custom effects.
+4. Classify each candidate surface:
    - **functional layer:** controls, navigation, toolbars, transient actions, floating utility controls, and other UI that acts on content. Liquid Glass is appropriate here.
    - **content layer:** reading, browsing, editing, data presentation, and ordinary cards. Do not make content glass by default; use layout, standard materials, grouping, or color only when they improve hierarchy.
-4. State the smallest viable plan. Use a custom glass treatment only when a standard component cannot express the required interaction or hierarchy.
+5. State the smallest viable plan. Use a custom glass treatment only when a standard component cannot express the required interaction or hierarchy.
 
 ## Implementing Liquid Glass
 
@@ -51,7 +70,7 @@ Use `#available(iOS 26, macOS 26, *)` only when the project supports earlier rel
 
 This is a SwiftUI skill, not a narrow visual-effect skill. Apply these standards to every SwiftUI request, whether it includes custom Liquid Glass or not.
 
-Follow [references/review.md](references/review.md) for modern APIs, view composition, state and concurrency, navigation, accessibility, performance, and code hygiene. In particular:
+Follow [references/twostraws.md](references/twostraws.md) for modern APIs, view composition, state and concurrency, navigation, accessibility, performance, and code hygiene. In particular:
 
 - Use modern SwiftUI and Swift 6.2+ concurrency. Do not introduce UIKit or AppKit, third-party UI frameworks, or custom infrastructure unless the project or request requires it.
 - Prefer `@Observable` models with explicit main-actor isolation when the project does not define main-actor default isolation. Keep state ownership local and private; pass shared observable state using SwiftUI’s current observation tools.
@@ -72,10 +91,39 @@ Report confirmed issues only. Do not manufacture a checklist of minor preference
 
 For every finding, give the file and line, the broken rule, why it affects the app, and a minimal before/after fix. Group findings by file and end with the highest-impact fixes first. Skip files with no confirmed issue.
 
+## Correctness checklist
+
+Hard rules adapted from [AvdLee/SwiftUI-Agent-Skill](https://github.com/AvdLee/SwiftUI-Agent-Skill) — violations are always bugs. Performance optimizations beyond these rules are suggestions, not requirements:
+
+- [ ] `@State` properties are `private`
+- [ ] `@Binding` appears only where a child modifies parent state
+- [ ] Passed values are never declared as `@State` (they ignore updates)
+- [ ] iOS 17+: view-owned `@Observable` models use `@State`; injected observables that need bindings use `@Bindable`
+- [ ] Legacy `ObservableObject` code: `@StateObject` for view-owned objects, `@ObservedObject` for injected; new code does not introduce them
+- [ ] `ForEach` uses stable identity (never `.indices`/`\.offset`; the id outlives the view and is not derived from mutable content)
+- [ ] Constant number of views per `ForEach` element; `List` rows are unary
+- [ ] No closures stored in custom `@Environment`/`@FocusedValue` keys
+- [ ] Custom `@Entry` default values are stable (no `Model()`/`Date()`/`UUID()` expressions)
+- [ ] `.animation(_:value:)` always includes the `value` parameter
+- [ ] `@FocusState` properties are `private`; no redundant `@FocusState` writes inside tap gesture handlers on `.focusable()` views
+- [ ] iOS 26+ APIs are gated with `#available` and a fallback is provided
+- [ ] `import Charts` present in files using chart types
+- [ ] Previews use self-contained mock data; no dependency on live services or network
+
+## Instruments trace workflow
+
+When the user asks to record or analyze an Xcode Instruments `.trace` file, follow [references/trace-recording.md](references/trace-recording.md) and [references/trace-analysis.md](references/trace-analysis.md). The bundled scripts under `scripts/` are stdlib-only Python:
+
+- `scripts/record_trace.py` wraps `xctrace record`, supports attach/launch/all-process targets, template selection, and a stop-file for agent-driven sessions.
+- `scripts/analyze_trace.py` parses a trace and reports main-thread coverage, SwiftUI update causes, hitches, and hangs; `--fanin-for "<view>"` answers who invalidates a hot view.
+
+Use `${SKILL_DIR}/scripts/...` as the script path. These workflows complement, not replace, code-level review.
+
 ## Sources
 
 - [Apple: Adopting Liquid Glass](https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass)
 - [Apple: Applying Liquid Glass to custom views](https://developer.apple.com/documentation/swiftui/applying-liquid-glass-to-custom-views)
 - [Apple: Materials HIG](https://developer.apple.com/design/human-interface-guidelines/materials)
 - [Dimillian/Skills: swiftui-liquid-glass](https://github.com/Dimillian/Skills/tree/main/swiftui-liquid-glass)
-- [twostraws/swiftui-agent-skill](https://github.com/twostraws/swiftui-agent-skill)
+- [twostraws/swiftui-agent-skill](https://github.com/twostraws/swiftui-agent-skill) — authoritative review baseline vendored in [references/twostraws.md](references/twostraws.md) under MIT
+- [AvdLee/SwiftUI-Agent-Skill](https://github.com/AvdLee/SwiftUI-Agent-Skill) — topic references and Instruments scripts vendored under MIT

@@ -33,6 +33,11 @@ Temporary Items
 # iCloud generated files
 *.icloud
 
+### Python ###
+# Byte-compiled / cache artifacts (vendored Instruments scripts)
+__pycache__/
+*.py[cod]
+
 ### Node ###
 # Logs
 logs

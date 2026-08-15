@@ -154,7 +154,7 @@ npx skills add https://github.com/FradSer/skills --skill substore-openclash
 
 ### [swiftui](skills/swiftui/)
 
-Builds, refactors, and reviews modern SwiftUI. Prioritizes macOS 26 and iOS 26 Liquid Glass while covering view architecture, state, concurrency, navigation, accessibility, performance, and testing.
+Builds, refactors, and reviews modern SwiftUI. Prioritizes macOS 26 and iOS 26 Liquid Glass while covering view architecture, state, concurrency, navigation, accessibility, performance, and testing. Ships dedicated topic references (state, lists, layout, charts, macOS scenes, localization, previews), the authoritative [twostraws](https://github.com/twostraws/swiftui-agent-skill) review baseline, and Instruments trace tooling vendored from [AvdLee/SwiftUI-Agent-Skill](https://github.com/AvdLee/SwiftUI-Agent-Skill).
 
 **Installation:**
 ```bash

@@ -154,7 +154,7 @@ npx skills add https://github.com/FradSer/skills --skill substore-openclash
 
 ### [swiftui](skills/swiftui/)
 
-用于构建、重构和审查现代 SwiftUI。优先采用 macOS 26 与 iOS 26 的 Liquid Glass，同时涵盖视图架构、状态、并发、导航、无障碍、性能和测试。
+用于构建、重构和审查现代 SwiftUI。优先采用 macOS 26 与 iOS 26 的 Liquid Glass，同时涵盖视图架构、状态、并发、导航、无障碍、性能和测试。附带从 [AvdLee/SwiftUI-Agent-Skill](https://github.com/AvdLee/SwiftUI-Agent-Skill) 引入的专题参考（状态、列表、布局、图表、macOS 场景、本地化、预览）与 Instruments 性能分析工具，以及 [twostraws](https://github.com/twostraws/swiftui-agent-skill) 的权威审查基线。
 
 **安装命令：**
 ```bash

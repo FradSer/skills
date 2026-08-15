@@ -134,6 +134,40 @@ var body: some View {
 
 Use `glassEffectUnion(id:namespace:)` only when multiple glass effects with the same Glass variant and shape should contribute to a single effect shape. It is not a general-purpose layout modifier.
 
+```swift
+GlassEffectContainer(spacing: 12) {
+    HStack(spacing: 12) {
+        ForEach(tools) { tool in
+            Image(systemName: tool.symbol)
+                .frame(width: 44, height: 44)
+                .glassEffect(.regular, in: .circle)
+                .glassEffectUnion(id: tool.isPrimary ? "primary" : "secondary", namespace: glassNamespace)
+        }
+    }
+}
+```
+
+## Background extension and edge-to-edge scrolling
+
+Use `backgroundExtensionEffect()` to stretch a detail view's background under the sidebar or inspector so the glass surface reads as one continuous canvas. Apply it with discretion to a single background view; it mirrors the view at the edges, blurs the copies, and clips to avoid overlap.
+
+```swift
+NavigationSplitView {
+    sidebar
+} detail: {
+    ZStack {
+        banner
+            .backgroundExtensionEffect()
+        content
+    }
+}
+.inspector(isPresented: $showInspector) {
+    inspectorContent
+}
+```
+
+To let a horizontal scroll view extend under the sidebar or inspector, make it touch the leading and trailing edges — the system then scrolls it under the sidebar or inspector automatically. There is no `scrollExtensionMode`-style modifier for this; do not invent one.
+
 ## Availability and migration
 
 For apps supporting pre-26 releases, isolate only the visual treatment in availability branches. Keep view identity, action handling, content, accessibility, and state shared.
@@ -170,6 +204,7 @@ Use the availability condition that exactly matches the project’s platforms. D
 - Interactive effects map to actual semantic controls; decorative effects are not interactive.
 - A container groups only nearby effects that need shared rendering or a morph.
 - Transitions, IDs, and unions correspond to a visible hierarchy change and use one namespace.
+- `backgroundExtensionEffect()` is limited to a single background view and only where content should flow under the sidebar or inspector; horizontal scrolls under a sidebar rely on edge-to-edge layout, not a made-up modifier.
 - Text and icons remain legible over changing backdrops in light and dark appearances.
 - The UI remains usable with Dynamic Type, Reduce Motion, VoiceOver, keyboard focus, and pointer interaction.
 - Pre-26 fallback behavior is equivalent when the app supports it.
@@ -179,5 +214,7 @@ Use the availability condition that exactly matches the project’s platforms. D
 - [Applying Liquid Glass to custom views](https://developer.apple.com/documentation/swiftui/applying-liquid-glass-to-custom-views)
 - [GlassEffectContainer](https://developer.apple.com/documentation/swiftui/glasseffectcontainer)
 - [GlassEffectTransition](https://developer.apple.com/documentation/swiftui/view/glasseffecttransition(_:))
+- [backgroundExtensionEffect()](https://developer.apple.com/documentation/swiftui/view/backgroundextensioneffect())
+- [Landmarks: Building an app with Liquid Glass](https://developer.apple.com/documentation/swiftui/landmarks-building-an-app-with-liquid-glass)
 - [Materials HIG](https://developer.apple.com/design/human-interface-guidelines/materials)
 - [Build a SwiftUI app with the new design, WWDC25](https://developer.apple.com/videos/play/wwdc2025/323/)
