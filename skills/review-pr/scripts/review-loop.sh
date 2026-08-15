@@ -17,6 +17,17 @@
 #
 # Env vars (PR / REPO / INTERVAL) take precedence over flags so the skill can
 # pass them through Monitor's env.
+#
+# Restarting a watch mid-PR re-surfaces every comment since PR creation. Pass
+# the node ids already triaged by the previous run so they are not re-emitted:
+#   EXCLUDE="<node-id> <node-id>" (space-separated) and/or repeatable
+#   --exclude <node-id> — env entries and flags are merged.
+#
+# NEVER filter this script's stdout through grep/sed/awk to drop lines: those
+# tools block-buffer when their stdout is a pipe, so every later event stalls
+# in the filter's buffer until it fills (~4KB) or the watch exits — the monitor
+# sees nothing. Exclusion is built in for exactly this reason; if a filter is
+# truly unavoidable, use `grep --line-buffered`.
 
 set -u
 
@@ -24,6 +35,11 @@ PR="${PR:-}"
 REPO="${REPO:-}"
 INTERVAL="${INTERVAL:-}"
 ONCE=0
+
+# Space-padded node-id set (same matching scheme as seen_comments below). Seeded
+# from EXCLUDE; --exclude flags APPEND to it instead of overriding — env and
+# flags are two ways for the caller to supply the same merged list.
+exclude=" ${EXCLUDE:-} "
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -35,6 +51,7 @@ while [ $# -gt 0 ]; do
     --pr)        if [ $# -ge 2 ]; then [ -z "${PR:-}" ] && PR="$2"; shift 2; else echo "review-loop.sh: $1 requires a value" >&2; exit 2; fi ;;
     --repo)      if [ $# -ge 2 ]; then [ -z "${REPO:-}" ] && REPO="$2"; shift 2; else echo "review-loop.sh: $1 requires a value" >&2; exit 2; fi ;;
     --interval)  if [ $# -ge 2 ]; then [ -z "${INTERVAL:-}" ] && INTERVAL="$2"; shift 2; else echo "review-loop.sh: $1 requires a value" >&2; exit 2; fi ;;
+    --exclude)   if [ $# -ge 2 ]; then exclude="$exclude$2 "; shift 2; else echo "review-loop.sh: $1 requires a value" >&2; exit 2; fi ;;
     --once)      ONCE=1; shift ;;
     -h|--help)
       sed -n '2,20p' "$0"; exit 0 ;;
@@ -101,6 +118,11 @@ set_ci_bucket() {  # args: name  bucket
 
 emit_comment() {  # args: id  line
   [ -z "${1:-}" ] && return
+  # Nodes triaged by a previous watch run are suppressed natively so callers
+  # never need a `| grep -v` chain (which block-buffers and stalls delivery).
+  case "$exclude" in
+    *" $1 "*) return ;;
+  esac
   case "$seen_comments" in
     *" $1 "*) ;;
     *) echo "$2"; seen_comments="$seen_comments$1 " ;;

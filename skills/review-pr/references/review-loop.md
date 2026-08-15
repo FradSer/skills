@@ -2,12 +2,11 @@
 
 The watch is driven by a single bash script (`scripts/review-loop.sh`) that emits
 one tagged stdout line per new event for BOTH CI checks and PR comments. How the lines
-are consumed depends on the runtime: the runtime's generic **monitor** (e.g. pi's
-`monitor_start`) runs the script in the background and delivers each line as a
-notification across turns (the script was designed for that mode), or a re-entrant
-loop — run the script once per turn, read its output, and stop when the stop
-conditions hold. The script is a plain executable emitting lines on stdout, so it
-works under any generic monitor: start it with `monitor_start command="PR=<n> REPO=<o>/<r> INTERVAL=<s> bash <skill-dir>/scripts/review-loop.sh" description="CI + new comments on PR #<n>"` and react to each `[ci]`/`[comment]` notification. Do not block on a manual `while true` loop.
+are consumed depends on the host: a generic background monitor runs the script in the
+background and delivers each line as a notification across turns, or a re-entrant loop
+runs the script once per turn, reads its output, and stops when the stop conditions hold.
+The script is a plain executable emitting lines on stdout, so it works under any generic
+monitor. Do not block on a manual `while true` loop.
 
 ## Poll interval by PR size
 
@@ -49,7 +48,7 @@ Run it — it reads `PR`, `REPO`, and `INTERVAL` from env
 (or `--pr`/`--repo`/`--interval` flags) and emits the tagged lines above.
 
 ```bash
-# Monitor (runtimes with a generic background monitor, e.g. pi's monitor_start):
+# Generic background monitor:
 PR=<pr-number> REPO=<owner>/<repo> INTERVAL=<sec> \
   bash <skill-dir>/scripts/review-loop.sh
 
@@ -62,6 +61,30 @@ PR=<pr-number> REPO=<owner>/<repo> INTERVAL=<sec> \
 Stop the watch when done (stop the background task, or simply stop re-invoking the
 re-entrant loop) — never leave it running once the PR is settled.
 
+## Excluding already-triaged comments on restart
+
+Every watch run seeds `since` to the PR's creation time, so poll 1 re-surfaces the
+ENTIRE comment history — including comments a previous watch run already triaged.
+When restarting a watch mid-PR, pass the already-handled node ids so they are not
+re-notified:
+
+```bash
+# EXCLUDE env: space-separated node ids — and/or repeatable --exclude <node-id>;
+# env entries and flags are merged.
+PR=<n> REPO=<owner>/<repo> INTERVAL=<sec> \
+  EXCLUDE="<handled-node-id> <handled-node-id>" \
+  bash <skill-dir>/scripts/review-loop.sh
+```
+
+**CRITICAL: never filter the script's stdout through a `grep -v` / `sed` / `awk`
+chain to drop handled comments.** Those tools block-buffer when their stdout is a
+pipe, so every event — including later ones — stalls inside the filter's buffer
+until ~4 KB accumulates or the watch exits. Observed live: a monitor watching
+`review-loop.sh | grep -v node=...` showed zero output for 20+ minutes while a new
+reviewer comment had already been emitted. Exclusion is built into the script for
+exactly this reason. If a downstream filter is ever truly unavoidable, make it
+line-buffered (`grep --line-buffered`).
+
 Behavior notes:
 - `since` is seeded to the PR's **creation time** (not launch time), so comments posted
   before the skill started are surfaced on poll 1. It advances to `now` after each poll.
@@ -73,10 +96,9 @@ Behavior notes:
 - `|| true` / `2>/dev/null` on every API call keeps one transient failure from killing
   the watch; `INTERVAL` is floored at 60s.
 
-Run it under the runtime's generic monitor (runtimes that have one, e.g. pi's
-`monitor_start`) with a specific description (e.g. `"CI + new comments on PR #<n> (5m poll)"`),
-or re-invoke it each turn with `--once` (runtimes without one). Stop it when done — never
-leave it running once the PR is settled.
+Run it under the host's generic background monitor with a specific description when available,
+or re-invoke it each turn with `--once` when it is not. Stop it when done — never leave it
+running once the PR is settled.
 
 ## You do not have to adopt review comments
 

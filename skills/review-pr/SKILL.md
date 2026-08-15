@@ -10,7 +10,7 @@ Run the baseline review of the PR diff, then keep a persistent watch over CI and
 ## Runtime notes
 
 - **Script paths**: every `bash <skill-dir>/scripts/...` command below needs the absolute path to this skill's installed directory (e.g. `~/.agents/skills/review-pr`). Resolve it once at the start, export it as `SKILL_DIR`, and use `$SKILL_DIR/scripts/<name>.sh` everywhere. The scripts live in this skill's `scripts/`, never in the repository you are working in.
-- **Watch (monitor)**: the CI + comment watch is `scripts/review-loop.sh`, run under the runtime's generic monitor (e.g. pi's `monitor_start`) so each emitted line arrives as a monitor notification across turns; on runtimes without a monitor, run it with `--once` once per turn (it emits one tagged line per new event), re-enter across turns, and stop once the stop conditions hold. Never use a blocking foreground `while` loop.
+- **Watch (monitor)**: the CI + comment watch is `scripts/review-loop.sh`. Run it under the host's generic background monitor when available so each emitted line arrives as a notification; otherwise run it with `--once` once per turn and stop once the stop conditions hold. Never use a blocking foreground `while` loop.
 - **Tool mapping**: independent review/triage -> spawn a clean-context subagent (or route the script's output through an independent agent); notifying the user -> report in the conversation; stopping the watch -> stop the monitor task or stop re-invoking. The workflow is tool-agnostic. **The pipeline never asks the user for a decision** — everything from baseline review through merge runs automatically.
 - **Closeout enforcement**: the closeout state (`arm-closeout.sh`/`clear-closeout.sh` + `.git/review-pr-closeout.json`) is enforced by `scripts/closeout-stop.sh` on runtimes with stop hooks, and in-prompt on others: arm the state the moment Phase 4 holds, run the automatic closeout (summary comment + body rewrite + auto-merge), clear the state when the merge completes or aborts — never end the turn while the state is armed. Never ask the user whether to merge; never pause the pipeline for user input.
 
@@ -37,7 +37,7 @@ Run the baseline review of the PR diff, then keep a persistent watch over CI and
 **Goal**: One background watch streaming CI + comment events across turns.
 
 **Action**: Launch `scripts/review-loop.sh` as a monitor (runtimes with a generic monitor
-such as pi's `monitor_start`), or run it with `--once` once per turn on runtimes without one. The
+when available, or run it with `--once` once per turn on hosts without one. The
 bare path `scripts/review-loop.sh` does NOT resolve — the skill runs in the PR's repository
 cwd, not the skill dir, so the script must be addressed by its absolute skill path. Pass
 `PR`, `REPO`, and `INTERVAL` as env vars (the script also accepts
@@ -45,7 +45,13 @@ cwd, not the skill dir, so the script must be addressed by its absolute skill pa
 `"CI + new comments on PR #<n> (<m> poll)"`. Do NOT run a foreground `while` loop. The
 script is documented in `references/review-loop.md`.
 
-**CRITICAL: Do NOT skip the watch based on a launch-time snapshot.** "This repo has no CI workflow, so the watch would spin idly" is a **false** inference and not a valid reason to skip: CI is only one of the two things watched. Third-party auto-review services (GitHub Copilot code review, CodeRabbit, Greptile, Codex, Sourcery, and similar), org-level bots, and human reviewers post comments on no fixed schedule and are invisible in a launch-time snapshot — a repo with zero workflows can still accumulate a full review thread minutes after the PR opens. An empty `.github/workflows/` proves nothing about who will comment.
+**Restarting a watch mid-PR**: pass the node ids already triaged by the previous run
+via `EXCLUDE="<node-id> ..."` (or repeatable `--exclude <node-id>`) so history
+re-surfacing does not re-notify handled comments. Never drop those lines with a
+`grep -v` chain instead — grep/sed/awk block-buffer when piped, so events stall in
+the filter and the monitor sees nothing (details in `references/review-loop.md`).
+
+**CRITICAL: Do NOT skip the watch based on a launch-time snapshot.** "This repo has no CI workflow, so the watch would spin idly" is a **false** inference and not a valid reason to skip: CI is only one of the two things watched. Automated review services, org-level bots, and human reviewers post comments on no fixed schedule and are invisible in a launch-time snapshot — a repo with zero workflows can still accumulate a full review thread minutes after the PR opens. An empty `.github/workflows/` proves nothing about who will comment.
 
 The only valid skip is a PR that is already merged or closed. If CI and reviewers both appear absent, launch the watch anyway; it costs nothing and emits nothing until something changes.
 
@@ -72,7 +78,7 @@ Stop the watch when EITHER holds — full conditions in `references/review-loop.
 **Goal**: Once Phase 4 holds, run the closeout ceremony (summary comment + body rewrite) and auto-merge — with no user question. Full templates and ordered steps in `references/closeout.md`.
 
 **CRITICAL constraints (hold even when detail is delegated to L3):**
-1. **Arm the closeout state the moment Phase 4 holds — before anything else**: `bash <skill-dir>/scripts/arm-closeout.sh "$PR"`. This writes the repo's `.git/review-pr-closeout.json`, arming closeout enforcement: while the file exists, one turn-end per user turn is blocked (mechanically by `scripts/closeout-stop.sh` on stop-hook runtimes, in-prompt otherwise) naming the pending closeout — the automatic ceremony cannot be skipped by a premature stop. **When enforcement blocks, first verify the pending closeout is real** — a stale state file (summary posted, PR merged without clearing) is a false alarm: judge simple checks directly (`gh pr view --json state,mergedAt`, the `<!-- review-pr:summary -->` marker lookup), spawn an independent subagent with clean context for complex or ambiguous situations — see `references/closeout.md` (When enforcement fires). A verified-stale state is cleared, not re-run. Clear it the moment the closeout is resolved — `bash <skill-dir>/scripts/clear-closeout.sh "$PR"`: after the auto-merge completes or aborts. A stale file blocks the next stop; its message repeats the clear path.
+1. **Arm the closeout state the moment Phase 4 holds — before anything else**: `bash <skill-dir>/scripts/arm-closeout.sh "$PR"`. This writes the repo's `.git/review-pr-closeout.json`, arming closeout enforcement: while the file exists, one turn-end per user turn is blocked when the host provides a compatible stop hook; on other hosts, enforce the same rule in-prompt. **When enforcement blocks, first verify the pending closeout is real** — a stale state file (summary posted, PR merged without clearing) is a false alarm: judge simple checks directly (`gh pr view --json state,mergedAt`, the `<!-- review-pr:summary -->` marker lookup), spawn an independent subagent with clean context for complex or ambiguous situations — see `references/closeout.md` (When enforcement fires). A verified-stale state is cleared, not re-run. Clear it the moment the closeout is resolved — `bash <skill-dir>/scripts/clear-closeout.sh "$PR"`: after the auto-merge completes or aborts. A stale file blocks the next stop; its message repeats the clear path.
 2. The ceremony runs automatically the moment Phase 4 holds: capture the summary comment URL from `gh pr comment` stdout (`SUMMARY_URL=$(gh pr comment …)`), then rewrite the body with the Review-cycle line linking that URL.
 2. Escalate/ambiguous comments never block the merge and never trigger a question — they are recorded in the summary comment (body + author + file context + the one-line outcome) and the merge proceeds.
 3. The Review-cycle line in the rewritten body MUST contain that literal URL — a count with no link is not a pointer, and the quoted heredoc will not expand `$SUMMARY_URL`, so paste it.
