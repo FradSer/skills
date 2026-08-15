@@ -79,11 +79,13 @@ PR=<n> REPO=<owner>/<repo> INTERVAL=<sec> \
 **CRITICAL: never filter the script's stdout through a `grep -v` / `sed` / `awk`
 chain to drop handled comments.** Those tools block-buffer when their stdout is a
 pipe, so every event — including later ones — stalls inside the filter's buffer
-until ~4 KB accumulates or the watch exits. Observed live: a monitor watching
-`review-loop.sh | grep -v node=...` showed zero output for 20+ minutes while a new
-reviewer comment had already been emitted. Exclusion is built into the script for
-exactly this reason. If a downstream filter is ever truly unavoidable, make it
-line-buffered (`grep --line-buffered`).
+until ~4 KB accumulates or the pipeline exits: a streaming background watch
+delivers nothing until then. Observed live: a watch piped through `grep -v
+node=...` delivered no events for 20+ minutes while a new reviewer comment had
+already been emitted. (The re-entrant `--once` mode is unaffected — the buffer
+flushes at exit before the output is read.) Exclusion is built into the script
+for exactly this reason. If a downstream filter is ever truly unavoidable, make
+it line-buffered (`grep --line-buffered`).
 
 Behavior notes:
 - `since` is seeded to the PR's **creation time** (not launch time), so comments posted

@@ -48,8 +48,9 @@ script is documented in `references/review-loop.md`.
 **Restarting a watch mid-PR**: pass the node ids already triaged by the previous run
 via `EXCLUDE="<node-id> ..."` (or repeatable `--exclude <node-id>`) so history
 re-surfacing does not re-notify handled comments. Never drop those lines with a
-`grep -v` chain instead — grep/sed/awk block-buffer when piped, so events stall in
-the filter and the monitor sees nothing (details in `references/review-loop.md`).
+`grep -v` chain instead — grep/sed/awk block-buffer when piped, so events stall
+in the filter and never reach a streaming watch (details in
+`references/review-loop.md`).
 
 **CRITICAL: Do NOT skip the watch based on a launch-time snapshot.** "This repo has no CI workflow, so the watch would spin idly" is a **false** inference and not a valid reason to skip: CI is only one of the two things watched. Automated review services, org-level bots, and human reviewers post comments on no fixed schedule and are invisible in a launch-time snapshot — a repo with zero workflows can still accumulate a full review thread minutes after the PR opens. An empty `.github/workflows/` proves nothing about who will comment.
 

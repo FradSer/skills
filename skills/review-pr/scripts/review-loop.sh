@@ -25,9 +25,11 @@
 #
 # NEVER filter this script's stdout through grep/sed/awk to drop lines: those
 # tools block-buffer when their stdout is a pipe, so every later event stalls
-# in the filter's buffer until it fills (~4KB) or the watch exits — the monitor
-# sees nothing. Exclusion is built in for exactly this reason; if a filter is
-# truly unavoidable, use `grep --line-buffered`.
+# in the filter's buffer until it fills (~4KB) or the pipeline exits — a
+# streaming background consumer sees nothing until then. A --once reader is
+# unaffected (the buffer flushes at exit before the output is read). Exclusion
+# is built in for exactly this reason; if a filter is truly unavoidable, use
+# `grep --line-buffered`.
 
 set -u
 
