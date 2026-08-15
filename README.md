@@ -152,6 +152,15 @@ Manages the SubStore to OpenClash config pipeline for WeChat image direct routin
 npx skills add https://github.com/FradSer/skills --skill substore-openclash
 ```
 
+### [swiftui](skills/swiftui/)
+
+Builds, refactors, and reviews modern SwiftUI. Prioritizes macOS 26 and iOS 26 Liquid Glass while covering view architecture, state, concurrency, navigation, accessibility, performance, and testing.
+
+**Installation:**
+```bash
+npx skills add https://github.com/FradSer/skills --skill swiftui
+```
+
 ### [tropes](skills/tropes/)
 
 Detects and eliminates AI writing tropes that make text sound artificial or formulaic. Use when generating text content, writing documentation, creating code comments, or reviewing writing style.

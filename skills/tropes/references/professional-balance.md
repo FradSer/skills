@@ -2,7 +2,7 @@
 
 Achieving a "middle ground" between overly colloquial "human" writing and professional, yet often obscure, AI generation. This style aims for **Expert Clarity**: writing that sounds like a professional human expert communicating with peers.
 
-Source: [tropes.fyi](https://tropes.fyi) & Gemini CLI Guidelines
+Source: [tropes.fyi](https://tropes.fyi) and general CLI writing guidelines
 
 ---
 

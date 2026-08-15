@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# Stop-hook adapter — enforce the review-pr closeout on runtimes with stop hooks.
-# The DEFAULT enforcement is in-prompt (see SKILL.md Runtime notes): never end
-# the turn while the closeout state is armed. On runtimes that provide stop
-# hooks (e.g. Claude Code), wire this script as the Stop hook so the rule is
-# enforced mechanically; on runtimes without hooks, apply the same rule in the
-# prompt. The script fails open everywhere else.
+# Stop-hook adapter — enforce the review-pr closeout on hosts with compatible stop hooks.
+# The default enforcement is in-prompt (see SKILL.md Runtime notes): never end the
+# turn while the closeout state is armed. On hosts that provide a compatible stop
+# hook, wire this script into that hook so the rule is enforced mechanically; on
+# hosts without hooks, apply the same rule in the prompt. The script fails open
+# everywhere else.
 #
 # Background: the review-pr skill runs on prompt alone, so the automatic
 # closeout (summary comment + body rewrite + auto-merge, no user question) can
@@ -24,13 +24,12 @@
 #     can end. The single block injects the reminder once; resolving the
 #     closeout (running it, then clear-closeout.sh) is what removes the state
 #     file.
-#   - Blocks via hookSpecificOutput.additionalContext (exit 0 + JSON): the
-#     message is fed back to the model as "Stop hook feedback" and the turn
-#     continues — same loop protections as a decision:block, without the
-#     hook-error label.
+#   - Blocks via the host hook's context channel (exit 0 + JSON): the message is
+#     fed back to the model and the turn continues. Hosts that do not understand
+#     this output fail open.
 #
-# Input (stdin JSON): Stop common fields + stop_hook_active,
-#   last_assistant_message, background_tasks, session_crons.
+# Input (stdin JSON): a host stop-hook payload with a stop-hook-active flag.
+# Hosts with a different payload or no stop hook fail open.
 
 set -uo pipefail
 
@@ -48,9 +47,8 @@ agent_id=$(printf '%s' "$input" | jq -r '.agent_id // empty')
 # already continuing from a stop-hook block — passing through lets the turn end
 # instead of re-blocking every end attempt. The reminder was already injected
 # once; running the closeout (then clear-closeout.sh) is what clears the state
-# file on its own schedule. Official anti-loop pattern per
-# https://code.claude.com/docs/en/hooks-guide.md.
-stop_hook_active=$(printf '%s' "$input" | jq -r '.stop_hook_active // false')
+# file on its own schedule.
+stop_hook_active=$(printf '%s' "$input" | jq -r '.stop_hook_active // .stopHookActive // false')
 [ "$stop_hook_active" = "true" ] && exit 0
 
 # The state file lives in the repo's gitdir; resolve it from the hook cwd

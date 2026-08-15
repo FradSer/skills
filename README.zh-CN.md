@@ -152,6 +152,15 @@ npx skills add https://github.com/FradSer/skills --skill start-release
 npx skills add https://github.com/FradSer/skills --skill substore-openclash
 ```
 
+### [swiftui](skills/swiftui/)
+
+用于构建、重构和审查现代 SwiftUI。优先采用 macOS 26 与 iOS 26 的 Liquid Glass，同时涵盖视图架构、状态、并发、导航、无障碍、性能和测试。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill swiftui
+```
+
 ### [tropes](skills/tropes/)
 
 检测并消除使文本显得生硬或公式化的 AI 写作套路。生成文本内容、编写文档、创建代码注释或审阅写作风格时使用。
