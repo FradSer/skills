@@ -48,8 +48,8 @@ When a task spans both, read both files. Apple documentation is the source of tr
 2. Identify the platform, deployment target, and supported OS versions from the project configuration. Treat macOS 26 and iOS 26 as the default for new apps.
 3. Preserve standard components before customizing. Build with the current SDK and inspect the app on macOS 26 and iOS 26 before adding custom effects.
 4. Classify each candidate surface:
-   - **functional layer:** controls, navigation, toolbars, transient actions, floating utility controls, and other UI that acts on content. Liquid Glass is appropriate here.
-   - **content layer:** reading, browsing, editing, data presentation, and ordinary cards. Do not make content glass by default; use layout, standard materials, grouping, or color only when they improve hierarchy.
+   - **functional layer (Chrome / Controls):** controls, navigation, toolbars, transient actions, floating utility controls, and other UI that acts on content. Liquid Glass (`.glassEffect()`, `.buttonStyle(.glass)`) is appropriate here.
+   - **content layer (Surfaces / Cards):** reading, browsing, editing, data presentation, feed items, comments, code blocks, diffs, and ordinary cards. **Do not make content cards glass.** Use standard Materials (`.regularMaterial`, `.thinMaterial`) or grouped background colors framed by a system `.separator` border (`.strokeBorder(.separator, lineWidth: 1)`). Glass on content cards degrades text contrast, destroys syntax highlighting, creates muddy tint stacking, and hurts scroll performance.
 5. State the smallest viable plan. Use a custom glass treatment only when a standard component cannot express the required interaction or hierarchy.
 
 ## Implementing Liquid Glass

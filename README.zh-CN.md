@@ -89,6 +89,15 @@ npx skills add https://github.com/FradSer/skills --skill finish-hotfix
 npx skills add https://github.com/FradSer/skills --skill finish-release
 ```
 
+### [lark](skills/lark/)
+
+飞书/Lark CLI 统一路由技能，基于 `lark-cli`。通过 `lark-cli skills read <sub-skill>` 将用户意图分发至各业务域技能（文档、电子表格、多维表格、日历、即时通讯、邮箱、任务、OKR、云空间、知识库、幻灯片、画板、妙搭应用、审批、考勤、通讯录、视频会议、妙记、纪要、实时事件等）。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill lark
+```
+
 ### [patent-architect](skills/patent-architect/)
 
 通过 SerpAPI 检索现有技术并生成中文专利申请表。当用户想要保护技术创新或提到 "patents"、"inventions" 时使用。

@@ -89,6 +89,15 @@ Finalizes a release and merges it into main and develop with a tag using git-flo
 npx skills add https://github.com/FradSer/skills --skill finish-release
 ```
 
+### [lark](skills/lark/)
+
+Unified router for Lark/Feishu CLI operations via `lark-cli`. Routes intents to domain skills (docs, sheets, base, calendar, IM, mail, tasks, okr, drive, wiki, slides, whiteboard, apps/Miaoda, approval, attendance, contact, vc, minutes, note, events) via `lark-cli skills read <sub-skill>`.
+
+**Installation:**
+```bash
+npx skills add https://github.com/FradSer/skills --skill lark
+```
+
 ### [patent-architect](skills/patent-architect/)
 
 Searches prior art via SerpAPI and generates Chinese patent application forms. Use when the user wants to protect technical innovations or mentions "patents" or "inventions".

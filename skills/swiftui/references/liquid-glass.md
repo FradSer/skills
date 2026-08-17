@@ -10,6 +10,95 @@ Do not apply glass merely because a surface is rounded or card-shaped. Avoid fil
 
 Before custom work, build with the current SDK. Standard SwiftUI controls, toolbars, navigation, tab bars, menus, and sheets receive the system treatment automatically.
 
+## Surface taxonomy: Glass vs. Materials vs. Cards
+
+A fundamental design rule in modern SwiftUI is distinguishing between **Functional Chrome (Glass)** and **Content Surfaces (Materials)**.
+
+| Layer / Surface | Recommended Material | Role & Reasoning |
+| :--- | :--- | :--- |
+| **Window & Sidebar** | System window background / `.sidebar` | Structural foundation; allows system materials to manage transparency. |
+| **Content Cards** (Posts, Comments, PR details, Feed items) | `.regularMaterial` or grouped background + `.strokeBorder(.separator, lineWidth: 1)` | Neutral, stable canvas; preserves high text contrast and clear geometric bounds without optical distortion. |
+| **Nested Reading Surfaces** (Code blocks, Diff hunks, Quotes) | `.regularMaterial` or `.thinMaterial` + `.strokeBorder(.separator, lineWidth: 1)` | Flat, non-refracting backdrop for monospace fonts and syntax highlighting. |
+| **Floating Chrome & Controls** (Toolbars, FABs, HUDs) | `.glassEffect(.regular.interactive())`, `.buttonStyle(.glass)`, `.buttonStyle(.glassProminent)` | Floats above content; reacts optically to motion, touch/pointer, and surroundings. |
+| **Status Chips & Small Badges** | `.background(.quaternary, in: Capsule())` | Compact, semantic labels; avoid heavy glass shaders on small static chips. |
+
+### Why Content Cards Must NOT Use Liquid Glass (4 Traps)
+
+1. **Legibility & Specular Distortion**: Liquid Glass introduces optical refraction, edge glow, and environment reflections. When applied to large reading surfaces (articles, markdown comments, code blocks), these optical properties destroy typography contrast, distort syntax colors, and cause visual fatigue.
+2. **Layering & Nesting Collisions**: Content cards naturally contain nested elements (code blocks, blockquotes, diff snippets, status badges).
+   - **Glass on Glass**: Stacking `.glassEffect` on `.glassEffect` doubles the tint and creates bizarre double refraction.
+   - **Translucent Overlays on Glass**: Applying semi-transparent color fills (e.g. `.quaternary.opacity(0.25)`) over glass mixes with the glass refraction shader, producing muddy, dark, or unexpectedly discolored patches in dark mode.
+3. **Semantic Misalignment**: Glass represents an interactive *lens* floating above content; it is not a *canvas* for reading. Placing long-form content inside glass violates HIG hierarchy.
+4. **Scrolling & GPU Fill Rate**: Rendering dozens of independent `.glassEffect` shaders in a scrollable list forces excessive offscreen composition passes and degrades frame rates. Glass should be grouped in `GlassEffectContainer` for focused floating controls, not scattered across scrolling feed items.
+
+### Content Card Pattern (Best Practice)
+
+For content cards and nested reading containers, use standard Materials with a system separator border. Reserve Glass strictly for interactive action buttons inside the card:
+
+```swift
+struct ContentCard<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        content
+            .padding(16)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(.separator, lineWidth: 1)
+            }
+    }
+}
+```
+
+Nested code block / suggested change container inside a card:
+
+```swift
+struct MarkdownCodeBlock: View {
+    let code: String
+    let language: String?
+    var isSuggestion: Bool { language == "suggestion" }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                Label(isSuggestion ? "Suggested change" : (language ?? "code"),
+                      systemImage: isSuggestion ? "square.and.pencil" : "chevron.left.forwardslash.chevron.right")
+                    .foregroundStyle(isSuggestion ? .green : .secondary)
+
+                Spacer()
+
+                // Interactive action uses Glass Button style
+                Button("Copy code", systemImage: "doc.on.doc") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(code, forType: .string)
+                }
+                .buttonStyle(.glass)
+                .controlSize(.small)
+            }
+            .font(.caption.weight(.medium))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+
+            ScrollView(.horizontal) {
+                Text(code)
+                    .font(.system(.body, design: .monospaced))
+                    .padding(.vertical, 2)
+            }
+            .scrollIndicators(.visible)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 12)
+        }
+        // Unified Material card with system separator border — no glass on glass
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(.separator, lineWidth: 1)
+        }
+    }
+}
+```
+
 ## Core API patterns
 
 ### Custom, noninteractive glass surface

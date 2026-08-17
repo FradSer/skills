@@ -1,36 +1,42 @@
 # Lark Plugin
 
-Feishu/Lark CLI skills, mirrored from [larksuite/cli](https://github.com/larksuite/cli).
+Feishu/Lark CLI skills router, powered by [larksuite/cli](https://github.com/larksuite/cli).
 
-**Version**: 0.1.0
+**Version**: 2.0.0
 **Display Name**: Lark
 
 ## What This Plugin Does
 
-Lark/Feishu CLI operations — docs, sheets, IM, calendar, approval, attendance, drive, wiki, contacts, minutes, mail, tasks, events, video conferences, whiteboards, and more.
+Provides the unified router for Lark/Feishu operations — docs, sheets, IM, calendar, approval, attendance, drive, wiki, contacts, minutes, mail, tasks, events, video conferences, whiteboards, apps (Miaoda), and more.
 
-## Structure
+## Architecture
 
-- **`skills/SKILL.md` (lark router)** — local router that indexes the mirrored sub-skills; the table is regenerated from sub-skill frontmatter by the shared `tools/skill-sync/gen-index.py`.
-- **`skills/`** — mirrored sub-skills, each stored as `<name>/<name>.md` (denested: `SKILL.md` renamed after sync so only the router is auto-discovered). Synced from `larksuite/cli`.
-- **`scripts/sync-lark.sh`** — syncs the sub-tree, then denests sub-skills.
-- **`tools/skill-sync/denest.py`** — shared denest tool (marketing / lark / hyperframes): renames `<name>/SKILL.md` → `<name>/<name>.md` and rewrites relative links.
-- **`tools/skill-sync/gen-index.py`** — shared router index generator: regenerates the router `SKILL.md` index table.
-- **`SYNC.md`** — sync metadata and strategy (plugin root).
+Upstream `lark-cli` embeds all domain skills and reference documents directly in the CLI binary (`lark-cli skills list`, `lark-cli skills read <skill>`, `lark-cli skills read <skill>/<path>`).
 
-## Installation
+- **`SKILL.md` (lark router)** — Top-level router discovered by agent harnesses. It indexes all embedded domain skills and instructs agents to read them dynamically via `lark-cli skills read <sub-skill>`.
+- **`scripts/sync-lark.sh`** — Syncs and regenerates the `SKILL.md` routing table and `SYNC.md` version metadata directly from `lark-cli skills list`.
+- **`SYNC.md`** — Sync metadata and tracking.
+
+## Installation & Setup
 
 ```bash
-claude plugin install lark@frad-dotclaude
+# 1. Install lark-cli
+npm install -g @larksuite/cli@latest
+
+# 2. Configure app credentials (one-time)
+lark-cli config init
+
+# 3. Log in with recommended permissions
+lark-cli auth login --recommend
 ```
 
-## Syncing from Upstream
+## Updating Router Index
 
 ```bash
-bash lark/scripts/sync-lark.sh --check     # dry-run
-bash lark/scripts/sync-lark.sh             # sync with backup
+bash skills/lark/scripts/sync-lark.sh --check     # dry-run check
+bash skills/lark/scripts/sync-lark.sh             # refresh index from installed lark-cli
 ```
 
 ## License
 
-MIT (local plugin). Mirrored content sourced from `larksuite/cli`.
+MIT. Sourced from `larksuite/cli`.

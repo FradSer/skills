@@ -3,24 +3,23 @@
 
 Regenerates the Sub-skill Index table in the router SKILL.md between the
 `## Sub-skill Index` and `## Routing Rules` markers, from each sub-skill's
-<dirname>.md frontmatter (name/version/description). Local-only SKILL.md/
-SYNC.md at the tree root are never overwritten — only the index table region
-is edited.
+frontmatter (or embedded CLI metadata). Local-only SKILL.md/SYNC.md at the tree
+root are never overwritten — only the index table region is edited.
 
 Usage:
     python3 tools/skill-sync/gen-index.py --skills <dir> --router <SKILL.md> \
         [--versions <VERSIONS.md>] [--check]
 
---versions  Optional version registry (e.g. marketing's VERSIONS.md: rows like
-            "| skill-name | 1.2.3 | 2026-07-01 |"). Used as a fallback when a
-            sub-skill frontmatter carries no version. lark/hyperframes omit it.
---check     Dry-run diff: exit 1 if the table is stale, 0 if in sync.
+    python3 tools/skill-sync/gen-index.py --from-cli --router <SKILL.md> \
+        [--hoist lark-shared] [--check]
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -66,20 +65,14 @@ def read_frontmatter(path: Path) -> dict:
     return yaml.safe_load(fm_raw) or {}
 
 
-def load_subskills(
+def load_subskills_from_dir(
     skills_dir: Path,
     registry: dict[str, str],
-    hoist: set[str] | None = None,
+    hoist: list[str] | None = None,
     display: dict[str, str] | None = None,
 ) -> list[dict]:
-    """Return one record per sub-skill directory with entry-file frontmatter.
-
-    Sub-skills are sorted by directory name; dirs in ``hoist`` sort first (in
-    the given order), used by lark to pin lark-shared at the top. ``display``
-    maps dir → display label (lark's friendly names), overriding the
-    frontmatter ``name``.
-    """
-    hoist = hoist or set()
+    """Return one record per sub-skill directory with entry-file frontmatter."""
+    hoist = hoist or []
     display = display or {}
     records: list[dict] = []
     for sub in sorted(skills_dir.iterdir()):
@@ -115,7 +108,53 @@ def load_subskills(
     return records
 
 
-def render_table(records: list[dict]) -> str:
+def load_subskills_from_cli(
+    hoist: list[str] | None = None,
+    display: dict[str, str] | None = None,
+) -> list[dict]:
+    """Return one record per sub-skill from `lark-cli skills list`."""
+    hoist = hoist or []
+    display = display or {}
+    res = subprocess.run(
+        ["lark-cli", "skills", "list"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    data = json.loads(res.stdout)
+    skills = data.get("skills", [])
+    records: list[dict] = []
+    for s in skills:
+        name_key = s["name"]
+        display_name = display.get(name_key, name_key)
+        version = s.get("version") or s.get("metadata", {}).get("version", "")
+        desc = " ".join(str(s.get("description", "")).split())
+        records.append(
+            {
+                "dir": name_key,
+                "name": display_name,
+                "version": str(version) if version is not None else "",
+                "description": desc,
+            }
+        )
+    hoist_order = {d: i for i, d in enumerate(hoist)}
+    records.sort(key=lambda r: (hoist_order.get(r["dir"], len(hoist_order)), r["dir"]))
+    return records
+
+
+def render_table(records: list[dict], from_cli: bool = False) -> str:
+    if from_cli:
+        header = (
+            "| Sub-skill | Read Command | Version | Use When |\n"
+            "|-----------|--------------|---------|----------|"
+        )
+        rows = []
+        for r in records:
+            cmd = f"`lark-cli skills read {r['dir']}`"
+            use_when = r["description"].replace("|", "\\|")
+            rows.append(f"| {r['name']} | {cmd} | {r['version']} | {use_when} |")
+        return header + "\n" + "\n".join(rows) + "\n\n"
+
     header = (
         "| Sub-skill | Entry | Version | Use When |\n"
         "|-----------|-------|---------|----------|"
@@ -123,7 +162,6 @@ def render_table(records: list[dict]) -> str:
     rows = []
     for r in records:
         entry = f"{r['dir']}/{r['dir']}.md"
-        # Escape pipes inside the description so the markdown table survives.
         use_when = r["description"].replace("|", "\\|")
         label = r["name"]
         rows.append(
@@ -146,8 +184,13 @@ def replace_index_table(text: str, table: str) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--skills", required=True, type=Path, help="skills tree root")
+    parser.add_argument("--skills", type=Path, default=None, help="skills tree root")
     parser.add_argument("--router", required=True, type=Path, help="router SKILL.md")
+    parser.add_argument(
+        "--from-cli",
+        action="store_true",
+        help="load sub-skills directly from `lark-cli skills list`",
+    )
     parser.add_argument(
         "--versions", type=Path, default=None, help="optional VERSIONS.md registry"
     )
@@ -172,9 +215,16 @@ def main() -> int:
         if d and label:
             display[d] = label
 
-    registry = load_version_registry(args.versions)
-    records = load_subskills(args.skills, registry, hoist=set(args.hoist), display=display)
-    table = render_table(records)
+    if args.from_cli:
+        records = load_subskills_from_cli(hoist=args.hoist, display=display)
+        table = render_table(records, from_cli=True)
+    else:
+        if args.skills is None:
+            print("error: --skills required when not using --from-cli", file=sys.stderr)
+            return 1
+        registry = load_version_registry(args.versions)
+        records = load_subskills_from_dir(args.skills, registry, hoist=args.hoist, display=display)
+        table = render_table(records, from_cli=False)
 
     router = args.router
     if not router.is_file():
