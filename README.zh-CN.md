@@ -8,15 +8,6 @@
 
 ## 可用技能
 
-### [agent-browser](skills/agent-browser/)
-
-面向 AI agent 的浏览器自动化 CLI。用于浏览页面、填写表单、截图、抓取数据、测试 Web 应用，或自动化 Electron 桌面应用。
-
-**安装命令：**
-```bash
-npx skills add https://github.com/FradSer/skills --skill agent-browser
-```
-
 ### [commit](skills/commit/)
 
 使用标准 git 创建规范、原子的 Conventional Commit。当用户要求 "commit"、"git commit" 或提交已暂存/未暂存的更改时使用。

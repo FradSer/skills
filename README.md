@@ -8,15 +8,6 @@ A collection of agent skills: specialized workflows and domain knowledge that ca
 
 ## Available Skills
 
-### [agent-browser](skills/agent-browser/)
-
-Browser automation CLI for AI agents. Use for navigating pages, filling forms, taking screenshots, scraping data, testing web apps, or automating Electron desktop apps.
-
-**Installation:**
-```bash
-npx skills add https://github.com/FradSer/skills --skill agent-browser
-```
-
 ### [commit](skills/commit/)
 
 Creates clean, conventional git commits using standard git. Use when the user asks to "commit", "git commit", or wants to commit staged or unstaged changes.
