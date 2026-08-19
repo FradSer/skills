@@ -1,35 +1,9 @@
 #!/usr/bin/env bash
-# review-loop.sh — persistent CI + PR-comment watch for review-pr.
+# review-loop.sh — one-poll CI + PR-comment watch for review-pr.
 #
-# Emits one tagged stdout line per new event (consumed by a background watch as
-# per-turn notifications, or read once per turn with --once).
-#
-# Output format:
-#   [ci] <name>: <bucket>                  — CI check reaching a terminal bucket
-#   [comment] issue  node=<id> id=<n> @<user>: <body>       — new issue-level comment
-#   [comment] inline node=<id> id=<n> @<user> <path>:<line>: <body>  — new inline review comment
-#   [comment] review node=<id> id=<n> @<user> [<STATE>]: <body>      — new review summary
-#
-# Usage:
-#   PR=<n> REPO=<owner>/<repo> INTERVAL=<sec> bash review-loop.sh
-#   bash review-loop.sh --pr <n> --repo <owner>/<repo> [--interval <sec>]
-#   bash review-loop.sh --pr <n> --repo <owner>/<repo> --once   # one poll, then exit
-#
-# Env vars (PR / REPO / INTERVAL) take precedence over flags so the skill can
-# pass them through Monitor's env.
-#
-# Restarting a watch mid-PR re-surfaces every comment since PR creation. Pass
-# the node ids already triaged by the previous run so they are not re-emitted:
-#   EXCLUDE="<node-id> <node-id>" (space-separated) and/or repeatable
-#   --exclude <node-id> — env entries and flags are merged.
-#
-# NEVER filter this script's stdout through grep/sed/awk to drop lines: those
-# tools block-buffer when their stdout is a pipe, so every later event stalls
-# in the filter's buffer until it fills (~4KB) or the pipeline exits — a
-# streaming background consumer sees nothing until then. A --once reader is
-# unaffected (the buffer flushes at exit before the output is read). Exclusion
-# is built in for exactly this reason; if a filter is truly unavoidable, use
-# `grep --line-buffered`.
+# The script is intentionally one-shot when called with --once. State makes
+# repeated invocations equivalent to a persistent watch while fitting hosts
+# whose background monitor requires a terminal result contract.
 
 set -u
 
@@ -37,79 +11,109 @@ PR="${PR:-}"
 REPO="${REPO:-}"
 INTERVAL="${INTERVAL:-}"
 ONCE=0
-
-# Space-padded node-id set (same matching scheme as seen_comments below). Seeded
-# from EXCLUDE; --exclude flags APPEND to it instead of overriding — env and
-# flags are two ways for the caller to supply the same merged list.
-exclude=" ${EXCLUDE:-} "
+ACK=" ${ACK:-} "
+EXCLUDE=" ${EXCLUDE:-} "
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    # Flags fill in only when the env var is unset, so env vars keep precedence
-    # over flags (as the header above documents). Guard `$# -ge 2` BEFORE
-    # touching `$2` — under `set -u` an absent `$2` would crash the watch, and
-    # `shift 2` with too few args would spin forever. A flag missing its value
-    # errors out cleanly instead.
-    --pr)        if [ $# -ge 2 ]; then [ -z "${PR:-}" ] && PR="$2"; shift 2; else echo "review-loop.sh: $1 requires a value" >&2; exit 2; fi ;;
-    --repo)      if [ $# -ge 2 ]; then [ -z "${REPO:-}" ] && REPO="$2"; shift 2; else echo "review-loop.sh: $1 requires a value" >&2; exit 2; fi ;;
-    --interval)  if [ $# -ge 2 ]; then [ -z "${INTERVAL:-}" ] && INTERVAL="$2"; shift 2; else echo "review-loop.sh: $1 requires a value" >&2; exit 2; fi ;;
-    --exclude)   if [ $# -ge 2 ]; then exclude="$exclude$2 "; shift 2; else echo "review-loop.sh: $1 requires a value" >&2; exit 2; fi ;;
+    --pr)        [ $# -ge 2 ] || { echo "review-loop.sh: $1 requires a value" >&2; exit 2; }; [ -n "$PR" ] || PR="$2"; shift 2 ;;
+    --repo)      [ $# -ge 2 ] || { echo "review-loop.sh: $1 requires a value" >&2; exit 2; }; [ -n "$REPO" ] || REPO="$2"; shift 2 ;;
+    --interval)  [ $# -ge 2 ] || { echo "review-loop.sh: $1 requires a value" >&2; exit 2; }; [ -n "$INTERVAL" ] || INTERVAL="$2"; shift 2 ;;
+    --ack)       [ $# -ge 2 ] || { echo "review-loop.sh: $1 requires a value" >&2; exit 2; }; ACK="$ACK$2 "; shift 2 ;;
+    --exclude)   [ $# -ge 2 ] || { echo "review-loop.sh: $1 requires a value" >&2; exit 2; }; EXCLUDE="$EXCLUDE$2 "; shift 2 ;;
     --once)      ONCE=1; shift ;;
-    -h|--help)
-      sed -n '2,20p' "$0"; exit 0 ;;
-    *) echo "unknown arg: $1" >&2; exit 2 ;;
+    -h|--help)   sed -n '2,16p' "$0"; exit 0 ;;
+    *)            echo "review-loop.sh: unknown arg: $1" >&2; exit 2 ;;
   esac
 done
 
-# Apply the INTERVAL default AFTER flag parsing — initializing it to 300 above
-# the loop would make `[ -z "$INTERVAL" ]` false and silently ignore --interval.
 INTERVAL="${INTERVAL:-300}"
-
-if [ -z "$PR" ] || [ -z "$REPO" ]; then
-  echo "review-loop.sh: --pr and --repo (or PR/REPO env) are required" >&2
-  exit 2
-fi
-
-# INTERVAL sanity: must be a positive integer; never faster than once per
-# minute (GitHub + token cost). A non-integer would make the `-lt` test fail
-# and `sleep` return non-zero, spinning the loop without sleeping and flooding
-# the API — so fall back to the default instead.
 if ! [[ "$INTERVAL" =~ ^[0-9]+$ ]]; then
   INTERVAL=300
 elif [ "$INTERVAL" -lt 60 ]; then
   INTERVAL=60
 fi
 
-# Seed `since` to the PR's creation time (not launch time) so pre-existing
-# comments posted before the skill started surface on poll 1. GitHub's ?since=
-# is inclusive (>=); we advance it to `now` after each poll so only genuinely
-# new comments are fetched next time.
-since=$(gh pr view "$PR" --repo "$REPO" --json createdAt --jq '.createdAt' 2>/dev/null \
-        || date -u +%Y-%m-%dT%H:%M:%SZ)
+if [ -z "$PR" ] || [ -z "$REPO" ]; then
+  echo "review-loop.sh: --pr and --repo (or PR/REPO env) are required" >&2
+  exit 2
+fi
 
-# Dedup sets, space-padded so `case *" $key "*` substring-match works.
-seen_comments=" "
+WATCH_MAX_SECONDS="${WATCH_MAX_SECONDS:-7200}"
+if ! [[ "$WATCH_MAX_SECONDS" =~ ^[0-9]+$ ]]; then
+  WATCH_MAX_SECONDS=7200
+fi
 
-# CI dedup: track the last-seen bucket per check name so a regression
-# (fail→pass→fail after a fix push) re-emits. A plain append-only `seen_ci` set
-# would suppress the recurring fail because name=bucket was already recorded from
-# the first failure — breaking the loop's job of re-surfacing failures after fix
-# pushes. Only suppress when the bucket is UNCHANGED from the last poll.
-#
-# `last_ci` holds one `name=bucket` entry per line (newline-delimited). Newlines
-# never appear in GitHub check names (which routinely contain spaces, e.g.
-# `test (git)`), so a line is a whole name=bucket pair — a space-delimited scheme
-# would split `test (git)=pass` into junk tokens. Plain string, not `declare -A`:
-# macOS /bin/bash is 3.2 and has no associative arrays.
+if [ -z "${STATE_FILE:-}" ]; then
+  STATE_FILE=$(git rev-parse --git-path "review-pr-watch-${PR}.json" 2>/dev/null \
+    || printf '%s/review-pr-watch-%s-%s.json' "${TMPDIR:-/tmp}" "${REPO//\//-}" "$PR")
+fi
+LOCK_DIR="${LOCK_DIR:-${STATE_FILE}.lock}"
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  echo "review-loop.sh: another watch already owns $LOCK_DIR" >&2
+  exit 75
+fi
+cleanup_lock() { rmdir "$LOCK_DIR" 2>/dev/null || true; }
+trap cleanup_lock EXIT INT TERM
+
+# A state file is only accepted for this exact PR and repository. Invalid or
+# mismatched state is ignored rather than allowing one PR to affect another.
+state_matches=0
+if [ -f "$STATE_FILE" ] && jq -e --arg pr "$PR" --arg repo "$REPO" \
+    '.pr == $pr and .repo == $repo' "$STATE_FILE" >/dev/null 2>&1; then
+  state_matches=1
+fi
+
+metadata=$(gh pr view "$PR" --repo "$REPO" --json createdAt,headRefOid,state,mergedAt 2>/dev/null) || {
+  echo "review-loop.sh: unable to read PR metadata; cursor was not advanced" >&2
+  exit 1
+}
+created_at=$(jq -r '.createdAt // empty' <<<"$metadata" 2>/dev/null) || created_at=""
+head_sha=$(jq -r '.headRefOid // empty' <<<"$metadata" 2>/dev/null) || head_sha=""
+pr_state=$(jq -r '.state // empty' <<<"$metadata" 2>/dev/null) || pr_state=""
+if [ -z "$created_at" ] || [ -z "$head_sha" ]; then
+  echo "review-loop.sh: PR metadata is incomplete; cursor was not advanced" >&2
+  exit 1
+fi
+
+since=$(jq -r '.since // empty' "$STATE_FILE" 2>/dev/null || true)
+[ "$state_matches" = 1 ] && [ -n "$since" ] || since="$created_at"
+deadline_epoch=$(jq -r '.deadline_epoch // empty' "$STATE_FILE" 2>/dev/null || true)
+if ! [[ "$deadline_epoch" =~ ^[0-9]+$ ]]; then
+  deadline_epoch=$(($(date +%s) + WATCH_MAX_SECONDS))
+fi
+
+# emitted_comments records delivery history only. acknowledged_comments is the
+# durable ack set. A delivered-but-unacknowledged comment must replay after a
+# crash, so delivery is never treated as acknowledgement.
+emitted_comments=" "
+acknowledged_comments=" "
+if [ "$state_matches" = 1 ]; then
+  saved_emitted=$(jq -r '.emitted_comments[]? // .seen_comments[]? // empty' "$STATE_FILE" 2>/dev/null || true)
+  saved_ack=$(jq -r '.acknowledged_comments[]? // empty' "$STATE_FILE" 2>/dev/null || true)
+  while IFS= read -r node; do [ -n "$node" ] && emitted_comments="$emitted_comments$node "; done <<<"$saved_emitted"
+  while IFS= read -r node; do [ -n "$node" ] && acknowledged_comments="$acknowledged_comments$node "; done <<<"$saved_ack"
+fi
+
+# Explicit ACK/EXCLUDE values represent triage performed by the caller. They
+# are persisted so a subsequent invocation does not need to repeat them.
+for value in $ACK $EXCLUDE; do
+  [ -n "$value" ] || continue
+  case "$acknowledged_comments" in *" $value "*) ;; *) acknowledged_comments="$acknowledged_comments$value ";; esac
+done
+
+# A changed head SHA starts a new CI lifecycle. Comment state remains valid,
+# but check buckets from the old commit must not suppress new results.
 last_ci=$'\n'
+if [ "$state_matches" = 1 ]; then
+  saved_head=$(jq -r '.head_sha // empty' "$STATE_FILE" 2>/dev/null || true)
+  if [ -n "$saved_head" ] && [ "$saved_head" = "$head_sha" ]; then
+    saved_ci=$(jq -r '.last_ci[]? // empty' "$STATE_FILE" 2>/dev/null || true)
+    while IFS= read -r line; do [ -n "$line" ] && last_ci="$last_ci$line"$'\n'; done <<<"$saved_ci"
+  fi
+fi
 
-# Replace any existing entry for `name` with `name=bucket` (or append if new),
-# so only the latest bucket per check is remembered. The drop test uses
-# `[[ "$line" == "${name}="* ]]`: `${name}=` is QUOTED so any glob metacharacters
-# in the check name (e.g. `test [linux]` from a GitHub Actions matrix) are treated
-# as literals, with only the trailing `*` globbing the bucket value. (An unquoted
-# `case ${name}=*` would let `[`/`]`/`*`/`?` in the name match unrelated entries.)
-set_ci_bucket() {  # args: name  bucket
+set_ci_bucket() {
   local name="$1" bucket="$2" line tmp=$'\n'
   while IFS= read -r line; do
     [ -z "$line" ] && continue
@@ -118,88 +122,90 @@ set_ci_bucket() {  # args: name  bucket
   last_ci="${tmp}${name}=${bucket}"$'\n'
 }
 
-emit_comment() {  # args: id  line
-  [ -z "${1:-}" ] && return
-  # Nodes triaged by a previous watch run are suppressed natively so callers
-  # never need a `| grep -v` chain (which block-buffers and stalls delivery).
-  case "$exclude" in
-    *" $1 "*) return ;;
-  esac
-  case "$seen_comments" in
-    *" $1 "*) ;;
-    *) echo "$2"; seen_comments="$seen_comments$1 " ;;
-  esac
+persist_state() {
+  local state_dir tmp seen_json ack_json ci_json
+  state_dir=$(dirname "$STATE_FILE")
+  mkdir -p "$state_dir" || { echo "review-loop.sh: cannot create state directory $state_dir" >&2; return 1; }
+  seen_json=$(printf '%s' "$emitted_comments" | jq -Rsc 'split(" ") | map(select(length > 0))') || return 1
+  ack_json=$(printf '%s' "$acknowledged_comments" | jq -Rsc 'split(" ") | map(select(length > 0))') || return 1
+  ci_json=$(printf '%s' "$last_ci" | jq -Rsc 'split("\n") | map(select(length > 0))') || return 1
+  tmp=$(mktemp "${STATE_FILE}.tmp.XXXXXX") || { echo "review-loop.sh: cannot create temporary state file" >&2; return 1; }
+  if ! jq -n \
+    --arg pr "$PR" --arg repo "$REPO" --arg head_sha "$head_sha" \
+    --arg since "$since" --argjson deadline_epoch "$deadline_epoch" \
+    --argjson emitted_comments "$seen_json" --argjson acknowledged_comments "$ack_json" \
+    --argjson last_ci "$ci_json" \
+    '{version:2,pr:$pr,repo:$repo,head_sha:$head_sha,since:$since,deadline_epoch:$deadline_epoch,emitted_comments:$emitted_comments,acknowledged_comments:$acknowledged_comments,last_ci:$last_ci}' \
+    > "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$STATE_FILE" || { rm -f "$tmp"; echo "review-loop.sh: cannot replace state file" >&2; return 1; }
 }
 
-while true; do
-  now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+if [ "$pr_state" = "MERGED" ] || [ "$pr_state" = "CLOSED" ]; then
+  echo "[status] PR #$PR is $pr_state"
+  persist_state || exit 1
+  exit 0
+fi
 
-  # --- CI: emit each check whose bucket changed since the last poll (pass/fail/cancel/skip).
-  # Only suppress when the bucket is UNCHANGED from last poll, so a regression
-  # (fail→pass→fail) re-emits the recurring failure rather than silently dropping it.
-  checks=$(gh pr checks "$PR" --repo "$REPO" --json name,bucket 2>/dev/null || true)
-  if [ -n "$checks" ]; then
-    while IFS=$'\t' read -r name bucket; do
-      [ -z "$name" ] && continue
-      # Suppress only when an exact `name=bucket` line is already present (bucket
-      # UNCHANGED from last poll); a changed bucket — including a regression back
-      # to a previously-seen bucket — re-emits. Newline boundaries let names
-      # containing spaces (e.g. `test (git)`) match as a whole entry.
-      case "$last_ci" in *$'\n'"${name}=${bucket}"$'\n'*) continue ;; esac
-      echo "[ci] $name: $bucket"
-      set_ci_bucket "$name" "$bucket"
-    done < <(jq -r '.[] | select(.bucket!="pending") | "\(.name)\t\(.bucket)"' <<<"$checks" 2>/dev/null)
-  fi
+if [ "$(date +%s)" -ge "$deadline_epoch" ]; then
+  echo "[watch] deadline reached for PR #$PR"
+  persist_state || exit 1
+  exit 0
+fi
 
-  # Only advance `since` when the comment-fetching API calls all succeeded.
-  # If a transient failure (rate limit, network) dropped a call, reusing the
-  # old `since` next poll re-fetches that window — `seen_comments` dedups any
-  # repeats, so no comment is permanently missed. Failing forward to `now`
-  # would silently drop every comment posted during the failed window.
-  api_ok=true
+poll_seen=" "
+emit_comment() {
+  local id="$1" line="$2"
+  [ -n "$id" ] || return
+  case "$acknowledged_comments" in *" $id "*) return ;; esac
+  case "$poll_seen" in *" $id "*) return ;; esac
+  echo "$line"
+  poll_seen="$poll_seen$id "
+  case "$emitted_comments" in *" $id "*) ;; *) emitted_comments="$emitted_comments$id ";; esac
+}
 
-  # --- Issue-level comments (?since= is inclusive; dedup by node_id).
-  # `--paginate` walks every page: poll 1 seeds `since` to the PR creation time,
-  # so the whole comment history is in scope and a PR with >30 comments (GitHub's
-  # default page size) would otherwise have its tail silently dropped before
-  # `since` advances to `now`. node_id dedup handles repeats across polls.
-  # node=<id> (GraphQL node_id, for hide/resolve) and id=<n> (REST numeric id,
-  # for the /comments/<id>/replies endpoint) are both carried on the emitted
-  # line so the closeout steps can key on either without a second API fetch.
-  if issue_comments=$(gh api --paginate "repos/$REPO/issues/$PR/comments?since=$since" \
-      --jq '.[] | "\(.node_id)\t[comment] issue node=\(.node_id) id=\(.id) @\(.user.login): \(.body | gsub("\n";" "))"' 2>/dev/null); then
-    while IFS=$'\t' read -r id line; do
-      emit_comment "$id" "$line"
-    done <<<"$issue_comments"
-  else
-    api_ok=false
-  fi
+api_ok=true
+checks=$(gh pr checks "$PR" --repo "$REPO" --json name,bucket 2>/dev/null) || {
+  echo "[error] unable to read PR checks; retaining CI state" >&2
+  api_ok=false
+}
+if [ -n "${checks:-}" ]; then
+  while IFS=$'\t' read -r name bucket; do
+    [ -z "$name" ] && continue
+    case "$last_ci" in *$'\n'"${name}=${bucket}"$'\n'*) continue ;; esac
+    echo "[ci] $name: $bucket"
+    set_ci_bucket "$name" "$bucket"
+  done < <(jq -r '.[] | select(.bucket!="pending") | "\(.name)\t\(.bucket)"' <<<"$checks" 2>/dev/null)
+fi
 
-  # --- Inline review comments.
-  if inline_comments=$(gh api --paginate "repos/$REPO/pulls/$PR/comments?since=$since" \
-      --jq '.[] | "\(.node_id)\t[comment] inline node=\(.node_id) id=\(.id) @\(.user.login) \(.path):\(.line // .original_line): \(.body | gsub("\n";" "))"' 2>/dev/null); then
-    while IFS=$'\t' read -r id line; do
-      emit_comment "$id" "$line"
-    done <<<"$inline_comments"
-  else
-    api_ok=false
-  fi
+issue_comments=$(gh api --paginate "repos/$REPO/issues/$PR/comments?since=$since" \
+  --jq '.[] | "\(.node_id)\t[comment] issue node=\(.node_id) id=\(.id) @\(.user.login): \(.body | gsub("\\n";" "))"' 2>/dev/null) || {
+  echo "[error] unable to read issue comments; retaining cursor" >&2
+  api_ok=false
+}
+while IFS=$'\t' read -r id line; do emit_comment "$id" "$line"; done <<<"${issue_comments:-}"
 
-  # --- Review summaries. Fetch all non-PENDING and dedup by node_id client-side,
-  # which avoids the fragile `submitted_at > since` string compare (that dropped
-  # reviews posted in the launch second). `--paginate` walks every page (GitHub's
-  # default page size is 30) so a long-lived PR with >30 reviews doesn't silently
-  # drop the tail; node_id dedup handles the repeats across polls.
-  if review_summaries=$(gh api --paginate "repos/$REPO/pulls/$PR/reviews" \
-      --jq '.[] | select(.state != "PENDING") | "\(.node_id)\t[comment] review node=\(.node_id) id=\(.id) @\(.user.login) [\(.state)]: \(.body | gsub("\n";" "))"' 2>/dev/null); then
-    while IFS=$'\t' read -r id line; do
-      emit_comment "$id" "$line"
-    done <<<"$review_summaries"
-  else
-    api_ok=false
-  fi
+inline_comments=$(gh api --paginate "repos/$REPO/pulls/$PR/comments?since=$since" \
+  --jq '.[] | "\(.node_id)\t[comment] inline node=\(.node_id) id=\(.id) @\(.user.login) \(.path):\(.line // .original_line): \(.body | gsub("\\n";" "))"' 2>/dev/null) || {
+  echo "[error] unable to read inline review comments; retaining cursor" >&2
+  api_ok=false
+}
+while IFS=$'\t' read -r id line; do emit_comment "$id" "$line"; done <<<"${inline_comments:-}"
 
-  [ "$api_ok" = true ] && since=$now
-  [ "$ONCE" = 1 ] && exit 0
-  sleep "$INTERVAL"
-done
+review_summaries=$(gh api --paginate "repos/$REPO/pulls/$PR/reviews" \
+  --jq '.[] | select(.state != "PENDING") | "\(.node_id)\t[comment] review node=\(.node_id) id=\(.id) @\(.user.login) [\(.state)]: \(.body | gsub("\\n";" "))"' 2>/dev/null) || {
+  echo "[error] unable to read review summaries; retaining cursor" >&2
+  api_ok=false
+}
+while IFS=$'\t' read -r id line; do emit_comment "$id" "$line"; done <<<"${review_summaries:-}"
+
+[ "$api_ok" = true ] && since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+persist_state || exit 1
+
+if [ "$ONCE" = 1 ]; then
+  exit 0
+fi
+sleep "$INTERVAL"
+exec "$0" --pr "$PR" --repo "$REPO" --interval "$INTERVAL" --ack "$ACK" --exclude "$EXCLUDE"

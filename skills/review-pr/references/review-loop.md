@@ -48,14 +48,19 @@ Run it — it reads `PR`, `REPO`, and `INTERVAL` from env
 (or `--pr`/`--repo`/`--interval` flags) and emits the tagged lines above.
 
 ```bash
-# Generic background monitor:
+# One-shot monitor invocation (preferred for hosts with terminal result contracts):
+if PR=<pr-number> REPO=<owner>/<repo> INTERVAL=<sec> \
+  bash <skill-dir>/scripts/review-loop.sh --once; then
+  printf '__PI_REVIEW_POLL__ {"status":"ok"}\n'
+else
+  code=$?
+  printf '__PI_REVIEW_POLL_FAILED__ {"status":"failed","exitCode":%s}\n' "$code"
+  exit "$code"
+fi
+
+# A genuinely streaming monitor may run the long-lived mode:
 PR=<pr-number> REPO=<owner>/<repo> INTERVAL=<sec> \
   bash <skill-dir>/scripts/review-loop.sh
-
-# Re-entrant (no monitor): run once per turn, capture output, act on lines,
-# and re-run next turn until the stop conditions hold.
-PR=<pr-number> REPO=<owner>/<repo> INTERVAL=<sec> \
-  bash <skill-dir>/scripts/review-loop.sh --once
 ```
 
 Stop the watch when done (stop the background task, or simply stop re-invoking the
@@ -69,11 +74,11 @@ When restarting a watch mid-PR, pass the already-handled node ids so they are no
 re-notified:
 
 ```bash
-# EXCLUDE env: space-separated node ids — and/or repeatable --exclude <node-id>;
-# env entries and flags are merged.
+# ACK env: space-separated node ids acknowledged after triage. EXCLUDE is retained
+# as an input alias for callers that already use it; both are persisted as ACKs.
 PR=<n> REPO=<owner>/<repo> INTERVAL=<sec> \
-  EXCLUDE="<handled-node-id> <handled-node-id>" \
-  bash <skill-dir>/scripts/review-loop.sh
+  ACK="<handled-node-id> <handled-node-id>" \
+  bash <skill-dir>/scripts/review-loop.sh --once
 ```
 
 **CRITICAL: never filter the script's stdout through a `grep -v` / `sed` / `awk`
@@ -98,9 +103,14 @@ Behavior notes:
 - `|| true` / `2>/dev/null` on every API call keeps one transient failure from killing
   the watch; `INTERVAL` is floored at 60s.
 
-Run it under the host's generic background monitor with a specific description when available,
-or re-invoke it each turn with `--once` when it is not. Stop it when done — never leave it
-running once the PR is settled.
+Run one `--once` poll under a monitor with a unique terminal sentinel when the host
+requires a terminal result contract. After processing that result, start the next poll as
+a new monitor invocation. Only use long-lived mode with a genuinely streaming monitor.
+The script persists its cursor, emitted and acknowledged comment IDs, latest CI buckets,
+head SHA, and deadline at the Git worktree path `review-pr-watch-<PR>.json` (override with
+`STATE_FILE`); this path is safe for normal and linked worktrees. A restart resumes that
+state instead of replaying the PR history. Stop scheduling polls when the PR is settled or
+the deadline is reached — never leave a monitor running after stop.
 
 ## You do not have to adopt review comments
 

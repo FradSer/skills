@@ -5,14 +5,15 @@ description: 'Reviews a pull request: runs its own baseline review of the PR dif
 
 # Review a Pull Request
 
-Run the baseline review of the PR diff, then keep a persistent watch over CI and new reviewer comments until the PR settles and auto-merges.
+Run the baseline review of the PR diff, then keep a persistent watch over CI and new reviewer comments until the PR settles and auto-merges. The detailed operational sequence lives in `references/runbook.md`; load it when dispatching the watch or when a host cannot provide nested workflow execution.
 
 ## Runtime notes
 
-- **Script paths**: every `bash <skill-dir>/scripts/...` command below needs the absolute path to this skill's installed directory (e.g. `~/.agents/skills/review-pr`). Resolve it once at the start, export it as `SKILL_DIR`, and use `$SKILL_DIR/scripts/<name>.sh` everywhere. The scripts live in this skill's `scripts/`, never in the repository you are working in.
-- **Watch (monitor)**: the CI + comment watch is `scripts/review-loop.sh`. Run it under the host's generic background monitor when available so each emitted line arrives as a notification; otherwise run it with `--once` once per turn and stop once the stop conditions hold. Never use a blocking foreground `while` loop.
-- **Tool mapping**: independent review/triage -> spawn a clean-context subagent (or route the script's output through an independent agent); notifying the user -> report in the conversation; stopping the watch -> stop the monitor task or stop re-invoking. The workflow is tool-agnostic. **The pipeline never asks the user for a decision** — everything from baseline review through merge runs automatically.
-- **Closeout enforcement**: the closeout state (`arm-closeout.sh`/`clear-closeout.sh` + `.git/review-pr-closeout.json`) is enforced by `scripts/closeout-stop.sh` on runtimes with stop hooks, and in-prompt on others: arm the state the moment Phase 4 holds, run the automatic closeout (summary comment + body rewrite + auto-merge), clear the state when the merge completes or aborts — never end the turn while the state is armed. Never ask the user whether to merge; never pause the pipeline for user input.
+- Resolve `SKILL_DIR` once and use absolute paths to every script.
+- Use the one-shot monitor contract from `references/runbook.md` on hosts that require terminal results; never put infinite mode under a one-shot monitor.
+- Use clean-context agents for baseline review and comment triage.
+- The pipeline is automatic: never ask whether to merge.
+- Arm closeout before the ceremony and clear it after merge or abort.
 
 ## Context
 
@@ -36,21 +37,36 @@ Run the baseline review of the PR diff, then keep a persistent watch over CI and
 
 **Goal**: One background watch streaming CI + comment events across turns.
 
-**Action**: Launch `scripts/review-loop.sh` as a monitor (runtimes with a generic monitor
-when available, or run it with `--once` once per turn on hosts without one. The
-bare path `scripts/review-loop.sh` does NOT resolve — the skill runs in the PR's repository
-cwd, not the skill dir, so the script must be addressed by its absolute skill path. Pass
-`PR`, `REPO`, and `INTERVAL` as env vars (the script also accepts
-`--pr`/`--repo`/`--interval`). Use a specific watch description like
-`"CI + new comments on PR #<n> (<m> poll)"`. Do NOT run a foreground `while` loop. The
-script is documented in `references/review-loop.md`.
+**Action**: Launch one poll of `scripts/review-loop.sh --once` as a monitor. The monitor
+command MUST wrap the poll with a unique JSON terminal sentinel, for example:
+
+```bash
+bash -c '
+  if PR="$PR" REPO="$REPO" INTERVAL="$INTERVAL" bash "$SKILL_DIR/scripts/review-loop.sh" --once; then
+    printf "__PI_REVIEW_POLL__ {\\"status\\":\\"ok\\"}\\n"
+  else
+    code=$?
+    printf "__PI_REVIEW_POLL_FAILED__ {\\"status\\":\\"failed\\",\\"exitCode\\":%s}\\n" "$code"
+    exit "$code"
+  fi
+'
+```
+
+Use `result_pattern="__PI_REVIEW_POLL__ (?<json>\\{.*\\})"` and a matching
+`failure_pattern`. Handle the single poll result, then launch the next poll in a new
+monitor invocation until stop conditions hold. Do not run infinite mode under a
+one-shot monitor. The bare path `scripts/review-loop.sh` does NOT resolve — use the
+absolute skill path. Pass `PR`, `REPO`, `INTERVAL`, `STATE_FILE`, and any acknowledged
+node IDs explicitly. Do NOT run a foreground `while` loop. The script is documented in
+`references/review-loop.md`.
 
 **Restarting a watch mid-PR**: pass the node ids already triaged by the previous run
-via `EXCLUDE="<node-id> ..."` (or repeatable `--exclude <node-id>`) so history
-re-surfacing does not re-notify handled comments. Never drop those lines with a
-`grep -v` chain instead — grep/sed/awk block-buffer when piped, so events stall
-in the filter and never reach a streaming watch (details in
-`references/review-loop.md`).
+via `ACK="<node-id> ..."` (or repeatable `--ack <node-id>`). `EXCLUDE`/`--exclude`
+remains an input alias for existing callers, but these values mean acknowledged,
+not merely emitted. Unacknowledged comments are intentionally replayed after a
+restart. Never drop those lines with a `grep -v` chain instead — grep/sed/awk
+block-buffer when piped, so events stall in the filter and never reach a streaming
+watch (details in `references/review-loop.md`).
 
 **CRITICAL: Do NOT skip the watch based on a launch-time snapshot.** "This repo has no CI workflow, so the watch would spin idly" is a **false** inference and not a valid reason to skip: CI is only one of the two things watched. Automated review services, org-level bots, and human reviewers post comments on no fixed schedule and are invisible in a launch-time snapshot — a repo with zero workflows can still accumulate a full review thread minutes after the PR opens. An empty `.github/workflows/` proves nothing about who will comment.
 
@@ -94,6 +110,7 @@ Stop the watch after closeout completes.
 
 ## References
 
+- **Runbook**: `references/runbook.md` - Phase order, inputs, absolute script paths, monitor contract, and fallback execution
 - **Review Loop**: `references/review-loop.md` - Watch script, size→INTERVAL table, triage agent prompt, verdict format, lifecycle/stop conditions
 - **Closeout**: `references/closeout.md` - Summary comment, body rewrite, auto-merge, post-merge hygiene constraints
 - **Commit Standards**: `references/commit-standards.md` - Commit message format for the inline git commit rounds
