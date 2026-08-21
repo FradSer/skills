@@ -5,7 +5,7 @@ description: Create new skills, modify and improve existing skills, and measure 
 
 # Skill Creator
 
-> **Fork note (project-first):** Upstream [anthropics/skills/skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator) defaults new skills to `~/.agents/skills/<name>` (global, untracked). This fork **inverts that**: the canonical location is `./.agents/skills/<name>` (project-local, git-tracked) and `scripts/link-skills.sh` symlinks it into each agent runtime (`~/.agents/skills`, `~/.codex/skills`, `~/.claude/skills`, `~/.pi/agent/skills`). Always create there; never write directly to `~/.agents/skills` as the source of truth.
+> **Fork note (project-first):** Upstream [anthropics/skills/skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator) defaults new skills to `~/.agents/skills/<name>` (global, untracked). This fork defaults to `./.agents/skills/<name>` (project-local, git-tracked). System skills (`~/.agents/skills`) and project skills (`./.agents/skills`) are intentionally separate — at creation time ask the user which scope they want, create in exactly one of them, and only create symlinks to other agent runtimes after the user explicitly confirms.
 
 A skill for creating new skills and iteratively improving them.
 
@@ -61,26 +61,33 @@ Proactively ask questions about edge cases, input/output formats, example files,
 
 Check available MCPs - if useful for research (searching docs, finding similar skills, looking up best practices), research in parallel via subagents if available, otherwise inline. Come prepared with context to reduce burden on the user.
 
-### Where to create the skill (project-first)
+### Where to create the skill (ask-first, project-first default)
 
-Resolve `<project-root>` as `git rev-parse --show-toplevel` if inside a git repo, otherwise `pwd`. The canonical path is:
+Do not assume scope. Ask the user first:
 
-```
-<project-root>/.agents/skills/<skill-name>/SKILL.md
-```
+> "创建到项目内 `./.agents/skills/<name>` 还是全局 `~/.agents/skills/<name>`？默认 `./.agents/skills/<name>`（随项目 git 提交，推荐在 git 仓库内）。"
 
-Create the directory with `mkdir -p <project-root>/.agents/skills/<skill-name>` before writing `SKILL.md`. Do **not** default to `~/.agents/skills/<skill-name>` — that path is only a symlink view created by `scripts/link-skills.sh`. After the skill is ready, link it:
+- **Project scope (default):** `<project-root>/.agents/skills/<skill-name>/SKILL.md` where `<project-root>` is `git rev-parse --show-toplevel` if inside a git repo, otherwise `pwd`. Create with `mkdir -p <project-root>/.agents/skills/<skill-name>` before writing `SKILL.md`.
+- **Global scope:** `~/.agents/skills/<skill-name>/SKILL.md`. Use only when the user explicitly wants a system-wide skill or when not inside a project.
+
+Create in **exactly one** of the two locations at creation time — do not create in both.
+
+Do **not** automatically symlink to other agent runtimes. After the skill is ready and validates (`scripts/quick_validate.py`), ask:
+
+> "是否需要软链到其他 agent 的 skill 目录（~/.codex/skills, ~/.claude/skills, ~/.pi/agent/skills 等）？"
+
+Only if the user confirms, run the linker and let them choose targets:
 
 ```bash
-# from anywhere inside the project
-./skills/skill-creator/scripts/link-skills.sh <skill-name>
-# or, from the skill-creator directory itself:
-./scripts/link-skills.sh <skill-name> --project-root <project-root>
-# link every project-local skill at once:
-./scripts/link-skills.sh --all
+# link this one skill (prompts for targets if run interactively)
+./.agents/skills/skill-creator/scripts/link-skills.sh <skill-name> --project-root <project-root>
+# from inside the project, shorthand:
+./.agents/skills/skill-creator/scripts/link-skills.sh <skill-name>
+# link every project-local skill at once (also ask-first)
+./.agents/skills/skill-creator/scripts/link-skills.sh --all
 ```
 
-The script is idempotent; use `--force` to replace an existing real directory with a symlink (backs up the original). See `scripts/link-skills.sh --help` for details.
+The script is idempotent; use `--force` to replace an existing real directory with a symlink (backs up the original). See `scripts/link-skills.sh --help` for details. System and project skills are separate intents — never auto-link without confirmation.
 
 ### Write the SKILL.md
 
@@ -96,7 +103,7 @@ Based on the user interview, fill in these components:
 #### Anatomy of a Skill
 
 ```
-# Canonical (this fork)
+# Option A — Project skill (default, git-tracked)
 .agents/skills/<skill-name>/
 ├── SKILL.md (required)
 │   ├── YAML frontmatter (name, description required)
@@ -106,14 +113,18 @@ Based on the user interview, fill in these components:
     ├── references/ - Docs loaded into context as needed
     └── assets/     - Files used in output (templates, icons, fonts)
 
-# Symlink views (created by scripts/link-skills.sh, not canonical)
-~/.agents/skills/<skill-name>   -> .agents/skills/<skill-name>
-~/.codex/skills/<skill-name>    -> .agents/skills/<skill-name>
+# Option B — Global skill (when user explicitly wants system-wide)
+~/.agents/skills/<skill-name>/
+└── (same layout as above)
+
+# Optional symlink views (only after user confirms; created by scripts/link-skills.sh)
+~/.codex/skills/<skill-name>    -> .agents/skills/<skill-name>  (or -> ~/.agents/skills/<skill-name>)
 ~/.claude/skills/<skill-name>   -> .agents/skills/<skill-name>
 ~/.pi/agent/skills/<skill-name> -> .agents/skills/<skill-name>
 ```
 
-> In this repository (`FradSer/skills`) the distributable collection lives at `skills/<name>/` for `npx skills add` compatibility. For day-to-day project work, prefer `.agents/skills/<name>/` as described above; `skills/<name>/` is kept for publishing.
+> System (`~/.agents/skills`) and project (`./.agents/skills`) are separate intents — create in exactly one at first, symlink only on explicit user confirmation.
+> In this repository (`FradSer/skills`) the distributable collection historically lived at `skills/<name>/` for `npx skills add`; that path is no longer canonical in this fork — prefer `.agents/skills/<name>` (or `~/.agents/skills/<name>` for global).
 
 #### Progressive Disclosure
 
