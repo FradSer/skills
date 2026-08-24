@@ -48,14 +48,16 @@ Run it — it reads `PR`, `REPO`, and `INTERVAL` from env
 (or `--pr`/`--repo`/`--interval` flags) and emits the tagged lines above.
 
 ```bash
-# One-shot monitor invocation (preferred for hosts with terminal result contracts):
-if PR=<pr-number> REPO=<owner>/<repo> INTERVAL=<sec> \
-  bash <skill-dir>/scripts/review-loop.sh --once; then
-  printf '__PI_REVIEW_POLL__ {"status":"ok"}\n'
+# One-shot monitor invocation (preferred for hosts with terminal result contracts).
+# Capture stdout and embed every event line inside the sentinel JSON: such hosts
+# surface only the matched result line, so events printed before it are dropped.
+out=$(PR=<pr-number> REPO=<owner>/<repo> INTERVAL=<sec> bash <skill-dir>/scripts/review-loop.sh --once); rc=$?
+payload=$(printf '%s\n' "$out" | jq -Rsc 'split("\n") | map(select(length > 0))')
+if [ "$rc" -eq 0 ]; then
+  printf '__PI_REVIEW_POLL__ {"status":"ok","events":%s}\n' "$payload"
 else
-  code=$?
-  printf '__PI_REVIEW_POLL_FAILED__ {"status":"failed","exitCode":%s}\n' "$code"
-  exit "$code"
+  printf '__PI_REVIEW_POLL_FAILED__ {"status":"failed","exitCode":%s,"events":%s}\n' "$rc" "$payload"
+  exit "$rc"
 fi
 
 # A genuinely streaming monitor may run the long-lived mode:

@@ -38,22 +38,28 @@ Run the baseline review of the PR diff, then keep a persistent watch over CI and
 **Goal**: One background watch streaming CI + comment events across turns.
 
 **Action**: Launch one poll of `scripts/review-loop.sh --once` as a monitor. The monitor
-command MUST wrap the poll with a unique JSON terminal sentinel, for example:
+command MUST capture the poll's stdout and embed every emitted event line INSIDE the
+terminal JSON sentinel: hosts with a terminal-result contract may surface only the matched
+result line, so events printed before the sentinel can be silently dropped (this lost a
+real review comment once). Wrap the poll like:
 
 ```bash
 bash -c '
-  if PR="$PR" REPO="$REPO" INTERVAL="$INTERVAL" bash "$SKILL_DIR/scripts/review-loop.sh" --once; then
-    printf "__PI_REVIEW_POLL__ {\\"status\\":\\"ok\\"}\\n"
+  events=$(PR="$PR" REPO="$REPO" INTERVAL="$INTERVAL" bash "$SKILL_DIR/scripts/review-loop.sh" --once); rc=$?
+  payload=$(printf "%s\n" "$events" | jq -Rsc 'split("\n") | map(select(length > 0))')
+  if [ "$rc" -eq 0 ]; then
+    printf "__PI_REVIEW_POLL__ {\"status\":\"ok\",\"events\":%s}\n" "$payload"
   else
-    code=$?
-    printf "__PI_REVIEW_POLL_FAILED__ {\\"status\\":\\"failed\\",\\"exitCode\\":%s}\\n" "$code"
-    exit "$code"
+    printf "__PI_REVIEW_POLL_FAILED__ {\"status\":\"failed\",\"exitCode\":%s,\"events\":%s}\n" "$rc" "$payload"
+    exit "$rc"
   fi
 '
 ```
 
 Use `result_pattern="__PI_REVIEW_POLL__ (?<json>\\{.*\\})"` and a matching
-`failure_pattern`. Handle the single poll result, then launch the next poll in a new
+`failure_pattern`. Parse the `events` array from the captured JSON and triage every
+line; never treat an `ok` status as proof of no events. Handle the single poll
+result, then launch the next poll in a new
 monitor invocation until stop conditions hold. Do not run infinite mode under a
 one-shot monitor. The bare path `scripts/review-loop.sh` does NOT resolve — use the
 absolute skill path. Pass `PR`, `REPO`, `INTERVAL`, `STATE_FILE`, and any acknowledged

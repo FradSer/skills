@@ -38,21 +38,24 @@ scripts under `scripts/`.
 
 ## Monitor contract
 
-Pi's `monitor_start` requires a terminal result contract. Do not run the
-infinite loop mode under it. Wrap one-shot polling with a unique sentinel:
+Hosts with a terminal-result contract (e.g. Pi's `monitor_start`) surface only
+the matched result line, never the poll's preceding stdout. Do not run the
+infinite loop mode under one. Capture one-shot output and embed every emitted
+event line INSIDE the sentinel payload:
 
 ```bash
-if PR="$PR" REPO="$REPO" INTERVAL="$INTERVAL" STATE_FILE="$STATE_FILE" \
-  bash "$LOOP" --once; then
-  printf '__PI_REVIEW_POLL__ {"status":"ok"}\n'
+events=$(PR="$PR" REPO="$REPO" INTERVAL="$INTERVAL" bash "$LOOP" --once); rc=$?
+payload=$(printf '%s\n' "$events" | jq -Rsc 'split("\n") | map(select(length > 0))')
+if [ "$rc" -eq 0 ]; then
+  printf '__PI_REVIEW_POLL__ {"status":"ok","events":%s}\n' "$payload"
 else
-  code=$?
-  printf '__PI_REVIEW_POLL_FAILED__ {"status":"failed","exitCode":%s}\n' "$code"
-  exit "$code"
+  printf '__PI_REVIEW_POLL_FAILED__ {"status":"failed","exitCode":%s,"events":%s}\n' "$rc" "$payload"
+  exit "$rc"
 fi
 ```
 
-Use:
+Parse the `events` array from the captured JSON and triage every line; never
+treat an `ok` status as proof of no events. Then use:
 
 ```text
 result_pattern=__PI_REVIEW_POLL__ (?<json>\{.*\})
