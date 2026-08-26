@@ -143,6 +143,15 @@ npx skills add https://github.com/FradSer/skills --skill start-hotfix
 npx skills add https://github.com/FradSer/skills --skill start-release
 ```
 
+### [storm](skills/storm/)
+
+基于多视角研究与检索生成维基百科风格的长文，移植了 Stanford STORM 的四阶段管道（research、outline、write、polish）。每个阶段可独立运行且支持断点续跑；设计上不绑定特定运行时。当用户要求 "write a storm article" 或 "research and write a long-form piece on X" 时使用。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill storm
+```
+
 ### [substore-openclash](skills/substore-openclash/)
 
 管理 SubStore 到 OpenClash 的配置管道，用于微信图片直连路由与 mihomo 配置修复，同时修复 homebridge-miot 小米登录错误。当用户提到 "微信图片看不到"、TFO、fake-ip、代理组或 MiCloud 登录失败时使用。

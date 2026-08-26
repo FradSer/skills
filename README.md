@@ -143,6 +143,15 @@ Starts a new release branch using git-flow. Accepts either a branch name/version
 npx skills add https://github.com/FradSer/skills --skill start-release
 ```
 
+### [storm](skills/storm/)
+
+Generates Wikipedia-style long-form articles grounded in multi-perspective research and retrieval, porting Stanford STORM's four-phase pipeline (research, outline, write, polish). Each phase is independently runnable and resumable; runtime-neutral by design. Use when the user asks to "write a storm article" or "research and write a long-form piece on X".
+
+**Installation:**
+```bash
+npx skills add https://github.com/FradSer/skills --skill storm
+```
+
 ### [substore-openclash](skills/substore-openclash/)
 
 Manages the SubStore to OpenClash config pipeline for WeChat image direct routing and mihomo config fixes, and fixes homebridge-miot Xiaomi login errors. Use when the user says "wechat images not loading", "微信图片看不到", or reports TFO, fake-ip, proxy group, or MiCloud login failures.
