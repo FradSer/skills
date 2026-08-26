@@ -1,6 +1,7 @@
 ---
 name: start-feature
 description: Starts a new feature branch using git-flow. Use when the user asks to "start a feature", "begin new feature", "git flow feature start", or wants to begin a new feature. Accepts either a branch name/version or a natural-language description.
+disable-model-invocation: true
 ---
 
 # Start feature

@@ -1,3 +1,7 @@
 scopes:
     - name: skills
       description: AI agent skill modules and their associated references and evaluation data
+    - name: tests
+      description: automated validation and testing suites in tests/; does not cover individual skill scripts
+    - name: tools
+      description: utility and maintenance scripts in tools/; does not cover agent skill logic

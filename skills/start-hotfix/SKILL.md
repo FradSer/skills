@@ -1,6 +1,7 @@
 ---
 name: start-hotfix
 description: Starts a new hotfix branch using git-flow. Use when the user asks to "start a hotfix", "begin new hotfix", "git flow hotfix start", or wants to begin a new hotfix. Accepts either a branch name/version or a natural-language description.
+disable-model-invocation: true
 ---
 
 # Start hotfix

@@ -1,6 +1,7 @@
 ---
 name: start-release
 description: Starts a new release branch using git-flow. Use when the user asks to "start a release", "begin new release", "git flow release start", or wants to begin a new release. Accepts either a branch name/version or a natural-language description.
+disable-model-invocation: true
 ---
 
 # Start release
