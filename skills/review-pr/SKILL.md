@@ -1,16 +1,16 @@
 ---
 name: review-pr
-description: 'Reviews a pull request: runs its own baseline review of the PR diff, then a persistent watch polls CI and incoming reviewer comments via a script, triages each comment through an independent skeptical agent, applies only verified fixes, and commits+pushes via inline git commands until CI passes and no comments remain to adopt — then runs the closeout ceremony and auto-merges. Fully automatic, no user questions. Use this skill when the user asks to "review a PR", "monitor PR review comments", "address reviewer feedback on #123", or "watch CI on a pull request".'
+description: 'Reviews a pull request: runs its own baseline review of the PR diff, then starts a runtime monitor for CI and incoming reviewer comments, triages each comment through an independent skeptical agent, applies only verified fixes, and commits+pushes via inline git commands until CI passes and no comments remain to adopt — then runs the closeout ceremony and auto-merges. Fully automatic, no user questions. Use this skill when the user asks to "review a PR", "monitor PR review comments", "address reviewer feedback on #123", or "watch CI on a pull request".'
 ---
 
 # Review a Pull Request
 
-Run the baseline review of the PR diff, then keep a persistent watch over CI and new reviewer comments until the PR settles and auto-merges. The detailed operational sequence lives in `references/runbook.md`; load it when dispatching the watch or when a host cannot provide nested workflow execution.
+Run the baseline review of the PR diff, then start a monitor through the runtime's monitor facility and keep watching CI and new reviewer comments until the PR settles and auto-merges. The detailed operational sequence lives in `references/runbook.md`; load it when dispatching the monitor or when a runtime cannot provide nested workflow execution.
 
 ## Runtime notes
 
 - Resolve `SKILL_DIR` once and use absolute paths to every script.
-- Use the one-shot monitor contract from `references/runbook.md` on hosts that require terminal results; never put infinite mode under a one-shot monitor.
+- Start the review loop through the runtime's monitor facility. Choose one-shot or streaming mode based on that monitor's capabilities; never put infinite mode under a one-shot monitor.
 - Use clean-context agents for baseline review and comment triage.
 - The pipeline is automatic: never ask whether to merge.
 - Arm closeout before the ceremony and clear it after merge or abort.
@@ -29,40 +29,42 @@ Run the baseline review of the PR diff, then keep a persistent watch over CI and
 
 **Actions**:
 1. Parse the PR number or URL from `$ARGUMENTS`. If absent, resolve the PR automatically: the current branch's open PR via `gh pr view --json number -q .number` (falls back to the branch's head PR), else the most recently updated open PR via `gh pr list --state open --json number,updatedAt --limit 1` — never ask the user which PR to review. **Normalize `PR` to the bare number** before any `gh api` REST call: `gh pr *` commands accept a URL, but `gh api repos/$REPO/issues/$PR/...` interpolates `$PR` into the URL path and breaks on a full URL — run `PR=$(gh pr view "$ARGUMENTS" --json number -q .number)` (the Context block already fetches `--json number`) and use `$PR` as the number everywhere downstream.
-2. **Run the baseline review** — spawn an independent review agent with clean context (it did not author the code) to review the PR diff. Pull the diff with `gh pr diff <PR>`; pass the agent the PR title/body and the diff, and ask for findings as `path:line: issue` lines (full prompt in `references/review-loop.md`, Baseline review agent). Treat its findings as the **first `[comment]` batch** — feed them straight into the Phase 3 triage flow before launching the watch. Do not act on them inline; the main context is biased (it likely authored the PR) and the same skeptical gatekeeping must apply to the baseline as to live comments.
+2. **Run the baseline review** — spawn an independent review agent with clean context (it did not author the code) to review the PR diff. Pull the diff with `gh pr diff <PR>`; pass the agent the PR title/body and the diff, and ask for findings as `path:line: issue` lines (full prompt in `references/review-loop.md`, Baseline review agent). Treat its findings as the **first `[comment]` batch** — feed them straight into the Phase 3 triage flow before starting the monitor. Do not act on them inline; the main context is biased (it likely authored the PR) and the same skeptical gatekeeping must apply to the baseline as to live comments.
 3. Resolve `REPO=<owner>/<repo>` from the PR metadata above (fallback: `git remote get-url origin` parsed into `owner/repo`).
 4. Read PR size from `additions+deletions` and pick `INTERVAL` (seconds) from the size table in `references/review-loop.md`: 180 / 300 / 480 for small / medium / large; floor 60s, cap 7200s (~2h).
 
-## Phase 2: Launch the Persistent Watch
+## Phase 2: Start the Monitor
 
-**Goal**: One background watch streaming CI + comment events across turns.
+**Goal**: One monitor carrying CI + comment events across turns.
 
-**Action**: Launch one poll of `scripts/review-loop.sh --once` as a monitor. The monitor
-command MUST capture the poll's stdout and embed every emitted event line INSIDE the
-terminal JSON sentinel: hosts with a terminal-result contract may surface only the matched
-result line, so events printed before the sentinel can be silently dropped (this lost a
-real review comment once). Wrap the poll like:
+**Action**: Start a monitor through the runtime's monitor facility, running one poll
+of `scripts/review-loop.sh --once` per invocation. Never run the poll in the foreground
+or substitute a manual loop. The monitor command MUST capture the poll's stdout and
+embed every emitted event line INSIDE the terminal JSON sentinel: monitors with a
+terminal-result contract may surface only the matched result line, so events printed
+before the sentinel can be silently dropped (this lost a real review comment once).
+Wrap the poll like:
 
 ```bash
 bash -c '
   events=$(PR="$PR" REPO="$REPO" INTERVAL="$INTERVAL" bash "$SKILL_DIR/scripts/review-loop.sh" --once); rc=$?
   payload=$(printf "%s\n" "$events" | jq -Rsc 'split("\n") | map(select(length > 0))')
   if [ "$rc" -eq 0 ]; then
-    printf "__PI_REVIEW_POLL__ {\"status\":\"ok\",\"events\":%s}\n" "$payload"
+    printf "__REVIEW_POLL__ {\"status\":\"ok\",\"events\":%s}\n" "$payload"
   else
-    printf "__PI_REVIEW_POLL_FAILED__ {\"status\":\"failed\",\"exitCode\":%s,\"events\":%s}\n" "$rc" "$payload"
+    printf "__REVIEW_POLL_FAILED__ {\"status\":\"failed\",\"exitCode\":%s,\"events\":%s}\n" "$rc" "$payload"
     exit "$rc"
   fi
 '
 ```
 
-Use `result_pattern="__PI_REVIEW_POLL__ (?<json>\\{.*\\})"` and a matching
-`failure_pattern`. Parse the `events` array from the captured JSON and triage every
-line; never treat an `ok` status as proof of no events. Handle the single poll
-result, then launch the next poll in a new
-monitor invocation until stop conditions hold. Do not run infinite mode under a
-one-shot monitor. The bare path `scripts/review-loop.sh` does NOT resolve — use the
-absolute skill path. Pass `PR`, `REPO`, `INTERVAL`, `STATE_FILE`, and any acknowledged
+Configure the monitor's equivalent success and failure matchers for
+`__REVIEW_POLL__ (?<json>\\{.*\\})` and `__REVIEW_POLL_FAILED__ (?<json>\\{.*\\})`.
+Parse the `events` array from the captured JSON and triage every line; never treat an
+`ok` status as proof of no events. Handle the single poll result, then start the next
+poll in a new monitor invocation until stop conditions hold. Do not run infinite mode
+under a one-shot monitor. The bare path `scripts/review-loop.sh` does NOT resolve — use
+the absolute skill path. Pass `PR`, `REPO`, `INTERVAL`, `STATE_FILE`, and any acknowledged
 node IDs explicitly. Do NOT run a foreground `while` loop. The script is documented in
 `references/review-loop.md`.
 
@@ -76,7 +78,7 @@ watch (details in `references/review-loop.md`).
 
 **CRITICAL: Do NOT skip the watch based on a launch-time snapshot.** "This repo has no CI workflow, so the watch would spin idly" is a **false** inference and not a valid reason to skip: CI is only one of the two things watched. Automated review services, org-level bots, and human reviewers post comments on no fixed schedule and are invisible in a launch-time snapshot — a repo with zero workflows can still accumulate a full review thread minutes after the PR opens. An empty `.github/workflows/` proves nothing about who will comment.
 
-The only valid skip is a PR that is already merged or closed. If CI and reviewers both appear absent, launch the watch anyway; it costs nothing and emits nothing until something changes.
+The only valid skip is a PR that is already merged or closed. If CI and reviewers both appear absent, start the monitor anyway; it costs nothing and emits nothing until something changes.
 
 ## Phase 3: React to Each Watch Event
 
@@ -109,10 +111,10 @@ Stop the watch when EITHER holds — full conditions in `references/review-loop.
 5. Do not sign the summary as AI-generated; body describes the change, comment records the review cycle — keep them distinct.
 6. Do not run the ceremony or merge while CI is red or comments remain untriaged — the gate must hold first.
 7. Auto-merge with `gh pr merge "$PR" --repo "$REPO" --merge --delete-branch` (NOT `--auto`) once CI is green AND every comment is triaged. Omit `--delete-branch` in a linked worktree; delete the remote head separately if stack-safe, leave the local branch for the worktree removal.
-8. If the merge fails (branch protection, required reviews, stale base), surface the error in the conversation, stop the watch, and leave the PR open for manual handling — do not retry with different flags, do not force-push.
+8. If the merge fails (branch protection, required reviews, stale base), surface the error in the conversation, stop the monitor, and leave the PR open for manual handling — do not retry with different flags, do not force-push.
 9. Never force long-lived branch updates; `--delete-branch` is the default (omitted only in linked worktrees). Post-merge hygiene runs unconditionally: remove the linked worktree (`git worktree remove <path>`), switch to `main`, and fast-forward-sync `main`/`develop` with origin — see `references/closeout.md` (After a successful merge).
 
-Stop the watch after closeout completes.
+Stop the monitor after closeout completes.
 
 ## References
 

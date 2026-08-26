@@ -1,8 +1,8 @@
 # Review-pr Operational Runbook
 
-This is the operational map for hosts that cannot dispatch a sibling skill
-from inside another skill. It is not a skill entry point and must not be
-loaded as a standalone skill.
+This is the operational map for runtimes that cannot dispatch a sibling skill
+from inside another skill. It is not a skill entry point and must not be loaded
+as a standalone skill.
 
 ## Inputs
 
@@ -38,18 +38,19 @@ scripts under `scripts/`.
 
 ## Monitor contract
 
-Hosts with a terminal-result contract (e.g. Pi's `monitor_start`) surface only
-the matched result line, never the poll's preceding stdout. Do not run the
-infinite loop mode under one. Capture one-shot output and embed every emitted
-event line INSIDE the sentinel payload:
+Run the review loop under a monitor started through the runtime's monitor facility —
+never a manual foreground loop. Monitors with a terminal-result contract surface only
+the matched result line, never the poll's preceding stdout; do not run the infinite
+loop mode under one. Capture one-shot output and embed every emitted event line INSIDE
+the sentinel payload:
 
 ```bash
 events=$(PR="$PR" REPO="$REPO" INTERVAL="$INTERVAL" bash "$LOOP" --once); rc=$?
 payload=$(printf '%s\n' "$events" | jq -Rsc 'split("\n") | map(select(length > 0))')
 if [ "$rc" -eq 0 ]; then
-  printf '__PI_REVIEW_POLL__ {"status":"ok","events":%s}\n' "$payload"
+  printf '__REVIEW_POLL__ {"status":"ok","events":%s}\n' "$payload"
 else
-  printf '__PI_REVIEW_POLL_FAILED__ {"status":"failed","exitCode":%s,"events":%s}\n' "$rc" "$payload"
+  printf '__REVIEW_POLL_FAILED__ {"status":"failed","exitCode":%s,"events":%s}\n' "$rc" "$payload"
   exit "$rc"
 fi
 ```
@@ -58,8 +59,8 @@ Parse the `events` array from the captured JSON and triage every line; never
 treat an `ok` status as proof of no events. Then use:
 
 ```text
-result_pattern=__PI_REVIEW_POLL__ (?<json>\{.*\})
-failure_pattern=__PI_REVIEW_POLL_FAILED__ (?<json>\{.*\})
+success matcher=__REVIEW_POLL__ (?<json>\{.*\})
+failure matcher=__REVIEW_POLL_FAILED__ (?<json>\{.*\})
 ```
 
 After processing the result, schedule the next invocation. Do not use a

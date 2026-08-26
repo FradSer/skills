@@ -1,5 +1,11 @@
 Feature: Watch PR events without losing them to output filtering
 
+  Scenario: review-pr starts monitoring via the runtime monitor facility
+    Given review-pr has completed its baseline review for an open PR
+    When the workflow enters its persistent monitoring phase
+    Then it starts a runtime-provided monitor for the review loop
+    And it does not use a manual foreground loop or a runtime-specific monitor command
+
   Scenario: Creating a PR executes exactly one review-pr handoff
     Given create-pr has successfully created PR "https://github.com/octo/repo/pull/122"
     When the create-pr workflow reaches post-creation handoff

@@ -10,6 +10,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "skills/review-pr/scripts/review-loop.sh"
 CREATE_PR_SKILL = ROOT / "skills/create-pr/SKILL.md"
+REVIEW_PR_SKILL = ROOT / "skills/review-pr/SKILL.md"
 REVIEW_HANDOFF_REFERENCE = ROOT / "skills/create-pr/references/review-pr-handoff.md"
 REVIEW_REFERENCES = ROOT / "skills/create-pr/references"
 REVIEW_SCRIPTS = ROOT / "skills/create-pr/scripts"
@@ -94,6 +95,18 @@ def run_watch(extra_args=(), extra_env=None):
 
 
 class ReviewLoopWatchTests(unittest.TestCase):
+    def test_review_pr_monitor_guidance_is_runtime_neutral(self) -> None:
+        skill = REVIEW_PR_SKILL.read_text(encoding="utf-8")
+        self.assertIn("monitor facility", skill)
+        self.assertIn("Do NOT run a foreground `while` loop", skill)
+        for name in ("runbook.md", "review-loop.md"):
+            document = (REVIEW_PR_SKILL.parent / "references" / name).read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("monitor facility", document)
+            self.assertNotIn("monitor_start", document)
+            self.assertNotIn("__PI_REVIEW", document)
+
     def test_create_pr_requires_a_single_review_pr_handoff(self) -> None:
         skill = CREATE_PR_SKILL.read_text(encoding="utf-8")
         self.assertIn("Start the standalone `review-pr` workflow exactly once", skill)

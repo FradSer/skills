@@ -1,12 +1,11 @@
 # Review Loop: Watch, Triage, Auto-Fix
 
-The watch is driven by a single bash script (`scripts/review-loop.sh`) that emits
-one tagged stdout line per new event for BOTH CI checks and PR comments. How the lines
-are consumed depends on the host: a generic background monitor runs the script in the
-background and delivers each line as a notification across turns, or a re-entrant loop
-runs the script once per turn, reads its output, and stops when the stop conditions hold.
-The script is a plain executable emitting lines on stdout, so it works under any generic
-monitor. Do not block on a manual `while true` loop.
+A single bash script (`scripts/review-loop.sh`) drives the watch: it emits one tagged
+stdout line per new event for BOTH CI checks and PR comments. Start it under a monitor
+from the runtime's monitor facility, and let the monitor's own semantics decide how
+output is delivered (streaming notifications or a terminal result). The script is a
+plain executable emitting lines on stdout, so it works under any monitor. Do not block
+on a manual `while true` loop.
 
 ## Poll interval by PR size
 
@@ -26,10 +25,9 @@ to the PR's size and pass it as `INTERVAL` (in seconds) to the script below.
 
 Read size via `gh pr view <PR> --repo <REPO> --json additions,deletions` and pick the row.
 
-## One Watch for CI and Comments
+## Start one Monitor for CI and Comments
 
-Launch one monitor (or one re-entrant invocation per turn). The script below
-emits:
+Start one monitor (or one re-entrant invocation per turn). The script below emits:
 
 - `[ci] <name>: <bucket>` once per check reaching a terminal bucket (pass/fail/cancel/skipping)
 - `[comment] issue node=<id> id=<n> @<user>: <body>` for new issue-level comments
@@ -48,15 +46,15 @@ Run it — it reads `PR`, `REPO`, and `INTERVAL` from env
 (or `--pr`/`--repo`/`--interval` flags) and emits the tagged lines above.
 
 ```bash
-# One-shot monitor invocation (preferred for hosts with terminal result contracts).
-# Capture stdout and embed every event line inside the sentinel JSON: such hosts
+# One-shot monitor invocation (for monitors with terminal-result contracts).
+# Capture stdout and embed every event line inside the sentinel JSON: such monitors
 # surface only the matched result line, so events printed before it are dropped.
 out=$(PR=<pr-number> REPO=<owner>/<repo> INTERVAL=<sec> bash <skill-dir>/scripts/review-loop.sh --once); rc=$?
 payload=$(printf '%s\n' "$out" | jq -Rsc 'split("\n") | map(select(length > 0))')
 if [ "$rc" -eq 0 ]; then
-  printf '__PI_REVIEW_POLL__ {"status":"ok","events":%s}\n' "$payload"
+  printf '__REVIEW_POLL__ {"status":"ok","events":%s}\n' "$payload"
 else
-  printf '__PI_REVIEW_POLL_FAILED__ {"status":"failed","exitCode":%s,"events":%s}\n' "$rc" "$payload"
+  printf '__REVIEW_POLL_FAILED__ {"status":"failed","exitCode":%s,"events":%s}\n' "$rc" "$payload"
   exit "$rc"
 fi
 
@@ -65,12 +63,12 @@ PR=<pr-number> REPO=<owner>/<repo> INTERVAL=<sec> \
   bash <skill-dir>/scripts/review-loop.sh
 ```
 
-Stop the watch when done (stop the background task, or simply stop re-invoking the
+Stop the monitor when done (stop the background task, or simply stop re-invoking the
 re-entrant loop) — never leave it running once the PR is settled.
 
 ## Excluding already-triaged comments on restart
 
-Every watch run seeds `since` to the PR's creation time, so poll 1 re-surfaces the
+Every monitor run seeds `since` to the PR's creation time, so poll 1 re-surfaces the
 ENTIRE comment history — including comments a previous watch run already triaged.
 When restarting a watch mid-PR, pass the already-handled node ids so they are not
 re-notified:
@@ -86,7 +84,7 @@ PR=<n> REPO=<owner>/<repo> INTERVAL=<sec> \
 **CRITICAL: never filter the script's stdout through a `grep -v` / `sed` / `awk`
 chain to drop handled comments.** Those tools block-buffer when their stdout is a
 pipe, so every event — including later ones — stalls inside the filter's buffer
-until ~4 KB accumulates or the pipeline exits: a streaming background watch
+until ~4 KB accumulates or the pipeline exits: a streaming background monitor
 delivers nothing until then. Observed live: a watch piped through `grep -v
 node=...` delivered no events for 20+ minutes while a new reviewer comment had
 already been emitted. (The re-entrant `--once` mode is unaffected — the buffer
@@ -105,8 +103,8 @@ Behavior notes:
 - `|| true` / `2>/dev/null` on every API call keeps one transient failure from killing
   the watch; `INTERVAL` is floored at 60s.
 
-Run one `--once` poll under a monitor with a unique terminal sentinel when the host
-requires a terminal result contract. After processing that result, start the next poll as
+When the runtime monitor has a terminal-result contract, start one `--once` poll
+with a unique terminal sentinel. After processing that result, start the next poll as
 a new monitor invocation. Only use long-lived mode with a genuinely streaming monitor.
 The script persists its cursor, emitted and acknowledged comment IDs, latest CI buckets,
 head SHA, and deadline at the Git worktree path `review-pr-watch-<PR>.json` (override with
@@ -161,8 +159,8 @@ rejected like any other comment.
 
 ## Reacting to Events
 
-Each emitted line is a notification. The Monitor keeps running while you act, so apply
-fixes, push, and let the same watch re-emit the resulting CI lines.
+Each emitted line is a notification. Keep the Monitor running while you act, so apply
+fixes, push, and let the same monitor re-emit the resulting CI lines.
 
 ### `[ci]` failure
 
@@ -340,11 +338,11 @@ file context) for the closeout summary comment, and continue. Never notify the u
 
 ## Lifecycle
 
-- The watch runs across turns; you keep working and react as lines arrive.
-- A pushed fix triggers a fresh CI run that the same watch re-emits — no need to relaunch it.
+- The monitor runs across turns; you keep working and react as lines arrive.
+- A pushed fix triggers a fresh CI run that the same monitor re-emits — no need to relaunch it.
 - A temporarily empty comment queue is NOT a stop signal — other agents may post more
-  comments later. Keep the watch running.
-- Stop the watch when EITHER holds:
+  comments later. Keep the monitor running.
+- Stop the monitor when EITHER holds:
   - **Normal stop (all three must hold)**:
     1. Every `[ci]` check is terminal AND passing.
     2. Every review comment received so far has been reflected on (triaged, replied to,
@@ -357,4 +355,4 @@ file context) for the closeout summary comment, and continue. Never notify the u
     stop — do NOT keep polling just because CI is still red or comments remain. The cap
     exists so a stuck PR (red CI the skill correctly won't auto-fix) cannot hold the watch
     open forever.
-- The watch runs automatically; there is no user signal to wait for.
+- The monitor runs automatically; there is no user signal to wait for.
