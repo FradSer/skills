@@ -1,6 +1,5 @@
 ---
 name: lark
-version: 2.0.0
 description: "Lark/Feishu CLI router: query and operate Lark/Feishu via lark-cli. Use `lark-cli skills read <sub-skill>` (e.g. lark-doc, lark-base, lark-im) to load domain skills for docs, sheets, base, calendar, im, mail, tasks, okr, drive, wiki, slides, whiteboard, apps/miaoda, approval, attendance, contact, vc, minutes, note, events, etc."
 metadata:
   requires:

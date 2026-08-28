@@ -1,6 +1,7 @@
 ---
 name: create-pr
 description: Creates a GitHub pull request after repository validation, then starts the standalone review-pr workflow for CI monitoring, comment triage, closeout, and merge. Use when asked to create or submit a pull request.
+disable-model-invocation: true
 ---
 
 # Create a Pull Request

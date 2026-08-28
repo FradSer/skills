@@ -10,7 +10,7 @@ metadata:
 
 Browse [missav.ws](https://missav.ws) with **agent-browser**, extract listings, **enrich detail-page descriptions**, rank against `~/.missav/` preferences.
 
-**Prerequisite:** [`../agent-browser/SKILL.md`](../agent-browser/SKILL.md), [`references/browser-troubleshooting.md`](references/browser-troubleshooting.md)
+**Prerequisite:** the `agent-browser` skill must be installed, and read [`references/browser-troubleshooting.md`](references/browser-troubleshooting.md) when browser access fails.
 
 Install: `npm i -g agent-browser && agent-browser install`
 
