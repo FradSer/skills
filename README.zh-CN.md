@@ -53,31 +53,13 @@ npx skills add https://github.com/FradSer/skills --skill create-pr
 npx skills add https://github.com/FradSer/skills --skill create-prd
 ```
 
-### [finish-feature](skills/finish-feature/)
+### [gitflow](skills/gitflow/)
 
-使用 git-flow 完成功能分支并合并到 develop，随后清理过期分支与 worktree。当用户要求 "finish a feature" 或 "complete feature" 时使用。
-
-**安装命令：**
-```bash
-npx skills add https://github.com/FradSer/skills --skill finish-feature
-```
-
-### [finish-hotfix](skills/finish-hotfix/)
-
-使用 git-flow 完成 hotfix 并合并到 main 和 develop，随后清理过期分支与 worktree。当用户要求 "finish a hotfix" 或 "complete hotfix" 时使用。
+管理 Git-flow 分支生命周期：自动化启动或完成 feature、hotfix 和 release 分支，支持自动生成 changelog、版本号递增及分支清理。当用户要求启动/完成分支或提及 git-flow 时使用。
 
 **安装命令：**
 ```bash
-npx skills add https://github.com/FradSer/skills --skill finish-hotfix
-```
-
-### [finish-release](skills/finish-release/)
-
-使用 git-flow 完成 release 并以标签合并到 main 和 develop，随后清理过期分支与 worktree。当用户要求 "finish a release" 或 "complete release" 时使用。
-
-**安装命令：**
-```bash
-npx skills add https://github.com/FradSer/skills --skill finish-release
+npx skills add https://github.com/FradSer/skills --skill gitflow
 ```
 
 ### [lark](skills/lark/)
@@ -87,6 +69,15 @@ npx skills add https://github.com/FradSer/skills --skill finish-release
 **安装命令：**
 ```bash
 npx skills add https://github.com/FradSer/skills --skill lark
+```
+
+### [missav](skills/missav/)
+
+使用 agent-browser 浏览 missav.ws 视频列表，提取标题/时长/链接，解析详情页剧情描述进行题材分析，并基于 ~/.missav/ 中的用户偏好进行个性化推荐与排序。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill missav
 ```
 
 ### [patent-architect](skills/patent-architect/)
@@ -116,54 +107,18 @@ npx skills add https://github.com/FradSer/skills --skill resolve-issues
 npx skills add https://github.com/FradSer/skills --skill review-pr
 ```
 
-### [start-feature](skills/start-feature/)
-
-使用 git-flow 开启新的功能分支。接受分支名/版本号或自然语言描述。当用户要求 "start a feature" 或 "git flow feature start" 时使用。
-
-**安装命令：**
-```bash
-npx skills add https://github.com/FradSer/skills --skill start-feature
-```
-
-### [start-hotfix](skills/start-hotfix/)
-
-使用 git-flow 开启新的 hotfix 分支。接受分支名/版本号或自然语言描述。当用户要求 "start a hotfix" 或 "git flow hotfix start" 时使用。
-
-**安装命令：**
-```bash
-npx skills add https://github.com/FradSer/skills --skill start-hotfix
-```
-
-### [start-release](skills/start-release/)
-
-使用 git-flow 开启新的 release 分支。接受分支名/版本号或自然语言描述。当用户要求 "start a release" 或 "git flow release start" 时使用。
-
-**安装命令：**
-```bash
-npx skills add https://github.com/FradSer/skills --skill start-release
-```
-
 ### [storm](skills/storm/)
 
-基于多视角研究与检索生成维基百科风格的长文，移植了 Stanford STORM 的四阶段管道（research、outline、write、polish）。每个阶段可独立运行且支持断点续跑；设计上不绑定特定运行时。当用户要求 "write a storm article" 或 "research and write a long-form piece on X" 时使用。
+基于多视角研究与检索生成维基百科风格的长文，移植了 Stanford STORM 的四阶段管道（research、outline、write、polish）。
 
 **安装命令：**
 ```bash
 npx skills add https://github.com/FradSer/skills --skill storm
 ```
 
-### [substore-openclash](skills/substore-openclash/)
-
-管理 SubStore 到 OpenClash 的配置管道，用于微信图片直连路由与 mihomo 配置修复，同时修复 homebridge-miot 小米登录错误。当用户提到 "微信图片看不到"、TFO、fake-ip、代理组或 MiCloud 登录失败时使用。
-
-**安装命令：**
-```bash
-npx skills add https://github.com/FradSer/skills --skill substore-openclash
-```
-
 ### [swiftui](skills/swiftui/)
 
-用于构建、重构和审查现代 SwiftUI。优先采用 macOS 26 与 iOS 26 的 Liquid Glass，同时涵盖视图架构、状态、并发、导航、无障碍、性能和测试。附带从 [AvdLee/SwiftUI-Agent-Skill](https://github.com/AvdLee/SwiftUI-Agent-Skill) 引入的专题参考（状态、列表、布局、图表、macOS 场景、本地化、预览）与 Instruments 性能分析工具，以及 [twostraws](https://github.com/twostraws/swiftui-agent-skill) 的权威审查基线。
+用于构建、重构和审查现代 SwiftUI。优先采用 macOS 26 与 iOS 26 的 Liquid Glass，同时涵盖视图架构、状态、并发、导航、无障碍、性能和测试。
 
 **安装命令：**
 ```bash
@@ -173,8 +128,6 @@ npx skills add https://github.com/FradSer/skills --skill swiftui
 ### [tropes](skills/tropes/)
 
 检测并消除使文本显得生硬或公式化的 AI 写作套路。生成文本内容、编写文档、创建代码注释或审阅写作风格时使用。
-
-**来源：** [tropes.fyi](https://tropes.fyi/tropes-md)
 
 **安装命令：**
 ```bash

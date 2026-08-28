@@ -19,7 +19,7 @@ npx skills add https://github.com/FradSer/skills --skill commit
 
 ### [commit-and-push](skills/commit-and-push/)
 
-Creates conventional git commits and pushes them to the remote. Use when the user asks to "commit and push" or "push changes".
+Creates conventional git commits and pushes them to the remote repository. Use when the user asks to "commit and push" or "push changes".
 
 **Installation:**
 ```bash
@@ -53,31 +53,13 @@ Turns product ideas into Chinese PRD documents, with local Markdown output or Fe
 npx skills add https://github.com/FradSer/skills --skill create-prd
 ```
 
-### [finish-feature](skills/finish-feature/)
+### [gitflow](skills/gitflow/)
 
-Finalizes a feature branch and merges it into develop using git-flow, then prunes stale branches and worktrees. Use when the user asks to "finish a feature" or "complete feature".
-
-**Installation:**
-```bash
-npx skills add https://github.com/FradSer/skills --skill finish-feature
-```
-
-### [finish-hotfix](skills/finish-hotfix/)
-
-Finalizes a hotfix and merges it into main and develop using git-flow, then prunes stale branches and worktrees. Use when the user asks to "finish a hotfix" or "complete hotfix".
+Manages Git-flow branch lifecycles: start or finish feature, hotfix, and release branches with automated changelog generation, version bumping, and cleanup. Use when the user asks to start/finish a feature, hotfix, or release branch, or mentions git-flow operations.
 
 **Installation:**
 ```bash
-npx skills add https://github.com/FradSer/skills --skill finish-hotfix
-```
-
-### [finish-release](skills/finish-release/)
-
-Finalizes a release and merges it into main and develop with a tag using git-flow, then prunes stale branches and worktrees. Use when the user asks to "finish a release" or "complete release".
-
-**Installation:**
-```bash
-npx skills add https://github.com/FradSer/skills --skill finish-release
+npx skills add https://github.com/FradSer/skills --skill gitflow
 ```
 
 ### [lark](skills/lark/)
@@ -87,6 +69,15 @@ Unified router for Lark/Feishu CLI operations via `lark-cli`. Routes intents to 
 **Installation:**
 ```bash
 npx skills add https://github.com/FradSer/skills --skill lark
+```
+
+### [missav](skills/missav/)
+
+Browse missav.ws AV listings with agent-browser, extract title/duration/url from listing cards, enrich detail-page plot descriptions for genre analysis, and rank recommendations against user preferences stored in ~/.missav/.
+
+**Installation:**
+```bash
+npx skills add https://github.com/FradSer/skills --skill missav
 ```
 
 ### [patent-architect](skills/patent-architect/)
@@ -116,54 +107,18 @@ Reviews a pull request: runs a baseline review of the diff, monitors CI and inco
 npx skills add https://github.com/FradSer/skills --skill review-pr
 ```
 
-### [start-feature](skills/start-feature/)
-
-Starts a new feature branch using git-flow. Accepts either a branch name/version or a natural-language description. Use when the user asks to "start a feature" or "git flow feature start".
-
-**Installation:**
-```bash
-npx skills add https://github.com/FradSer/skills --skill start-feature
-```
-
-### [start-hotfix](skills/start-hotfix/)
-
-Starts a new hotfix branch using git-flow. Accepts either a branch name/version or a natural-language description. Use when the user asks to "start a hotfix" or "git flow hotfix start".
-
-**Installation:**
-```bash
-npx skills add https://github.com/FradSer/skills --skill start-hotfix
-```
-
-### [start-release](skills/start-release/)
-
-Starts a new release branch using git-flow. Accepts either a branch name/version or a natural-language description. Use when the user asks to "start a release" or "git flow release start".
-
-**Installation:**
-```bash
-npx skills add https://github.com/FradSer/skills --skill start-release
-```
-
 ### [storm](skills/storm/)
 
-Generates Wikipedia-style long-form articles grounded in multi-perspective research and retrieval, porting Stanford STORM's four-phase pipeline (research, outline, write, polish). Each phase is independently runnable and resumable; runtime-neutral by design. Use when the user asks to "write a storm article" or "research and write a long-form piece on X".
+Generates Wikipedia-style long-form articles grounded in multi-perspective research and retrieval, porting Stanford STORM's four-phase pipeline (research, outline, write, polish).
 
 **Installation:**
 ```bash
 npx skills add https://github.com/FradSer/skills --skill storm
 ```
 
-### [substore-openclash](skills/substore-openclash/)
-
-Manages the SubStore to OpenClash config pipeline for WeChat image direct routing and mihomo config fixes, and fixes homebridge-miot Xiaomi login errors. Use when the user says "wechat images not loading", "微信图片看不到", or reports TFO, fake-ip, proxy group, or MiCloud login failures.
-
-**Installation:**
-```bash
-npx skills add https://github.com/FradSer/skills --skill substore-openclash
-```
-
 ### [swiftui](skills/swiftui/)
 
-Builds, refactors, and reviews modern SwiftUI. Prioritizes macOS 26 and iOS 26 Liquid Glass while covering view architecture, state, concurrency, navigation, accessibility, performance, and testing. Ships dedicated topic references (state, lists, layout, charts, macOS scenes, localization, previews), the authoritative [twostraws](https://github.com/twostraws/swiftui-agent-skill) review baseline, and Instruments trace tooling vendored from [AvdLee/SwiftUI-Agent-Skill](https://github.com/AvdLee/SwiftUI-Agent-Skill).
+Builds, refactors, and reviews modern SwiftUI. Prioritizes macOS 26 and iOS 26 Liquid Glass while covering view architecture, state, concurrency, navigation, accessibility, performance, and testing.
 
 **Installation:**
 ```bash
@@ -173,8 +128,6 @@ npx skills add https://github.com/FradSer/skills --skill swiftui
 ### [tropes](skills/tropes/)
 
 Detects and eliminates AI writing tropes that make text sound artificial or formulaic. Use when generating text content, writing documentation, creating code comments, or reviewing writing style.
-
-**Source:** [tropes.fyi](https://tropes.fyi/tropes-md)
 
 **Installation:**
 ```bash
