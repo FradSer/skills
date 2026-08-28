@@ -58,12 +58,41 @@ class SkillsStructureTests(unittest.TestCase):
             self.assertTrue(metadata.get("description"))
 
     def test_human_only_skills_have_disable_model_invocation(self) -> None:
-        for skill_name in ("create-pr", "gitflow"):
+        human_only_skills = {
+            "commit-and-push",
+            "create-issues",
+            "create-pr",
+            "create-prd",
+            "gitflow",
+            "missav",
+            "patent-architect",
+            "resolve-issues",
+            "review-pr",
+            "storm",
+            "update-readme",
+        }
+        model_callable_skills = {
+            "commit",
+            "lark",
+            "swiftui",
+            "tropes",
+        }
+        self.assertEqual(EXPECTED_SKILLS, human_only_skills | model_callable_skills)
+
+        for skill_name in human_only_skills:
             entry = SKILLS / skill_name / "SKILL.md"
             metadata = parse_frontmatter(entry)
             self.assertTrue(
                 metadata.get("disable-model-invocation"),
                 f"{skill_name} must have disable-model-invocation: true",
+            )
+
+        for skill_name in model_callable_skills:
+            entry = SKILLS / skill_name / "SKILL.md"
+            metadata = parse_frontmatter(entry)
+            self.assertFalse(
+                metadata.get("disable-model-invocation", False),
+                f"{skill_name} should be model-callable (no disable-model-invocation)",
             )
 
     def test_gitflow_is_a_unified_skill_without_subskills(self) -> None:
