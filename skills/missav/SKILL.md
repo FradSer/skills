@@ -1,9 +1,16 @@
 ---
 name: missav
-description: Browse missav.ws AV listings with agent-browser, extract title/duration/url from listing cards, enrich detail-page plot descriptions for genre analysis, and rank recommendations against user preferences stored in ~/.missav/ (genres/types, performers, labels/studios, keywords, duration). Learns from user feedback each session. Use when finding AV on missav, searching /cn/search/{query}, analyzing plot descriptions, or getting personalized recommendations.
+description: Browse missav.ws AV listings with agent-browser, extract title/duration/url
+  from listing cards, enrich detail-page plot descriptions for genre analysis, and
+  rank recommendations against user preferences stored in ~/.missav/ (genres/types,
+  performers, labels/studios, keywords, duration). Learns from user feedback each
+  session. Use when finding AV on missav, searching /cn/search/{query}, analyzing
+  plot descriptions, or getting personalized recommendations.
 metadata:
   requires:
-    bins: ["agent-browser"]
+    bins:
+    - agent-browser
+disable-model-invocation: true
 ---
 
 # missav

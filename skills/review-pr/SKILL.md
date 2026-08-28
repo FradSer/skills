@@ -1,6 +1,13 @@
 ---
 name: review-pr
-description: 'Reviews a pull request: runs its own baseline review of the PR diff, then starts a runtime monitor for CI and incoming reviewer comments, triages each comment through an independent skeptical agent, applies only verified fixes, and commits+pushes via inline git commands until CI passes and no comments remain to adopt — then runs the closeout ceremony and auto-merges. Fully automatic, no user questions. Use this skill when the user asks to "review a PR", "monitor PR review comments", "address reviewer feedback on #123", or "watch CI on a pull request".'
+description: 'Reviews a pull request: runs its own baseline review of the PR diff,
+  then starts a runtime monitor for CI and incoming reviewer comments, triages each
+  comment through an independent skeptical agent, applies only verified fixes, and
+  commits+pushes via inline git commands until CI passes and no comments remain to
+  adopt — then runs the closeout ceremony and auto-merges. Fully automatic, no user
+  questions. Use this skill when the user asks to "review a PR", "monitor PR review
+  comments", "address reviewer feedback on #123", or "watch CI on a pull request".'
+disable-model-invocation: true
 ---
 
 # Review a Pull Request

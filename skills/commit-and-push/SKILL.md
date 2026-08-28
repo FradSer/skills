@@ -1,6 +1,9 @@
 ---
 name: commit-and-push
-description: Creates clean conventional git commits using standard git and pushes changes to the remote repository. Use when the user asks to "commit and push", "push changes", or complete a commit followed by git push.
+description: Creates clean conventional git commits using standard git and pushes
+  changes to the remote repository. Use when the user asks to "commit and push", "push
+  changes", or complete a commit followed by git push.
+disable-model-invocation: true
 ---
 
 # Commit and Push Skill (Standard Git)

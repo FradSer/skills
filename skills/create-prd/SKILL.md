@@ -1,6 +1,8 @@
 ---
 name: create-prd
-description: This skill should be used when the user asks to "create PRD", "write product requirements document", or mentions "PRD", "product requirements document".
+description: This skill should be used when the user asks to "create PRD", "write
+  product requirements document", or mentions "PRD", "product requirements document".
+disable-model-invocation: true
 ---
 
 # PRD Creation

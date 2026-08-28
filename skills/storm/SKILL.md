@@ -1,6 +1,11 @@
 ---
 name: storm
-description: Generates Wikipedia-style long-form articles grounded in multi-perspective research and retrieval, porting Stanford STORM's four-phase pipeline (research, outline, write, polish). Each phase is independently runnable and resumable; runtime-neutral by design. Use when the user asks for a "storm article", a "wikipedia-style article", or to "research and write a long-form piece".
+description: Generates Wikipedia-style long-form articles grounded in multi-perspective
+  research and retrieval, porting Stanford STORM's four-phase pipeline (research,
+  outline, write, polish). Each phase is independently runnable and resumable; runtime-neutral
+  by design. Use when the user asks for a "storm article", a "wikipedia-style article",
+  or to "research and write a long-form piece".
+disable-model-invocation: true
 ---
 
 # STORM — Long-Form Research Article Generation

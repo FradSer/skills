@@ -1,6 +1,10 @@
 ---
 name: create-issues
-description: Creates GitHub issues following test-driven development principles and proper labeling conventions. This skill should be used when the user asks to "create an issue", "file a bug", or needs to document new requirements, epics, or PR-scoped tasks.
+description: Creates GitHub issues following test-driven development principles and
+  proper labeling conventions. This skill should be used when the user asks to "create
+  an issue", "file a bug", or needs to document new requirements, epics, or PR-scoped
+  tasks.
+disable-model-invocation: true
 ---
 
 # Create GitHub Issues

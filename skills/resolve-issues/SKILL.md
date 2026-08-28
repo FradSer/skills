@@ -1,6 +1,10 @@
 ---
 name: resolve-issues
-description: Resolves GitHub issues using isolated worktrees and test-driven development, then delegates PR creation to create-pr so the quality gate and the review-pr loop always run. This skill should be used when the user asks to "resolve an issue", "fix issue #123", or needs to implement a solution for a specific GitHub ticket using a structured workflow.
+description: Resolves GitHub issues using isolated worktrees and test-driven development,
+  then delegates PR creation to create-pr so the quality gate and the review-pr loop
+  always run. This skill should be used when the user asks to "resolve an issue",
+  "fix issue
+disable-model-invocation: true
 ---
 
 # Resolve GitHub Issues

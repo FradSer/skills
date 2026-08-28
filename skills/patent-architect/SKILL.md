@@ -1,6 +1,10 @@
 ---
 name: patent-architect
-description: Automatically searches prior art via SerpAPI and generates Chinese patent application forms. This skill should be used when the user wants to generate Chinese patent application forms, or mentions "patents", "inventions", or wants to protect technical innovations.
+description: Automatically searches prior art via SerpAPI and generates Chinese patent
+  application forms. This skill should be used when the user wants to generate Chinese
+  patent application forms, or mentions "patents", "inventions", or wants to protect
+  technical innovations.
+disable-model-invocation: true
 ---
 
 # Patent Architect
