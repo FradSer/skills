@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Sync review-pr's fallback references and scripts into create-pr.
+"""Sync review-pr fallback references and scripts into promoted create-pr.
 
-The standalone review-pr skill remains the source of truth. Only its
-operational references and scripts are copied; SKILL.md and skill metadata are
-never duplicated. Markdown stays under references/ and executables under
-scripts/ so the fallback follows the repository's skill layout convention.
+The review-pr child remains the source of truth for its operational fallback.
+Only the selected references and scripts are copied into the directly
+exposed create-pr skill; the promoted mirror is synchronized separately by
+``sync-promoted.py``.
 """
 
 from __future__ import annotations
@@ -58,7 +58,18 @@ def check() -> bool:
             print(f"script is in references instead of scripts: {legacy.relative_to(ROOT)}")
             ok = False
     for destination, source in sorted(expected.items()):
-        if not destination.exists() or not filecmp.cmp(source, destination, shallow=False):
+        if not destination.exists():
+            print(f"out of sync: {destination.relative_to(ROOT)}")
+            ok = False
+            continue
+        source_text = source.read_text(encoding="utf-8")
+        destination_text = destination.read_text(encoding="utf-8")
+        if destination.name == "runbook.md":
+            source_text = source_text.replace(
+                "SKILL_DIR=/absolute/path/to/skills/review-pr",
+                "SKILL_DIR=/absolute/path/to/skills/review-pr",
+            )
+        if source_text != destination_text:
             print(f"out of sync: {destination.relative_to(ROOT)}")
             ok = False
 
@@ -80,6 +91,13 @@ def sync() -> None:
     expected = expected_files()
     for destination, source in expected.items():
         shutil.copy2(source, destination)
+        if destination.name == "runbook.md":
+            text = destination.read_text(encoding="utf-8")
+            text = text.replace(
+                "SKILL_DIR=/absolute/path/to/skills/review-pr",
+                "SKILL_DIR=/absolute/path/to/skills/review-pr",
+            )
+            destination.write_text(text, encoding="utf-8")
 
     for destination in (
         REFERENCE_TARGET / name for name in ("runbook.md", "review-loop.md", "closeout.md")

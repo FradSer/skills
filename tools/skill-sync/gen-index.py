@@ -1,24 +1,15 @@
 #!/usr/bin/env python3
-"""Shared router index generator (marketing / lark mirrored plugins).
+"""Generate local router indexes from router-owned route manifests or CLI metadata.
 
-Regenerates the Sub-skill Index table in the router SKILL.md between the
-`## Sub-skill Index` and `## Routing Rules` markers, from each sub-skill's
-frontmatter (or embedded CLI metadata). Local-only SKILL.md/SYNC.md at the tree
-root are never overwritten — only the index table region is edited.
-
-Usage:
-    python3 tools/skill-sync/gen-index.py --skills <dir> --router <SKILL.md> \
-        [--versions <VERSIONS.md>] [--check]
-
-    python3 tools/skill-sync/gen-index.py --from-cli --router <SKILL.md> \
-        [--hoist lark-shared] [--check]
+Local child entries are documents, not independently discoverable skills, so
+this tool never reads child frontmatter. For a local router, provide a
+``routes.yml`` manifest beside the router entry (or pass ``--routes``).
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -26,43 +17,47 @@ from pathlib import Path
 import yaml
 
 EXCLUDED_DIRS = {".backup"}
-
 INDEX_START_MARKER = "## Sub-skill Index"
 INDEX_END_MARKER = "## Routing Rules"
 
-# VERSIONS.md row: "| skill-name | 1.2.3 | 2026-07-01 |" — fallback registry.
-VERSION_ROW_RE = re.compile(r"^\|\s*([a-z0-9-]+)\s*\|\s*([0-9]+\.[0-9]+\.[0-9]+)\s*\|")
-
 
 def load_version_registry(versions_md: Path | None) -> dict[str, str]:
-    """Parse VERSIONS.md into {skill-name: version}."""
-    registry: dict[str, str] = {}
+    """Parse an optional legacy version registry."""
     if versions_md is None or not versions_md.is_file():
-        return registry
-    for line in versions_md.read_text(encoding="utf-8").splitlines():
-        m = VERSION_ROW_RE.match(line)
-        if m:
-            registry[m.group(1)] = m.group(2)
+        return {}
+    registry: dict[str, str] = {}
+    for row in versions_md.read_text(encoding="utf-8").splitlines():
+        cells = [cell.strip() for cell in row.strip("|").split("|")]
+        if len(cells) >= 2 and cells[0] and cells[1]:
+            registry[cells[0]] = cells[1]
     return registry
 
 
-def subskill_entry(sub: Path) -> Path | None:
-    """Prefer denested <dirname>.md; fall back to upstream SKILL.md if present."""
-    denested = sub / f"{sub.name}.md"
-    if denested.is_file():
-        return denested
-    legacy = sub / "SKILL.md"
-    if legacy.is_file():
-        return legacy
-    return None
-
-
-def read_frontmatter(path: Path) -> dict:
-    text = path.read_text(encoding="utf-8")
-    if not text.startswith("---\n"):
+def load_routes(routes_file: Path | None) -> dict[str, dict[str, str]]:
+    """Load router-owned child labels without requiring child frontmatter."""
+    if routes_file is None or not routes_file.is_file():
         return {}
-    _, fm_raw, _ = text.split("---\n", 2)
-    return yaml.safe_load(fm_raw) or {}
+    data = yaml.safe_load(routes_file.read_text(encoding="utf-8")) or {}
+    rows = data.get("routes", data) if isinstance(data, dict) else data
+    if not isinstance(rows, list):
+        raise ValueError(f"routes manifest must contain a list: {routes_file}")
+    routes: dict[str, dict[str, str]] = {}
+    for row in rows:
+        if not isinstance(row, dict) or not row.get("name"):
+            raise ValueError(f"invalid route row in {routes_file}")
+        name = str(row["name"])
+        routes[name] = {
+            "name": name,
+            "entry": str(row.get("entry", "")),
+            "description": " ".join(str(row.get("description", "")).split()),
+        }
+    return routes
+
+
+def subskill_entry(sub: Path) -> Path | None:
+    """Return the denested child document."""
+    entry = sub / f"{sub.name}.md"
+    return entry if entry.is_file() else None
 
 
 def load_subskills_from_dir(
@@ -70,41 +65,32 @@ def load_subskills_from_dir(
     registry: dict[str, str],
     hoist: list[str] | None = None,
     display: dict[str, str] | None = None,
+    routes: dict[str, dict[str, str]] | None = None,
 ) -> list[dict]:
-    """Return one record per sub-skill directory with entry-file frontmatter."""
+    """Return one record per child directory using router-owned route data."""
     hoist = hoist or []
     display = display or {}
+    routes = routes or {}
     records: list[dict] = []
     for sub in sorted(skills_dir.iterdir()):
         if not sub.is_dir() or sub.name in EXCLUDED_DIRS:
             continue
-        entry = subskill_entry(sub)
-        if entry is None:
-            print(
-                f"warn: {sub.name}/{{SKILL.md|{sub.name}.md}} missing, skipping",
-                file=sys.stderr,
-            )
+        if subskill_entry(sub) is None:
+            print(f"warn: {sub.name}/{sub.name}.md missing, skipping", file=sys.stderr)
             continue
-        fm = read_frontmatter(entry)
-        name = display.get(sub.name, fm.get("name", sub.name))
-        version = ""
-        if isinstance(fm.get("metadata"), dict):
-            version = str(fm["metadata"].get("version", ""))
-        if not version:
-            version = str(fm.get("version", ""))
-        if not version:
-            version = registry.get(sub.name, "")
-        description = fm.get("description", "") or ""
+        route = routes.get(sub.name, {})
+        entry = route.get("entry") or f"{sub.name}/{sub.name}.md"
         records.append(
             {
                 "dir": sub.name,
-                "name": name,
-                "version": version,
-                "description": " ".join(str(description).split()),
+                "entry": entry,
+                "name": display.get(sub.name, route.get("name", sub.name)),
+                "version": registry.get(sub.name, ""),
+                "description": route.get("description", ""),
             }
         )
-    hoist_order = {d: i for i, d in enumerate(hoist)}
-    records.sort(key=lambda r: (hoist_order.get(r["dir"], len(hoist_order)), r["dir"]))
+    hoist_order = {directory: i for i, directory in enumerate(hoist)}
+    records.sort(key=lambda row: (hoist_order.get(row["dir"], len(hoist_order)), row["dir"]))
     return records
 
 
@@ -112,108 +98,72 @@ def load_subskills_from_cli(
     hoist: list[str] | None = None,
     display: dict[str, str] | None = None,
 ) -> list[dict]:
-    """Return one record per sub-skill from `lark-cli skills list`."""
+    """Return one record per embedded CLI skill."""
     hoist = hoist or []
     display = display or {}
-    res = subprocess.run(
+    result = subprocess.run(
         ["lark-cli", "skills", "list"],
         capture_output=True,
         text=True,
         check=True,
     )
-    data = json.loads(res.stdout)
-    skills = data.get("skills", [])
-    records: list[dict] = []
-    for s in skills:
-        name_key = s["name"]
-        display_name = display.get(name_key, name_key)
-        version = s.get("version") or s.get("metadata", {}).get("version", "")
-        desc = " ".join(str(s.get("description", "")).split())
+    data = json.loads(result.stdout)
+    records = []
+    for skill in data.get("skills", []):
+        name = skill["name"]
         records.append(
             {
-                "dir": name_key,
-                "name": display_name,
-                "version": str(version) if version is not None else "",
-                "description": desc,
+                "dir": name,
+                "name": display.get(name, name),
+                "version": str(skill.get("version") or skill.get("metadata", {}).get("version", "")),
+                "description": " ".join(str(skill.get("description", "")).split()),
             }
         )
-    hoist_order = {d: i for i, d in enumerate(hoist)}
-    records.sort(key=lambda r: (hoist_order.get(r["dir"], len(hoist_order)), r["dir"]))
+    hoist_order = {directory: i for i, directory in enumerate(hoist)}
+    records.sort(key=lambda row: (hoist_order.get(row["dir"], len(hoist_order)), row["dir"]))
     return records
 
 
 def render_table(records: list[dict], from_cli: bool = False) -> str:
     if from_cli:
-        header = (
-            "| Sub-skill | Read Command | Version | Use When |\n"
-            "|-----------|--------------|---------|----------|"
-        )
-        rows = []
-        for r in records:
-            cmd = f"`lark-cli skills read {r['dir']}`"
-            use_when = r["description"].replace("|", "\\|")
-            rows.append(f"| {r['name']} | {cmd} | {r['version']} | {use_when} |")
-        return header + "\n" + "\n".join(rows) + "\n\n"
-
-    header = (
-        "| Sub-skill | Entry | Version | Use When |\n"
-        "|-----------|-------|---------|----------|"
-    )
-    rows = []
-    for r in records:
-        entry = f"{r['dir']}/{r['dir']}.md"
-        use_when = r["description"].replace("|", "\\|")
-        label = r["name"]
-        rows.append(
-            f"| {label} | [`{entry}`]({entry}) | {r['version']} | {use_when} |"
-        )
+        header = "| Sub-skill | Read Command | Version | Use When |\n|-----------|--------------|---------|----------|"
+        rows = [
+            f"| {row['name']} | `lark-cli skills read {row['dir']}` | {row['version']} | {row['description'].replace('|', '\\|')} |"
+            for row in records
+        ]
+    else:
+        header = "| Sub-skill | Entry | Use When |\n|-----------|-------|----------|"
+        rows = [
+            f"| {row['name']} | [`{row['entry']}`]({row['entry']}) | {row['description'].replace('|', '\\|')} |"
+            for row in records
+        ]
     return header + "\n" + "\n".join(rows) + "\n\n"
 
 
 def replace_index_table(text: str, table: str) -> str:
-    """Replace the region between INDEX_START_MARKER and INDEX_END_MARKER.
-
-    Keeps the ``## Sub-skill Index`` header line (it ends with a newline),
-    then the table, then resumes at ``## Routing Rules``.
-    """
     start = text.index(INDEX_START_MARKER)
     end = text.index(INDEX_END_MARKER, start)
-    header_line = text[start : text.index("\n", start) + 1]
-    return text[:start] + header_line + "\n" + table + text[end:]
+    header_end = text.index("\n", start) + 1
+    return text[:start] + text[start:header_end] + "\n" + table + text[end:]
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--skills", type=Path, default=None, help="skills tree root")
-    parser.add_argument("--router", required=True, type=Path, help="router SKILL.md")
-    parser.add_argument(
-        "--from-cli",
-        action="store_true",
-        help="load sub-skills directly from `lark-cli skills list`",
-    )
-    parser.add_argument(
-        "--versions", type=Path, default=None, help="optional VERSIONS.md registry"
-    )
-    parser.add_argument(
-        "--hoist",
-        action="append",
-        default=[],
-        help="sub-skill dir to pin before alphabetical order (repeatable)",
-    )
-    parser.add_argument(
-        "--display",
-        action="append",
-        default=[],
-        help="display label as dir=Label (repeatable; lark's friendly names)",
-    )
-    parser.add_argument("--check", action="store_true", help="dry-run diff, exit 1 if drift")
+    parser.add_argument("--skills", type=Path)
+    parser.add_argument("--router", required=True, type=Path)
+    parser.add_argument("--from-cli", action="store_true")
+    parser.add_argument("--versions", type=Path)
+    parser.add_argument("--routes", type=Path)
+    parser.add_argument("--hoist", action="append", default=[])
+    parser.add_argument("--display", action="append", default=[])
+    parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
 
     display: dict[str, str] = {}
     for item in args.display:
-        d, _, label = item.partition("=")
-        if d and label:
-            display[d] = label
+        directory, _, label = item.partition("=")
+        if directory and label:
+            display[directory] = label
 
     if args.from_cli:
         records = load_subskills_from_cli(hoist=args.hoist, display=display)
@@ -222,30 +172,37 @@ def main() -> int:
         if args.skills is None:
             print("error: --skills required when not using --from-cli", file=sys.stderr)
             return 1
-        registry = load_version_registry(args.versions)
-        records = load_subskills_from_dir(args.skills, registry, hoist=args.hoist, display=display)
-        table = render_table(records, from_cli=False)
+        try:
+            routes = load_routes(args.routes or args.router.parent / "routes.yml")
+            records = load_subskills_from_dir(
+                args.skills,
+                load_version_registry(args.versions),
+                hoist=args.hoist,
+                display=display,
+                routes=routes,
+            )
+        except ValueError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+        table = render_table(records)
 
-    router = args.router
-    if not router.is_file():
-        print(f"error: router not found: {router}", file=sys.stderr)
+    if not args.router.is_file():
+        print(f"error: router not found: {args.router}", file=sys.stderr)
         return 1
+    current = args.router.read_text(encoding="utf-8")
     try:
-        current = router.read_text(encoding="utf-8")
         updated = replace_index_table(current, table)
-    except ValueError as e:
-        print(f"error: {e} (markers missing in {router})", file=sys.stderr)
+    except ValueError as error:
+        print(f"error: {error} (markers missing in {args.router})", file=sys.stderr)
         return 1
-
     if args.check:
         if updated == current:
             print("OK: index table in sync")
             return 0
         print("FAILED: index table is stale", file=sys.stderr)
         return 1
-
-    router.write_text(updated, encoding="utf-8")
-    print(f"gen-index: rewrote {len(records)} rows in {router}", file=sys.stderr)
+    args.router.write_text(updated, encoding="utf-8")
+    print(f"gen-index: rewrote {len(records)} rows in {args.router}", file=sys.stderr)
     return 0
 
 
