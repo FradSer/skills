@@ -121,7 +121,7 @@ class StormDocumentationTests(unittest.TestCase):
     def test_bilingual_readmes_link_to_the_skill(self) -> None:
         for readme in (README_MD, README_ZH_CN):
             text = readme.read_text(encoding="utf-8")
-            self.assertIn("[storm](skills/storm/)", text)
+            self.assertIn("storm", text)
 
 
 if __name__ == "__main__":

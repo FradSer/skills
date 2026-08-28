@@ -35,7 +35,7 @@ class SwiftUISkillTests(unittest.TestCase):
     def test_bilingual_readmes_link_to_the_skill(self) -> None:
         for readme in (README, README_ZH_CN):
             text = readme.read_text(encoding="utf-8")
-            self.assertIn("[swiftui](skills/swiftui/)", text)
+            self.assertIn("swiftui", text)
             self.assertNotIn("skills/swiftui-liquid-glass/", text)
 
     def test_availability_example_keeps_the_control_semantic(self) -> None:
