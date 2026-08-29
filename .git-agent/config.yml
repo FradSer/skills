@@ -5,3 +5,5 @@ scopes:
       description: automated validation and testing suites in tests/; does not cover individual skill scripts
     - name: tools
       description: utility and maintenance scripts in tools/; does not cover agent skill logic
+    - name: features
+      description: behavioral specifications and requirement feature files in features/; does not cover implementation code

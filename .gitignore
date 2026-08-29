@@ -187,3 +187,8 @@ dist
 *.db-wal
 *.db-journal
 .git-agent/config.local.yml
+.artifacts/credentials.json
+.artifacts/config.local.json
+.artifacts/recipes.local/
+.artifacts/fragments.local/
+.artifacts/manifest.local.json
