@@ -38,8 +38,7 @@ scripts under `scripts/`.
 
 ## Monitor contract
 
-Run the review loop under a monitor started through the runtime's monitor facility —
-never a manual foreground loop. Monitors with a terminal-result contract surface only
+Run each review-loop poll with Pi's `monitor_start` tool — never a manual foreground loop. Monitors with a terminal-result contract surface only
 the matched result line, never the poll's preceding stdout; do not run the infinite
 loop mode under one. Capture one-shot output and embed every emitted event line INSIDE
 the sentinel payload:
@@ -63,8 +62,11 @@ success matcher=__REVIEW_POLL__ (?<json>\{.*\})
 failure matcher=__REVIEW_POLL_FAILED__ (?<json>\{.*\})
 ```
 
-After processing the result, schedule the next invocation. Do not use a
-foreground `while` loop.
+After processing the result, invoke a new `monitor_start` poll. Do not use a
+foreground `while` loop. The monitor command uses the wrapper above, with
+`result_pattern='__REVIEW_POLL__ (?<json>\\{.*\\})'` and
+`failure_pattern='__REVIEW_POLL_FAILED__ (?<json>\\{.*\\})'`; parse every entry in
+its returned `events` array before scheduling the next poll.
 
 ## Stop and closeout
 
@@ -72,14 +74,16 @@ Stop only when CI is terminal and passing and all comments have been
 acknowledged or recorded for escalation. An empty poll is not a stop signal.
 The default deadline is 7200 seconds. A merged or closed PR stops immediately.
 
-When the gate holds:
+When the gate holds, stop the active monitor, then:
 
 ```bash
 bash "$ARM" "$PR"
 ```
 
-Run the ordered summary-comment, body-rewrite, and merge ceremony from
-`closeout.md`. Clear state after merge or an unrecoverable merge failure:
+Run the ordered summary-comment and body-rewrite ceremony from `closeout.md`.
+Present its result and request explicit user confirmation. Merge only after the
+user confirms; clear state after merge, an unrecoverable merge failure, or a user
+who declines to merge:
 
 ```bash
 bash "$CLEAR" "$PR"

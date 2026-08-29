@@ -4,8 +4,9 @@
 # Writes .git/review-pr-closeout.json (resolved via `git rev-parse --git-dir`,
 # so the script works from any cwd inside the repo). While that file exists,
 # the skill must not end the turn: the automatic closeout (summary comment +
-# body rewrite + auto-merge) is still pending. The state is cleared by
-# clear-closeout.sh once the auto-merge completes or aborts.
+# body rewrite + explicit user merge confirmation) is still pending. The state is
+# cleared by clear-closeout.sh once the user declines, the merge aborts, or the confirmed
+# merge and all required cleanup complete.
 #
 # Usage:
 #   bash arm-closeout.sh <PR>

@@ -1,26 +1,25 @@
 ---
 name: review-pr
-description: 'Reviews a pull request: runs its own baseline review of the PR diff,
-  then starts a runtime monitor for CI and incoming reviewer comments, triages each
-  comment through an independent skeptical agent, applies only verified fixes, and
-  commits+pushes via inline git commands until CI passes and no comments remain to
-  adopt — then runs the closeout ceremony and auto-merges. Fully automatic, no user
-  questions. Use this skill when the user asks to "review a PR", "monitor PR review
-  comments", "address reviewer feedback on #123", or "watch CI on a pull request".'
+description: 'Reviews a pull request: runs an independent baseline review, monitors
+  CI and incoming reviewer comments with Pi monitor_start, triages and applies verified
+  fixes, then presents a closeout summary and waits for explicit user confirmation before
+  merging and cleaning the worktree and branch. Use this skill when the user asks to
+  "review a PR", "monitor PR review comments", "address reviewer feedback on #123",
+  or "watch CI on a pull request".'
 disable-model-invocation: true
 ---
 
 # Review a Pull Request
 
-Run the baseline review of the PR diff, then start a monitor through the runtime's monitor facility and keep watching CI and new reviewer comments until the PR settles and auto-merges. The detailed operational sequence lives in `references/runbook.md`; load it when dispatching the monitor or when a runtime cannot provide nested workflow execution.
+Run the baseline review of the PR diff, then use Pi's `monitor_start` tool to watch CI and new reviewer comments until the PR settles. Present the closeout summary and request explicit user confirmation before merging. The detailed operational sequence lives in `references/runbook.md`; load it when dispatching the monitor or when a runtime cannot provide nested workflow execution.
 
 ## Runtime notes
 
 - Resolve `SKILL_DIR` once and use absolute paths to every script.
-- Start the review loop through the runtime's monitor facility. Choose one-shot or streaming mode based on that monitor's capabilities; never put infinite mode under a one-shot monitor.
+- Start every one-shot review poll with Pi's `monitor_start` tool; never run the poll in the foreground or use an infinite loop.
 - Use clean-context agents for baseline review and comment triage.
-- The pipeline is automatic: never ask whether to merge.
-- Arm closeout before the ceremony and clear it after merge or abort.
+- Once the merge gate holds, post the closeout summary, rewrite the PR body, stop monitoring, and ask the user to explicitly confirm the merge. Do not merge unless that confirmation arrives.
+- After a confirmed merge, complete worktree and branch cleanup before reporting success.
 
 ## Context
 
@@ -44,8 +43,10 @@ Run the baseline review of the PR diff, then start a monitor through the runtime
 
 **Goal**: One monitor carrying CI + comment events across turns.
 
-**Action**: Start a monitor through the runtime's monitor facility, running one poll
-of `scripts/review-loop.sh --once` per invocation. Never run the poll in the foreground
+**Action**: Invoke Pi's `monitor_start` tool for one poll of
+`scripts/review-loop.sh --once` per invocation. Its success result must match
+`__REVIEW_POLL__ (?<json>\\{.*\\})`, failure result must match
+`__REVIEW_POLL_FAILED__ (?<json>\\{.*\\})`, and its command must be the wrapper below. Never run the poll in the foreground
 or substitute a manual loop. The monitor command MUST capture the poll's stdout and
 embed every emitted event line INSIDE the terminal JSON sentinel: monitors with a
 terminal-result contract may surface only the matched result line, so events printed
@@ -100,26 +101,27 @@ The only valid skip is a PR that is already merged or closed. If CI and reviewer
 ## Phase 4: Stop Conditions
 
 Stop the watch when EITHER holds — full conditions in `references/review-loop.md`:
-- **Normal stop (all three)**: every `[ci]` check terminal + passing; every comment reflected on with resolved ones hidden + threads resolved (only `escalate` items remain visible, each recorded for the summary comment); the pipeline has run to completion.
-- **Hard cap (overrides the above)**: ~2h wall-clock reached. Surface the unsettled state first (which of CI/comments is still open), then stop — do NOT keep polling because CI is red or comments remain. The cap exists so a stuck PR cannot hold the watch open forever. If the cap hits with everything actually settled (CI terminal + passing, comments all reflected on), that is a closeout trigger, not a stop: proceed to Phase 5's auto-merge.
+- **Normal stop (all three)**: every `[ci]` check terminal + passing; every comment reflected on with resolved ones hidden + threads resolved (only `escalate` items remain visible, each recorded for the summary comment); the merge gate is ready, so stop the monitor and proceed to Phase 5's closeout and confirmation request.
+- **Hard cap (overrides the above)**: ~2h wall-clock reached. Surface the unsettled state first (which of CI/comments is still open), then stop — do NOT keep polling because CI is red or comments remain. The cap exists so a stuck PR cannot hold the watch open forever. If the cap hits with everything actually settled (CI terminal + passing, comments all reflected on), that is a closeout trigger, not a stop: proceed to Phase 5's confirmation request.
 
 **CRITICAL: a temporarily empty comment queue is NOT a stop signal** — other agents may post more comments later.
 
-## Phase 5: Closeout — Ceremony and Auto-Merge
+## Phase 5: Closeout — Ceremony and Confirmed Merge
 
-**Goal**: Once Phase 4 holds, run the closeout ceremony (summary comment + body rewrite) and auto-merge — with no user question. Full templates and ordered steps in `references/closeout.md`.
+**Goal**: Once Phase 4 holds, run the closeout ceremony (summary comment + body rewrite), stop the monitor, and ask the user to confirm the merge. Full templates and ordered steps in `references/closeout.md`.
 
 **CRITICAL constraints (hold even when detail is delegated to L3):**
-1. **Arm the closeout state the moment Phase 4 holds — before anything else**: `bash <skill-dir>/scripts/arm-closeout.sh "$PR"`. This writes the repo's `.git/review-pr-closeout.json`, arming closeout enforcement: while the file exists, one turn-end per user turn is blocked when the host provides a compatible stop hook; on other hosts, enforce the same rule in-prompt. **When enforcement blocks, first verify the pending closeout is real** — a stale state file (summary posted, PR merged without clearing) is a false alarm: judge simple checks directly (`gh pr view --json state,mergedAt`, the `<!-- review-pr:summary -->` marker lookup), spawn an independent subagent with clean context for complex or ambiguous situations — see `references/closeout.md` (When enforcement fires). A verified-stale state is cleared, not re-run. Clear it the moment the closeout is resolved — `bash <skill-dir>/scripts/clear-closeout.sh "$PR"`: after the auto-merge completes or aborts. A stale file blocks the next stop; its message repeats the clear path.
-2. The ceremony runs automatically the moment Phase 4 holds: capture the summary comment URL from `gh pr comment` stdout (`SUMMARY_URL=$(gh pr comment …)`), then rewrite the body with the Review-cycle line linking that URL.
-2. Escalate/ambiguous comments never block the merge and never trigger a question — they are recorded in the summary comment (body + author + file context + the one-line outcome) and the merge proceeds.
+1. **Arm the closeout state the moment Phase 4 holds — before anything else**: `bash <skill-dir>/scripts/arm-closeout.sh "$PR"`. This writes the repo's `.git/review-pr-closeout.json`, arming closeout enforcement: while the file exists, one turn-end per user turn is blocked when the host provides a compatible stop hook; on other hosts, enforce the same rule in-prompt. **When enforcement blocks, first verify the pending closeout is real** — a stale state file (user declined and state was not cleared, or PR merged and cleanup completed) is a false alarm: judge simple checks directly (`gh pr view --json state,mergedAt`, cleanup evidence, and the `<!-- review-pr:summary -->` marker lookup), spawn an independent subagent with clean context for complex or ambiguous situations — see `references/closeout.md` (When enforcement fires). A verified-stale state is cleared, not re-run. Clear it only after the user declines or after the confirmed merge **and required cleanup** complete — `bash <skill-dir>/scripts/clear-closeout.sh "$PR"`. A stale file blocks the next stop; its message repeats the clear path.
+2. The ceremony runs automatically when Phase 4 holds: capture the summary comment URL from `gh pr comment` stdout (`SUMMARY_URL=$(gh pr comment …)`), then rewrite the body with the Review-cycle line linking that URL.
+2. Stop the active monitor and present the summary, CI result, and comment-triage outcome. Ask whether to merge. Wait for explicit user confirmation; silence, a new request, or a monitor completion is not confirmation.
+3. Escalate/ambiguous comments never block a user-confirmed merge; record them in the summary comment (body + author + file context + the one-line outcome).
 3. The Review-cycle line in the rewritten body MUST contain that literal URL — a count with no link is not a pointer, and the quoted heredoc will not expand `$SUMMARY_URL`, so paste it.
 4. Steps are ordered — the body needs the comment URL, so summary first, body second.
 5. Do not sign the summary as AI-generated; body describes the change, comment records the review cycle — keep them distinct.
 6. Do not run the ceremony or merge while CI is red or comments remain untriaged — the gate must hold first.
-7. Auto-merge with `gh pr merge "$PR" --repo "$REPO" --merge --delete-branch` (NOT `--auto`) once CI is green AND every comment is triaged. Omit `--delete-branch` in a linked worktree; delete the remote head separately if stack-safe, leave the local branch for the worktree removal.
-8. If the merge fails (branch protection, required reviews, stale base), surface the error in the conversation, stop the monitor, and leave the PR open for manual handling — do not retry with different flags, do not force-push.
-9. Never force long-lived branch updates; `--delete-branch` is the default (omitted only in linked worktrees). Post-merge hygiene runs unconditionally: remove the linked worktree (`git worktree remove <path>`), switch to `main`, and fast-forward-sync `main`/`develop` with origin — see `references/closeout.md` (After a successful merge).
+8. Only after explicit user confirmation, merge with `gh pr merge "$PR" --repo "$REPO" --merge --delete-branch` (NOT `--auto`) once CI is green AND every comment is triaged. Omit `--delete-branch` in a linked worktree; delete the remote head separately if stack-safe, then remove the linked worktree.
+9. If the merge fails (branch protection, required reviews, stale base), surface the error in the conversation and leave the PR open for manual handling — do not retry with different flags or force-push.
+10. Never force long-lived branch updates. After a successful confirmed merge, cleanup is mandatory before reporting success: remove the linked worktree, delete its merged local branch, switch to `main`, and fast-forward-sync `main`/`develop` with origin — see `references/closeout.md` (After a successful merge).
 
 Stop the monitor after closeout completes.
 
@@ -127,7 +129,7 @@ Stop the monitor after closeout completes.
 
 - **Runbook**: `references/runbook.md` - Phase order, inputs, absolute script paths, monitor contract, and fallback execution
 - **Review Loop**: `references/review-loop.md` - Watch script, size→INTERVAL table, triage agent prompt, verdict format, lifecycle/stop conditions
-- **Closeout**: `references/closeout.md` - Summary comment, body rewrite, auto-merge, post-merge hygiene constraints
+- **Closeout**: `references/closeout.md` - Summary comment, body rewrite, explicit merge confirmation, and post-merge hygiene constraints
 - **Commit Standards**: `references/commit-standards.md` - Commit message format for the inline git commit rounds
 - **Repository Templates**: `references/repository-templates.md` - Contributing guidelines conformance for fixes
 - **Examples**: `references/examples.md` - Commit message examples

@@ -57,9 +57,10 @@ needs a concrete model.
 - Start the standalone `review-pr` workflow exactly once with the normalized
   PR number. Use a host-supported continuation or dispatch mechanism. If the
   host cannot dispatch a sibling skill from inside the current skill, use the
-  bundled operational references and scripts under
-  `references/` and `scripts/` as the implementation fallback; do not emit a slash
-  command as if it were a callable tool.
+  bundled operational references and scripts under `references/` and `scripts/` as
+  the implementation fallback. In Pi, invoke `monitor_start` for every fallback
+  review poll using the sentinel contract in `references/runbook.md`; do not emit a
+  slash command as if it were a callable tool.
 - Do not report completion or return to the caller until `review-pr` owns the PR.
 
 `create-pr` owns PR creation. `review-pr` owns baseline review, CI and comment

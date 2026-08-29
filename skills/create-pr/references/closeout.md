@@ -1,9 +1,9 @@
-# Closeout: Ceremony and Auto-Merge
+# Closeout: Ceremony and Confirmed Merge
 
 Once the PR is merge-ready (all `[ci]` checks terminal and passing, every comment either
 fixed, rejected-with-reply, or escalated-and-documented, and resolved comments hidden +
-their threads resolved), run the closeout ceremony and auto-merge. There is no merge
-question — the pipeline is fully automatic and never pauses for user input.
+their threads resolved), run the closeout ceremony and ask the user to confirm the merge.
+Do not merge unless the user gives explicit confirmation.
 
 ## Merge gate — must hold before anything else
 
@@ -14,10 +14,10 @@ The closeout runs only when the Phase 4 gate holds:
    threads resolved. `escalate` items may remain visible, but each one is recorded (body +
    author + file context) for the summary comment — they are documented, not asked about.
 
-Escalate/ambiguous comments never block the merge. They are recorded in the summary
-comment with their one-line outcome and the merge proceeds. The merge is automatic; the
-only deviations are a merge failure (surface the error, stop, leave the PR open) or a
-hard-cap stop (see `review-loop.md`).
+Escalate/ambiguous comments never block a confirmed merge. They are recorded in the
+summary comment with their one-line outcome. The only deviations are a user declining
+the merge, a merge failure (surface the error, stop, leave the PR open), or a hard-cap
+stop (see `review-loop.md`).
 
 ### Arm the closeout state first
 
@@ -42,9 +42,9 @@ Clear it the moment the closeout is resolved:
 bash <skill-dir>/scripts/clear-closeout.sh "$PR"
 ```
 
-Clear after the auto-merge completes or aborts (merge failure, interrupt, or the gate no
-longer holds). Leaving it armed blocks the next stop; the enforcement message repeats the
-clear path as the escape hatch. The clear script only removes state matching `$PR`, so an
+Clear after the user declines, after a merge failure or abort, after the gate no longer
+holds, or after a confirmed merge **and all required cleanup** complete. Leaving it armed
+blocks the next stop; the enforcement message repeats the clear path as the escape hatch. The clear script only removes state matching `$PR`, so an
 interrupted closeout for one PR never deletes a pending one for another.
 
 ### When enforcement fires: verify the problem is real
@@ -203,24 +203,28 @@ headings and bullets, not prose walls.
 The pointer is what makes the pair work: the body stays short and describes the merged change,
 the linked comment holds the full comment-by-comment audit trail, and neither repeats the other.
 
-## The merge
+## Confirmation and merge
 
 Run the ceremony first (summary comment + body rewrite, above), so the record is on the PR
-before the merge lands. Then auto-merge:
+before the merge lands. Stop the monitor and present the summary URL, passing CI status, and
+comment-triage outcome. Ask the user whether to merge. Only an explicit confirmation permits
+the merge; if the user declines, clear closeout state and leave the PR open.
+
+After explicit user confirmation, merge:
 
 ```bash
 gh pr merge "$PR" --repo "$REPO" --merge --delete-branch
 ```
 
-- `--merge` is the fixed strategy — a merge commit, never squash/rebase (no user choice
-  exists; keep the review-cycle history intact). Never `--auto` (GitHub's background
-  auto-merge feature fires whenever it can and bypasses this gate).
+- `--merge` is the fixed strategy — a merge commit, never squash/rebase. Never `--auto`
+  (GitHub's background auto-merge feature fires whenever it can and bypasses this gate).
 - `--delete-branch` is safe only in the main worktree when no open PR still bases on that
   head. In a linked worktree, omit `--delete-branch` — delete the remote head separately if
-  stack-safe, leave the local branch for the worktree removal (`git worktree remove <path>`).
-- Report the merge in the conversation (one line, e.g. "PR #<n>: CI green, comments triaged —
-  merged."). This is a notification, not a question.
-- Clear the closeout state (`clear-closeout.sh "$PR"`) immediately after the merge lands.
+  stack-safe. Capture the current local PR branch as `HEAD_BRANCH` before removing its
+  worktree, then explicitly delete that local branch after synchronizing the base branch.
+- After the confirmed merge lands, run every cleanup step below before reporting success.
+- Keep closeout state armed until cleanup completes. Then clear it with
+  `clear-closeout.sh "$PR"`; if cleanup fails, leave it armed and report the failure.
 
 **If the merge fails** (branch protection, required reviews, stale base): surface the error
 in the conversation, clear the closeout state (`clear-closeout.sh "$PR"`), stop the watch,
@@ -229,31 +233,43 @@ force-push, do not re-run the ceremony.
 
 ## After a successful merge
 
-Default cleanup — run all of these unconditionally:
+Default cleanup — run all of these unconditionally. It must complete before reporting success:
 
-1. **Remove the linked worktree first, before any switch.** Detect whether the closeout is
-   running in a linked worktree (`resolve-issues`):
+1. **Capture the PR branch and remove the linked worktree from the main worktree.** In the
+   PR worktree, set `HEAD_BRANCH=$(git branch --show-current)`, `WORKTREE_PATH=$(pwd)`, and
+   `MAIN_WORKTREE=$(git worktree list --porcelain | awk '$1 == "worktree" { print $2; exit }')`.
+   Detect a linked worktree:
    ```bash
    [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ] && echo "linked worktree"
    ```
-   If linked, remove the worktree with `git worktree remove <path>` (or the runtime's own
-   worktree-exit mechanism) — it deletes the worktree and its local branch
-   and returns the session to the main worktree. If it refuses (uncommitted changes), stop
-   and report rather than discarding work. Then delete the remote head separately if
-   stack-safe (no open PR still bases on it).
-2. **Switch to `main` and sync.** Now in the main worktree, run:
+   If linked, remove it without deleting the current directory:
+   ```bash
+   git -C "$MAIN_WORKTREE" worktree remove "$WORKTREE_PATH"
+   cd "$MAIN_WORKTREE"
+   ```
+   `git worktree remove` does **not** delete the local branch. If removal refuses because of
+   uncommitted changes, stop and report rather than discarding work. Delete the remote head
+   separately only when stack-safe (no open PR still bases on it).
+2. **Switch to `main` and sync.** From `$MAIN_WORKTREE`, run:
    ```bash
    git fetch --prune
    git checkout main && git pull --ff-only
    ```
    Repeat the `--ff-only` pull for `develop` and the PR's `baseRefName` when present on
    origin (check each out first, then land back on `main`). Never force long-lived branches.
-3. Delete every local branch already merged into `main`/`develop` (except the current branch).
+3. **Explicitly delete the PR's local branch.** After its base is synchronized, run:
+   ```bash
+   git branch -d "$HEAD_BRANCH"
+   ```
+   Verify `git show-ref --verify --quiet "refs/heads/$HEAD_BRANCH"` fails. If the branch
+   remains, stop and report cleanup failure; do not report success.
+4. Delete every other local branch already merged into `main`/`develop` (except the current
+   branch).
    ```bash
    git branch --merged main | grep -v '^\*\|main\|develop' | xargs -r git branch -d
    ```
-4. `git worktree prune` to remove stale administrative records.
-5. Scan `.agents/worktrees/` for stale worktree directories whose branch is already merged
+5. `git worktree prune` to remove stale administrative records.
+6. Scan `.agents/worktrees/` for stale worktree directories whose branch is already merged
    or no longer exists. Report them to the user and suggest manual `rm -rf` removal.
 
 ## Stacked / chained PRs (base branch is a shared dependency)
@@ -297,40 +313,40 @@ land docs after the code PR merges so the author can grep the real value.
 
 1. The Phase 4 gate holds (CI green, every comment reflected on). Escalate items are
    recorded for the summary; they do not block.
-2. **Arm the closeout state** (`arm-closeout.sh "$PR"`) — enforcement requires the
-   automatic closeout from here on; the state file is cleared at step 5.
+2. **Arm the closeout state** (`arm-closeout.sh "$PR"`).
 3. Hide + resolve the fully-addressed comments (Phase 3 closeout) **first** — the summary
    comment should land on a clean PR. Re-sweep if a final CI push landed after the last
    closeout pass.
 4. Post the summary comment, capturing its URL.
 5. Rewrite the title/body, linking the Review-cycle line to that URL.
-6. Auto-merge with `gh pr merge --merge --delete-branch` (omitting `--delete-branch` in a
-   linked worktree, same rule as above), then **clear the closeout state**
-   (`clear-closeout.sh "$PR"`) — completed or aborted.
-7. After a successful merge: remove the linked worktree (with `git worktree remove <path>` or
-   the runtime's own mechanism) + switch to `main` + sync `main`/`develop` + delete merged
-   local branches + `git worktree prune` + scan stale worktrees (see "After a successful
-   merge" above).
-8. Stop the watch (monitor) — the closeout state is already cleared.
+6. Stop the watch (monitor), present the closeout result, and wait for explicit user
+   confirmation. If declined, clear closeout state and leave the PR open.
+7. After confirmation, merge with `gh pr merge --merge --delete-branch` (omitting
+   `--delete-branch` in a linked worktree). Keep closeout state armed.
+8. After a successful merge: remove the linked worktree (with `git worktree remove <path>` or
+   the runtime's own mechanism) + delete its merged local branch + switch to `main` + sync
+   `main`/`develop` + delete merged local branches + `git worktree prune` + scan stale
+   worktrees (see "After a successful merge"). Complete this before reporting success, then
+   clear closeout state. If cleanup fails, leave closeout state armed and report the failure.
 
 Steps 2–4 (the ceremony) are idempotent: re-running `gh pr edit` with the same title/body is
 a no-op, and the marker lookup patches the existing summary rather than duplicating it (which
 also recovers `SUMMARY_URL` after an interrupt). Steps 5 and 6 are NOT idempotent — run them
 once, when the gate holds. If an interrupt left the pipeline mid-closeout and you resume,
 skip steps already completed; if the merge already landed, verify the post-merge hygiene and
-stop. Do not re-ask anything — the pipeline never asks.
+stop. Do not re-run the confirmation unless a new closeout is necessary.
 
 ## Do not
 
 - Do not run the ceremony or merge while comments are still open or CI is still red — the
   gate must hold first, and the summary would claim a merge-ready state that is not true.
-- Do not ask the user whether to merge, which strategy to use, or how to handle an escalate
-  or ambiguous comment. The pipeline is fully automatic; escalate items are documented in
-  the summary comment with their one-line outcome.
+- Do not choose the merge strategy or ask how to handle an escalate or ambiguous comment.
+  The merge question is required: request explicit user confirmation after the closeout
+  summary is posted. Escalate items are documented in that summary.
 - Do not end the turn with the closeout state armed — enforcement blocks it. Clear it
-  (`clear-closeout.sh "$PR"`) as soon as the closeout resolves (merge completed or aborted);
-  while it stays armed, one turn-end per user turn is blocked with a message naming the PR
-  and the pending closeout.
+  (`clear-closeout.sh "$PR"`) after a user decline, merge failure/abort, or only after a
+  confirmed merge **and all required cleanup** complete; while it stays armed, one turn-end
+  per user turn is blocked with a message naming the PR and the pending closeout.
 - Do not run the ceremony (summary comment + body rewrite) before the gate holds.
 - Do not rewrite the title/body to claim something the diff does not deliver.
 - Do not include the closeout summary inside the PR body AND as a comment — the body
@@ -342,9 +358,9 @@ stop. Do not re-ask anything — the pipeline never asks.
 - Do not write the summary in the AI's voice or sign it as AI-generated; the user asked for
   it in their name.
 - Do not use `gh pr merge --auto` (GitHub's background auto-merge feature, which fires
-  whenever it can and bypasses your own gate); use `gh pr merge --merge`, a direct merge you
-  execute only when the gate holds. Do not merge with squash/rebase — the strategy is fixed
-  to a merge commit.
+  whenever it can and bypasses your own gate); use `gh pr merge --merge`, a direct merge only
+  after the gate holds and the user explicitly confirms. Do not merge with squash/rebase —
+  the strategy is fixed to a merge commit.
 - Do not merge past unresolved `escalate` comments silently — they are recorded in the
   summary comment, which is the audit trail. Merging with open escalate items is expected;
   merging without documenting them is not.

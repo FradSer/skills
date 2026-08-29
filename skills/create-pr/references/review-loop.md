@@ -1,11 +1,10 @@
 # Review Loop: Watch, Triage, Auto-Fix
 
 A single bash script (`scripts/review-loop.sh`) drives the watch: it emits one tagged
-stdout line per new event for BOTH CI checks and PR comments. Start it under a monitor
-from the runtime's monitor facility, and let the monitor's own semantics decide how
-output is delivered (streaming notifications or a terminal result). The script is a
-plain executable emitting lines on stdout, so it works under any monitor. Do not block
-on a manual `while true` loop.
+stdout line per new event for BOTH CI checks and PR comments. Start each one-shot poll
+with Pi's `monitor_start` tool, which returns its terminal result to the next turn. The
+script is a plain executable emitting lines on stdout. Do not block on a manual `while
+true` loop.
 
 ## Poll interval by PR size
 
@@ -27,7 +26,7 @@ Read size via `gh pr view <PR> --repo <REPO> --json additions,deletions` and pic
 
 ## Start one Monitor for CI and Comments
 
-Start one monitor (or one re-entrant invocation per turn). The script below emits:
+Use one Pi `monitor_start` invocation per poll. The script below emits:
 
 - `[ci] <name>: <bucket>` once per check reaching a terminal bucket (pass/fail/cancel/skipping)
 - `[comment] issue node=<id> id=<n> @<user>: <body>` for new issue-level comments
@@ -46,7 +45,9 @@ Run it — it reads `PR`, `REPO`, and `INTERVAL` from env
 (or `--pr`/`--repo`/`--interval` flags) and emits the tagged lines above.
 
 ```bash
-# One-shot monitor invocation (for monitors with terminal-result contracts).
+# `monitor_start` command for one poll. Its result_pattern is
+# __REVIEW_POLL__ (?<json>\{.*\}) and failure_pattern is
+# __REVIEW_POLL_FAILED__ (?<json>\{.*\}).
 # Capture stdout and embed every event line inside the sentinel JSON: such monitors
 # surface only the matched result line, so events printed before it are dropped.
 out=$(PR=<pr-number> REPO=<owner>/<repo> INTERVAL=<sec> bash <skill-dir>/scripts/review-loop.sh --once); rc=$?
@@ -58,13 +59,11 @@ else
   exit "$rc"
 fi
 
-# A genuinely streaming monitor may run the long-lived mode:
-PR=<pr-number> REPO=<owner>/<repo> INTERVAL=<sec> \
-  bash <skill-dir>/scripts/review-loop.sh
 ```
 
-Stop the monitor when done (stop the background task, or simply stop re-invoking the
-re-entrant loop) — never leave it running once the PR is settled.
+Pass the wrapper above as `monitor_start.command`, parse every `events` entry from the
+returned JSON, then invoke the next one-shot monitor only while the PR needs watching.
+Stop scheduling monitors when the PR is settled — never leave a monitor running.
 
 ## Excluding already-triaged comments on restart
 
@@ -103,9 +102,8 @@ Behavior notes:
 - `|| true` / `2>/dev/null` on every API call keeps one transient failure from killing
   the watch; `INTERVAL` is floored at 60s.
 
-When the runtime monitor has a terminal-result contract, start one `--once` poll
-with a unique terminal sentinel. After processing that result, start the next poll as
-a new monitor invocation. Only use long-lived mode with a genuinely streaming monitor.
+Start one `monitor_start` `--once` poll with the unique terminal sentinel. After
+processing that result, start the next poll in a new `monitor_start` invocation.
 The script persists its cursor, emitted and acknowledged comment IDs, latest CI buckets,
 head SHA, and deadline at the Git worktree path `review-pr-watch-<PR>.json` (override with
 `STATE_FILE`); this path is safe for normal and linked worktrees. A restart resumes that
@@ -349,10 +347,12 @@ file context) for the closeout summary comment, and continue. Never notify the u
        or fixed) AND every fully-resolved one is hidden + its thread resolved. The only
        comments left visible on the PR are unresolved `escalate` items, each recorded for
        the closeout summary comment.
-    3. The pipeline has run to completion (closeout + auto-merge done).
+    3. The closeout summary and PR body are complete; the monitor is stopped while the
+       workflow waits for the user's explicit merge confirmation.
   - **Hard cap (overrides the above)**: the ~2-hour max wall-clock is reached. Surface the
     unsettled state in the conversation first (state which of #1/#2 is still open), then
     stop — do NOT keep polling just because CI is still red or comments remain. The cap
     exists so a stuck PR (red CI the skill correctly won't auto-fix) cannot hold the watch
     open forever.
-- The monitor runs automatically; there is no user signal to wait for.
+- Monitoring runs automatically. Once closeout is ready, stop monitoring and wait only
+  for the user's explicit merge confirmation; never auto-merge.
