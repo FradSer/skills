@@ -1,10 +1,31 @@
 Feature: Watch PR events without losing them to output filtering
 
-  Scenario: review-pr starts monitoring via the runtime monitor facility
+  Scenario: review-pr starts monitoring via Pi's monitor tool
     Given review-pr has completed its baseline review for an open PR
     When the workflow enters its persistent monitoring phase
-    Then it starts a runtime-provided monitor for the review loop
-    And it does not use a manual foreground loop or a runtime-specific monitor command
+    Then it invokes Pi's monitor_start tool for one review-loop poll
+    And it carries every poll event in the monitor result sentinel
+    And it does not use a manual foreground loop
+
+  Scenario: review-pr asks before merging a settled PR
+    Given CI is passing and every review comment has been triaged for an open PR
+    When the workflow reaches closeout
+    Then it presents the review summary and asks the user to confirm the merge
+    And its closeout hook and every handoff reference preserve that confirmation gate
+    And it merges only after the user explicitly confirms
+
+  Scenario: review-pr cleans a linked worktree and its PR branch after a confirmed merge
+    Given a confirmed PR merge completed from a linked worktree on branch "feature/watch"
+    When post-merge cleanup runs
+    Then it removes the linked worktree from the main worktree
+    And it enters the main worktree before synchronizing its base branch
+    And it explicitly deletes local branch "feature/watch" after synchronizing its base branch
+    And it does not report success until cleanup completes
+
+  Scenario: every PR handoff preserves the confirmed-merge contract
+    Given create-pr, create-issues, and resolve-issues delegate PR review to review-pr
+    When CI and comment triage finish
+    Then every handoff reference and resolve-issues workflow instruction requires explicit user confirmation before merging
 
   Scenario: Creating a PR executes exactly one review-pr handoff
     Given create-pr has successfully created PR "https://github.com/octo/repo/pull/122"

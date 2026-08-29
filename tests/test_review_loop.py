@@ -16,6 +16,10 @@ REVIEW_REFERENCES = ROOT / "skills/create-pr/references"
 REVIEW_SCRIPTS = ROOT / "skills/create-pr/scripts"
 REVIEW_BUNDLE = REVIEW_REFERENCES / "review-pr"
 REVIEW_BUNDLE_SYNC = ROOT / "tools/skill-sync/sync-review-pr-refs.py"
+PR_HANDOFFS = tuple(
+    ROOT / "skills" / skill / "references" / "pr-creation-handoff.md"
+    for skill in ("review-pr", "create-pr", "create-issues", "resolve-issues")
+)
 
 HANDLED_NODE = "IC_kwHandledHandled"
 NEW_REVIEW_NODE = "PRR_kwNewReview01"
@@ -95,22 +99,70 @@ def run_watch(extra_args=(), extra_env=None):
 
 
 class ReviewLoopWatchTests(unittest.TestCase):
-    def test_review_pr_monitor_guidance_is_runtime_neutral(self) -> None:
+    def test_review_pr_requires_pi_monitor_start_for_each_poll(self) -> None:
         skill = REVIEW_PR_SKILL.read_text(encoding="utf-8")
-        self.assertIn("monitor facility", skill)
+        self.assertIn("monitor_start", skill)
         self.assertIn("Do NOT run a foreground `while` loop", skill)
         for name in ("runbook.md", "review-loop.md"):
             document = (REVIEW_PR_SKILL.parent / "references" / name).read_text(
                 encoding="utf-8"
             )
-            self.assertIn("monitor facility", document)
-            self.assertNotIn("monitor_start", document)
-            self.assertNotIn("__PI_REVIEW", document)
+            self.assertIn("monitor_start", document)
+            self.assertIn("__REVIEW_POLL__", document)
+
+    def test_review_pr_requires_explicit_confirmation_before_merge(self) -> None:
+        skill = REVIEW_PR_SKILL.read_text(encoding="utf-8")
+        closeout = (REVIEW_PR_SKILL.parent / "references" / "closeout.md").read_text(
+            encoding="utf-8"
+        )
+        handoff = (REVIEW_PR_SKILL.parent / "references" / "pr-creation-handoff.md").read_text(
+            encoding="utf-8"
+        )
+        hook = (REVIEW_PR_SKILL.parent / "scripts" / "closeout-stop.sh").read_text(
+            encoding="utf-8"
+        )
+        for document in (skill, closeout, handoff, hook):
+            self.assertIn("explicit user confirmation", document)
+        self.assertNotIn("auto-merges", skill)
+        self.assertNotIn("Never ask the user whether to merge", hook)
+
+    def test_closeout_cleans_linked_worktree_and_merged_branch(self) -> None:
+        closeout = (REVIEW_PR_SKILL.parent / "references" / "closeout.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("HEAD_BRANCH", closeout)
+        self.assertIn('git branch -d "$HEAD_BRANCH"', closeout)
+        self.assertIn('git -C "$MAIN_WORKTREE" worktree remove "$WORKTREE_PATH"', closeout)
+        self.assertIn('cd "$MAIN_WORKTREE"', closeout)
+        self.assertIn("must complete before reporting success", closeout)
+
+    def test_every_pr_handoff_requires_confirmation_before_merging(self) -> None:
+        for handoff in PR_HANDOFFS:
+            document = handoff.read_text(encoding="utf-8")
+            self.assertIn("explicit user confirmation", document, handoff)
+            self.assertNotIn("no user input is requested", document, handoff)
+            self.assertNotIn("auto-merges", document, handoff)
+
+    def test_resolve_issues_workflow_preserves_confirmation_before_merge(self) -> None:
+        for path in (
+            ROOT / "skills/resolve-issues/SKILL.md",
+            ROOT / "skills/resolve-issues/references/workflow-details.md",
+        ):
+            document = path.read_text(encoding="utf-8")
+            self.assertIn("explicit user confirmation", document, path)
+            self.assertNotIn("auto-merge", document, path)
+            self.assertNotIn("without any user question", document, path)
+
+    def test_phase_four_enters_closeout_before_user_confirmation(self) -> None:
+        skill = REVIEW_PR_SKILL.read_text(encoding="utf-8")
+        self.assertIn("proceed to Phase 5's confirmation request", skill)
+        self.assertNotIn("the pipeline has run to completion.", skill)
 
     def test_create_pr_requires_a_single_review_pr_handoff(self) -> None:
         skill = CREATE_PR_SKILL.read_text(encoding="utf-8")
         self.assertIn("Start the standalone `review-pr` workflow exactly once", skill)
         self.assertIn("references/review-pr-handoff.md", skill)
+        self.assertIn("monitor_start", skill)
         self.assertIn("do not reproduce its review workflow here", skill)
 
     def test_exclude_flag_suppresses_handled_node(self) -> None:
@@ -140,6 +192,7 @@ class ReviewLoopWatchTests(unittest.TestCase):
         self.assertIn("fallback under `references/` and `scripts/`", reference)
         self.assertIn("Start standalone `review-pr` exactly once", reference)
         self.assertIn("`review-pr` owns", reference)
+        self.assertIn("monitor_start", reference)
 
     def test_review_pr_operational_references_are_conventionally_organized(self) -> None:
         result = subprocess.run(

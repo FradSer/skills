@@ -21,8 +21,10 @@ Use the host's real continuation or skill-dispatch mechanism. In Pi,
 `/skill:review-pr <number>` is an input command, not a nested callable tool;
 do not print it as if it executes. If the host cannot dispatch a sibling skill,
 use the operational fallback under `references/` and `scripts/`, then
-continue the review-pr procedure there. The fallback contains no nested
-`review-pr` directory or second `SKILL.md`.
+continue the review-pr procedure there. In Pi, that fallback MUST start every
+review-loop poll through `monitor_start`, using the sentinel contract in
+`references/runbook.md`; it must not run the poll in the foreground. The fallback
+contains no nested `review-pr` directory or second `SKILL.md`.
 
 ## Ownership after handoff
 
