@@ -250,24 +250,55 @@ Default cleanup — run all of these unconditionally. It must complete before re
    `git worktree remove` does **not** delete the local branch. If removal refuses because of
    uncommitted changes, stop and report rather than discarding work. Delete the remote head
    separately only when stack-safe (no open PR still bases on it).
-2. **Switch to `main` and sync.** From `$MAIN_WORKTREE`, run:
+2. **Switch to `main` and explicitly synchronize it with origin.** From `$MAIN_WORKTREE`, run:
    ```bash
-   git fetch --prune
-   git checkout main && git pull --ff-only
+   git fetch origin --prune
+   git checkout main && git merge --ff-only origin/main
    ```
-   Repeat the `--ff-only` pull for `develop` and the PR's `baseRefName` when present on
-   origin (check each out first, then land back on `main`). Never force long-lived branches.
+   Do not rely on an implicit upstream: branch deletion must be based on the fetched
+   `origin/main`. If `refs/remotes/origin/develop` exists, create or check out `develop` from
+   that remote ref and fast-forward it before using it as an integration branch:
+   ```bash
+   if git show-ref --verify --quiet refs/remotes/origin/develop; then
+     if git show-ref --verify --quiet refs/heads/develop; then
+       git checkout develop && git merge --ff-only origin/develop
+     else
+       git checkout --track origin/develop
+     fi
+     DEVELOP_SYNCED=1
+   else
+     DEVELOP_SYNCED=0
+   fi
+   git checkout main
+   ```
+   Synchronize the PR's `baseRefName` similarly when it exists on origin. Never force
+   long-lived branches.
 3. **Explicitly delete the PR's local branch.** After its base is synchronized, run:
    ```bash
    git branch -d "$HEAD_BRANCH"
    ```
    Verify `git show-ref --verify --quiet "refs/heads/$HEAD_BRANCH"` fails. If the branch
    remains, stop and report cleanup failure; do not report success.
-4. Delete every other local branch already merged into `main`/`develop` (except the current
-   branch).
+4. **Prune every other local branch already merged into either synchronized integration
+   branch.** A branch may have merged through `develop` without yet appearing in `main`, so
+   derive the deletion candidates from both branches. Exclude the checked-out branch and the
+   protected integration branches:
    ```bash
-   git branch --merged main | grep -v '^\*\|main\|develop' | xargs -r git branch -d
+   CURRENT_BRANCH=$(git branch --show-current)
+   {
+     git branch --merged main
+     [ "${DEVELOP_SYNCED:-0}" = "1" ] && git branch --merged develop
+   } | sed 's/^[* ]*//' | sort -u | while IFS= read -r branch; do
+     [ -n "$branch" ] || continue
+     [ "$branch" = "$CURRENT_BRANCH" ] && continue
+     [ "$branch" = "main" ] && continue
+     [ "$branch" = "develop" ] && continue
+     git branch -d "$branch"
+   done
    ```
+   This runs only after `main` and, when available, `develop` have been synchronized from
+   their corresponding `origin/*` refs, so branch deletion never relies on stale local
+   integration history.
 5. `git worktree prune` to remove stale administrative records.
 6. Scan `.agents/worktrees/` for stale worktree directories whose branch is already merged
    or no longer exists. Report them to the user and suggest manual `rm -rf` removal.
