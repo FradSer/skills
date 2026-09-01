@@ -18,8 +18,10 @@ Feature: Watch PR events without losing them to output filtering
     Given a confirmed PR merge completed from a linked worktree on branch "feature/watch"
     When post-merge cleanup runs
     Then it removes the linked worktree from the main worktree
-    And it enters the main worktree before synchronizing its base branch
+    And it fast-forwards local main explicitly from origin/main before deleting branches
+    And it considers develop-merged branches only when origin/develop was synchronized
     And it explicitly deletes local branch "feature/watch" after synchronizing its base branch
+    And it deletes every other local branch already merged into main or develop
     And it does not report success until cleanup completes
 
   Scenario: every PR handoff preserves the confirmed-merge contract

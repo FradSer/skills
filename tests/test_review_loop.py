@@ -134,6 +134,10 @@ class ReviewLoopWatchTests(unittest.TestCase):
         self.assertIn('git branch -d "$HEAD_BRANCH"', closeout)
         self.assertIn('git -C "$MAIN_WORKTREE" worktree remove "$WORKTREE_PATH"', closeout)
         self.assertIn('cd "$MAIN_WORKTREE"', closeout)
+        self.assertIn('git checkout main && git merge --ff-only origin/main', closeout)
+        self.assertIn('git show-ref --verify --quiet refs/remotes/origin/develop', closeout)
+        self.assertIn("git branch --merged main", closeout)
+        self.assertIn("git branch --merged develop", closeout)
         self.assertIn("must complete before reporting success", closeout)
 
     def test_every_pr_handoff_requires_confirmation_before_merging(self) -> None:
