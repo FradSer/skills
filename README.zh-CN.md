@@ -71,6 +71,15 @@ npx skills add https://github.com/FradSer/skills --skill gitflow
 npx skills add https://github.com/FradSer/skills --skill lark
 ```
 
+### [loop](skills/loop/)
+
+按固定或动态间隔再次执行提示词或技能，使用当前宿主提供的持久计时器、订阅机制或受监控的后台进程。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill loop
+```
+
 ### [missav](skills/missav/)
 
 使用 agent-browser 浏览 missav.ws 视频列表，提取标题/时长/链接，解析详情页剧情描述进行题材分析，并基于 ~/.missav/ 中的用户偏好进行个性化推荐与排序。

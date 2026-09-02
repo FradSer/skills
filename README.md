@@ -71,6 +71,15 @@ Unified router for Lark/Feishu CLI operations via `lark-cli`. Routes intents to 
 npx skills add https://github.com/FradSer/skills --skill lark
 ```
 
+### [loop](skills/loop/)
+
+Runs a prompt or skill again on a fixed or self-paced interval, using the current host's durable timer, subscription, or monitored background-process facility.
+
+**Installation:**
+```bash
+npx skills add https://github.com/FradSer/skills --skill loop
+```
+
 ### [missav](skills/missav/)
 
 Browse missav.ws AV listings with agent-browser, extract title/duration/url from listing cards, enrich detail-page plot descriptions for genre analysis, and rank recommendations against user preferences stored in ~/.missav/.
