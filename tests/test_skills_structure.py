@@ -14,6 +14,7 @@ EXPECTED_SKILLS = {
     "create-prd",
     "gitflow",
     "lark",
+    "loop",
     "missav",
     "patent-architect",
     "resolve-issues",
@@ -74,6 +75,7 @@ class SkillsStructureTests(unittest.TestCase):
         model_callable_skills = {
             "commit",
             "lark",
+            "loop",
             "swiftui",
             "tropes",
         }
