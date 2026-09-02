@@ -20,7 +20,7 @@ This skill is a **router only**. Do not invent CLI commands from memory. Sub-ski
    ```bash
    lark-cli skills read <sub-skill>
    ```
-   (e.g., `lark-cli skills read lark-doc`, `lark-cli skills read lark-base`)
+(e.g., `lark-cli skills read lark-doc`, `lark-cli skills read lark-base`)
 4. **Follow References**: When a loaded skill refers to sub-documents or other skills:
    - Intra-skill reference: `lark-cli skills read <sub-skill>/<path>` (e.g., `lark-cli skills read lark-doc/references/lark-doc-fetch.md` or `lark-cli skills read lark-doc references/lark-doc-fetch.md`)
    - Cross-skill reference: `lark-cli skills read <other-skill>/<path>` (e.g., `lark-cli skills read lark-shared/references/lark-wiki-token-routing.md` or `lark-cli skills read lark-shared`)

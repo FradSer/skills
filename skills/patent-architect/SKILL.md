@@ -112,8 +112,8 @@ Search query patterns (customize based on invention):
 **Goal**: Draft the complete patent application document.
 
 **Actions**:
-1. **Structure Setup**: Follow the exact format specified in `template.md`
-2. **Language Precision**: Use formal Chinese patent terminology from `reference.md`
+1. **Structure Setup**: Follow the exact format specified in `references/template.md`
+2. **Language Precision**: Use formal Chinese patent terminology from `references/reference.md`
 3. **Embodiments Creation**: Design at least 3 distinct embodiments:
    - Vary data flow (push/pull, sync/async)
    - Vary trigger conditions (time-based, event-based, threshold-based)
@@ -172,20 +172,20 @@ Create the form as a Feishu cloud document:
 **Supporting Files**
 
 Reference these files within this directory for detailed specifications:
-- `template.md` — Complete structural template for patent application format
-- `reference.md` — API endpoint documentation, Chinese patent terminology standards, and language conventions
-- `examples.md` — High-quality patent application example
+- `references/template.md` — Complete structural template for patent application format
+- `references/reference.md` — API endpoint documentation, Chinese patent terminology standards, and language conventions
+- `references/examples.md` — High-quality patent application example
 - Standalone `lark` plugin — Lark CLI skills (`--lark` mode)
 
 ## Quality Principles
 
 **Critical Requirements**:
 - **Grantability**: Focus on technical solutions, not abstract ideas
-- **Precision**: Avoid vague marketing terms; use precise technical descriptions from `reference.md`
+- **Precision**: Avoid vague marketing terms; use precise technical descriptions from `references/reference.md`
 - **Honesty**: Explicitly list potential defects and alternatives in the "Others" section
 - **Completeness**: All required sections must be present and substantive
 
 **Language Conventions**:
-- Use formal Chinese patent terminology as defined in `reference.md`
+- Use formal Chinese patent terminology as defined in `references/reference.md`
 - Avoid using product names, UI terms, brand names, and colloquial expressions
 - Apply standard patent phrases such as "a kind of...", "for...", "characterized in that..."

@@ -13,13 +13,8 @@ Execute issue resolution workflow using isolated worktrees, TDD methodology, and
 
 ## Runtime notes
 
-- **Worktrees**: worktrees are plain git — `git worktree add -b <branch> <path> <base>` to
-  create the isolated worktree, `git worktree remove <path>` (plus `git branch -D <branch>`
-  if needed) to clean it up. Runtimes with a dedicated worktree tool may use it instead;
-  the result is the same.
-- **Skill invocation**: hand PR creation to the sibling `create-pr` skill using the
-  runtime's own skill-invocation mechanism — the handoff contract in
-  `references/pr-creation-handoff.md` is what matters, not the call syntax.
+- **Worktrees**: worktrees are plain git — `git worktree add -b <branch> <path> <base>` to create the isolated worktree, `git worktree remove <path>` (plus `git branch -D <branch>` if needed) to clean it up. Runtimes with a dedicated worktree tool may use it instead; the result is the same.
+- **Skill invocation**: hand PR creation to the sibling `create-pr` skill using the runtime's own skill-invocation mechanism — the handoff contract in `references/pr-creation-handoff.md` is what matters, not the call syntax.
 
 ## Context
 

@@ -22,18 +22,16 @@ Create clean, atomic Conventional Commits using standard `git` commands and push
    ```bash
    git add <file1> <file2> ...
    ```
-3. **Commit**:
-   Formulate a Conventional Commit message and commit:
+3. **Commit**: Formulate a Conventional Commit message and commit:
    ```bash
    git commit -m "<type>(<scope>): <summary>"
    ```
-4. **Push**:
-   Detect current branch and push:
+4. **Push**: Detect current branch and push:
    ```bash
    BRANCH=$(git branch --show-current)
    git push origin "$BRANCH"
    ```
-   If pushing a new branch for the first time, append `-u`:
+If pushing a new branch for the first time, append `-u`:
    ```bash
    git push -u origin "$BRANCH"
    ```

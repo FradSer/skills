@@ -23,7 +23,6 @@ Run the baseline review of the PR diff, then use Pi's `monitor_start` tool to wa
 
 ## Context
 
-
 - PR argument: `$ARGUMENTS`
 - PR metadata: !`gh pr view "$ARGUMENTS" --json number,title,headRepository,headRepositoryOwner,additions,deletions,headRefName 2>/dev/null || printf 'set %s to a PR number or URL\n' "$ARGUMENTS"`
 - Remote: !`git remote -v 2>/dev/null | head -2`
@@ -43,15 +42,7 @@ Run the baseline review of the PR diff, then use Pi's `monitor_start` tool to wa
 
 **Goal**: One monitor carrying CI + comment events across turns.
 
-**Action**: Invoke Pi's `monitor_start` tool for one poll of
-`scripts/review-loop.sh --once` per invocation. Its success result must match
-`__REVIEW_POLL__ (?<json>\\{.*\\})`, failure result must match
-`__REVIEW_POLL_FAILED__ (?<json>\\{.*\\})`, and its command must be the wrapper below. Never run the poll in the foreground
-or substitute a manual loop. The monitor command MUST capture the poll's stdout and
-embed every emitted event line INSIDE the terminal JSON sentinel: monitors with a
-terminal-result contract may surface only the matched result line, so events printed
-before the sentinel can be silently dropped (this lost a real review comment once).
-Wrap the poll like:
+**Action**: Invoke Pi's `monitor_start` tool for one poll of `scripts/review-loop.sh --once` per invocation. Its success result must match `__REVIEW_POLL__ (?<json>\\{.*\\})`, failure result must match `__REVIEW_POLL_FAILED__ (?<json>\\{.*\\})`, and its command must be the wrapper below. Never run the poll in the foreground or substitute a manual loop. The monitor command MUST capture the poll's stdout and embed every emitted event line INSIDE the terminal JSON sentinel: monitors with a terminal-result contract may surface only the matched result line, so events printed before the sentinel can be silently dropped (this lost a real review comment once). Wrap the poll like:
 
 ```bash
 bash -c '
@@ -66,23 +57,9 @@ bash -c '
 '
 ```
 
-Configure the monitor's equivalent success and failure matchers for
-`__REVIEW_POLL__ (?<json>\\{.*\\})` and `__REVIEW_POLL_FAILED__ (?<json>\\{.*\\})`.
-Parse the `events` array from the captured JSON and triage every line; never treat an
-`ok` status as proof of no events. Handle the single poll result, then start the next
-poll in a new monitor invocation until stop conditions hold. Do not run infinite mode
-under a one-shot monitor. The bare path `scripts/review-loop.sh` does NOT resolve — use
-the absolute skill path. Pass `PR`, `REPO`, `INTERVAL`, `STATE_FILE`, and any acknowledged
-node IDs explicitly. Do NOT run a foreground `while` loop. The script is documented in
-`references/review-loop.md`.
+Configure the monitor's equivalent success and failure matchers for `__REVIEW_POLL__ (?<json>\\{.*\\})` and `__REVIEW_POLL_FAILED__ (?<json>\\{.*\\})`. Parse the `events` array from the captured JSON and triage every line; never treat an `ok` status as proof of no events. Handle the single poll result, then start the next poll in a new monitor invocation until stop conditions hold. Do not run infinite mode under a one-shot monitor. The bare path `scripts/review-loop.sh` does NOT resolve — use the absolute skill path. Pass `PR`, `REPO`, `INTERVAL`, `STATE_FILE`, and any acknowledged node IDs explicitly. Do NOT run a foreground `while` loop. The script is documented in `references/review-loop.md`.
 
-**Restarting a watch mid-PR**: pass the node ids already triaged by the previous run
-via `ACK="<node-id> ..."` (or repeatable `--ack <node-id>`). `EXCLUDE`/`--exclude`
-remains an input alias for existing callers, but these values mean acknowledged,
-not merely emitted. Unacknowledged comments are intentionally replayed after a
-restart. Never drop those lines with a `grep -v` chain instead — grep/sed/awk
-block-buffer when piped, so events stall in the filter and never reach a streaming
-watch (details in `references/review-loop.md`).
+**Restarting a watch mid-PR**: pass the node ids already triaged by the previous run via `ACK="<node-id> ..."` (or repeatable `--ack <node-id>`). `EXCLUDE`/`--exclude` remains an input alias for existing callers, but these values mean acknowledged, not merely emitted. Unacknowledged comments are intentionally replayed after a restart. Never drop those lines with a `grep -v` chain instead — grep/sed/awk block-buffer when piped, so events stall in the filter and never reach a streaming watch (details in `references/review-loop.md`).
 
 **CRITICAL: Do NOT skip the watch based on a launch-time snapshot.** "This repo has no CI workflow, so the watch would spin idly" is a **false** inference and not a valid reason to skip: CI is only one of the two things watched. Automated review services, org-level bots, and human reviewers post comments on no fixed schedule and are invisible in a launch-time snapshot — a repo with zero workflows can still accumulate a full review thread minutes after the PR opens. An empty `.github/workflows/` proves nothing about who will comment.
 

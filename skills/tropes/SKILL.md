@@ -7,8 +7,7 @@ description: Detects and eliminates AI writing tropes that make text sound artif
 
 Scan generated text for common AI writing patterns that make content sound artificial or formulaic. This skill provides a systematic workflow for identifying and eliminating tropes.
 
-Source: [tropes.fyi](https://tropes.fyi) by [ossama.is](https://ossama.is)
-Original gist: [ossa-ma/f3baa9d2](https://gist.github.com/ossa-ma/f3baa9d25154c33095e22272c631f5a1) — the raw 33-trope list this skill's `references/` are structured from and extended.
+Source: [tropes.fyi](https://tropes.fyi) by [ossama.is](https://ossama.is) Original gist: [ossa-ma/f3baa9d2](https://gist.github.com/ossa-ma/f3baa9d25154c33095e22272c631f5a1) — the raw 33-trope list this skill's `references/` are structured from and extended.
 
 ## Core Principle
 
@@ -109,28 +108,20 @@ Default target is the global file unless the user specifies project-level. Do no
 
 The complete trope catalog is organized into seven categories. Load specific references as needed:
 
-1. **Word Choice** - `references/word-choice.md`
-   Ornate vocabulary, magic adverbs, pompous constructions
+1. **Word Choice** - `references/word-choice.md` Ornate vocabulary, magic adverbs, pompous constructions
 
-2. **Sentence Structure** - `references/sentence-structure.md`
-   Negative parallelism, rhetorical questions, formulaic patterns
+2. **Sentence Structure** - `references/sentence-structure.md` Negative parallelism, rhetorical questions, formulaic patterns
 
-3. **Paragraph Structure** - `references/paragraph-structure.md`
-   Short fragments, listicle disguises
+3. **Paragraph Structure** - `references/paragraph-structure.md` Short fragments, listicle disguises
 
-4. **Tone** - `references/tone.md`
-   False suspense, pedagogical voice, vague attributions
+4. **Tone** - `references/tone.md` False suspense, pedagogical voice, vague attributions
 
-5. **Formatting** - `references/formatting.md`
-   Em-dash overuse, bold-first bullets, unicode decoration
+5. **Formatting** - `references/formatting.md` Em-dash overuse, bold-first bullets, unicode decoration
 
-6. **Composition** - `references/composition.md`
-   Fractal summaries, dead metaphors, content duplication
+6. **Composition** - `references/composition.md` Fractal summaries, dead metaphors, content duplication
 
-7. **Professional Balance** - `references/professional-balance.md`
-   Avoiding both overly colloquial "humanisms" and obscure AI-isms.
+7. **Professional Balance** - `references/professional-balance.md` Avoiding both overly colloquial "humanisms" and obscure AI-isms.
 
 Plus one supporting schema (not a trope category):
 
-- **User Preferences** - `references/preferences-schema.md`
-  Four-tier JSON config: project/global x shared/local `.agents/office*.json`, read and merged by `load-preferences.sh`. Custom banned words/phrases, dead metaphors, pattern caps, sensitivity, tone, skip categories.
+- **User Preferences** - `references/preferences-schema.md` Four-tier JSON config: project/global x shared/local `.agents/office*.json`, read and merged by `load-preferences.sh`. Custom banned words/phrases, dead metaphors, pattern caps, sensitivity, tone, skip categories.
