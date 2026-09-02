@@ -3,7 +3,7 @@ name: resolve-issues
 description: Resolves GitHub issues using isolated worktrees and test-driven development,
   then delegates PR creation to create-pr so the quality gate and the review-pr loop
   always run. This skill should be used when the user asks to "resolve an issue",
-  "fix issue
+  "fix issue", or wants to implement fixes or features linked to tracked GitHub issues.
 disable-model-invocation: true
 ---
 

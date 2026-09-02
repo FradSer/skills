@@ -131,34 +131,12 @@ Save the generated form as a local Markdown file:
 
 ### `--lark` Mode
 
-Create the form as a Feishu cloud document:
-
-1. **CRITICAL** -- Confirm the standalone `lark` plugin is installed; follow its `lark-shared` skill for authentication
-2. Follow the lark plugin's `lark-doc` skill `lark-doc-create.md` reference for Lark-flavored Markdown syntax and `docs +create` parameters
-3. Convert the patent form to Lark-flavored Markdown, applying these enhancements:
-
-| Section | Feishu Feature | Purpose |
-|---------|---------------|---------|
-| Document metadata (inventor/date/field) | `<lark-table>` | Structured header info with proper column widths |
-| Creative points / novelty claims | `<callout emoji="..." background-color="light-blue">` | Highlight distinguishing features |
-| Technical problem statement | `<callout emoji="..." background-color="light-yellow">` | Emphasize the problem being solved |
-| Architecture / data flow in embodiments | `<whiteboard type="blank">` | Visualize system architecture or process flow |
-| Prior art comparison | `<grid cols="2">` | Side-by-side comparison: prior art vs invention |
-| Defects / alternatives | `<callout emoji="..." background-color="light-red">` | Clearly mark limitations |
-| Claims hierarchy | Nested ordered lists with `<text color="blue">` for independent claims | Visual distinction between independent and dependent claims |
-
-4. Create the document:
-   ```bash
-   lark-cli docs +create --title "Patent-[ShortTitle]-[YYYYMMDD]" \
-     [--folder-token TOKEN_OR_URL | --wiki-node TOKEN_OR_URL | --wiki-space ID_OR_URL] \
-     --markdown "<lark-flavored-markdown>"
-   ```
-5. For long forms, split creation: `docs +create` for the first half, then `docs +update --mode append` for the rest
-6. If `board_tokens` are returned (whiteboards were created):
-   - Follow the lark plugin's `lark-whiteboard` skill
-   - Fill each whiteboard with actual content (architecture diagrams, flowcharts)
-   - All whiteboards must have real content before task is complete
-7. Report the document URL
+Create the form as a Feishu cloud document via the `lark` plugin:
+1. Confirm the `lark` plugin is available; follow its `lark-doc` skill (`lark-cli docs +create`) for authentication and publishing.
+2. Structure patent sections using Lark-flavored Markdown (metadata table, novelty callouts, and architecture whiteboards).
+3. Publish document via `lark-cli docs +create --title "Patent-[ShortTitle]-[YYYYMMDD]" [--folder-token|--wiki-node|--wiki-space] --markdown "<lark-markdown>"`.
+4. If whiteboard blocks (`board_tokens`) exist, populate embodiment diagrams via `lark-whiteboard`.
+5. Report the final Feishu document URL.
 
 ### Lark Format Principles
 

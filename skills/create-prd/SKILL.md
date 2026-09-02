@@ -90,24 +90,12 @@ Save file after validation:
 
 ### `--lark` Mode
 
-Create Feishu document after validation:
-
-1. **CRITICAL** — Confirm standalone `lark` plugin is installed; follow its `lark-shared` skill for authentication
-2. Follow the lark plugin's `lark-doc` skill for document creation guidance
-3. Refer to `lark-doc-create.md` for full `docs +create` parameters and Lark-flavored Markdown syntax
-4. Convert PRD content to Lark-flavored Markdown (see Feishu enhancements section)
-5. Create document:
-   ```bash
-   lark-cli docs +create --title "PRD-[ProductName]-[YYYYMMDD]" \
-     [--folder-token TOKEN_OR_URL | --wiki-node TOKEN_OR_URL | --wiki-space ID_OR_URL] \
-     --markdown "<lark-flavored-markdown>"
-   ```
-6. For longer PRDs, split: `docs +create` for first half, then `docs +update --mode append` for remaining sections
-7. If `board_tokens` are present:
-   - Follow the lark plugin's `lark-whiteboard` skill
-   - Fill each whiteboard with actual content (flowcharts, architecture diagrams)
-   - All whiteboards must have real content before task is complete
-8. Report the document URL
+Delegate document creation to the `lark` plugin:
+1. Confirm the `lark` plugin is available; follow its `lark-doc` skill (`lark-cli docs +create`) for authentication and document creation.
+2. Format PRD content with Lark-flavored Markdown (callouts, tables, and whiteboard blocks where appropriate).
+3. Create document via `lark-cli docs +create --title "PRD-[ProductName]-[YYYYMMDD]" [--folder-token|--wiki-node|--wiki-space] --markdown "<lark-markdown>"`.
+4. If whiteboard blocks are present, follow `lark-whiteboard` to populate diagram elements.
+5. Report the generated Feishu document URL.
 
 ## Phase 5: Next Steps
 

@@ -1,6 +1,6 @@
 ---
 name: tropes
-description: Detects and eliminates AI writing tropes that make text sound artificial or formulaic. Use when generating text content, writing documentation, creating code comments, or reviewing writing style. Supports four-tier JSON preferences (global/project x shared/local office.json) read via load-preferences.sh.
+description: Detects and eliminates AI writing tropes that make text sound artificial or formulaic. Use as an explicit review/quality pass when asked to check writing style, eliminate AI cliches, audit documentation tone, or refine drafts. Do not trigger automatically for ordinary code generation or initial document creation. Supports four-tier JSON preferences (global/project x shared/local office.json) read via load-preferences.sh.
 ---
 
 # AI Writing Tropes Detection

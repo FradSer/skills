@@ -2,9 +2,9 @@
 name: update-readme
 description: Updates ONLY the root-level README.md and README.zh-CN.md. NEVER update
   README files in subdirectories, packages, modules, or nested paths. Use this skill
-  whenever the user asks to "update the README", "sync the docs", "update documentation",
-  "reflect latest changes in README", or wants both the English and Chinese READMEs
-  to match the current project.
+  when the user specifically asks to "update the README", "sync the bilingual READMEs",
+  or wants root English and Chinese READMEs to match the current project state. Do NOT
+  use for PRDs, general documentation, or writing drafts.
 disable-model-invocation: true
 ---
 
