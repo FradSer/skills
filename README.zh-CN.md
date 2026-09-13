@@ -6,6 +6,16 @@
 
 面向多种 agent 运行环境的技能集合，包含专项工作流与领域知识。
 
+## Codex 中的触发方式
+
+工作流技能需要明确点名，例如 `$commit` 或 `$create-pr`。在 Codex CLI 和 IDE
+中使用 `$` 或 `/skills` 选择技能，在桌面应用中使用 `@`。`commit`、`lark` 和
+`swiftui` 允许根据任务自动匹配。
+
+每个技能通过 `agents/openai.yaml` 声明触发策略；安装或建立软链接时应保留这个目录。
+原有的 `disable-model-invocation` frontmatter 是其他运行时的独立元数据。
+若新会话未反映更新后的触发策略，请重启 Codex。
+
 ## 可用技能
 
 ### [commit](skills/commit/)

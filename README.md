@@ -6,6 +6,18 @@
 
 A collection of agent skills: specialized workflows and domain knowledge that can be used across agent runtimes.
 
+## Invocation in Codex
+
+Workflow skills require an explicit skill mention, such as `$commit` or
+`$create-pr`. Select a skill with `$` or `/skills` in Codex CLI and the IDE,
+or with `@` in the desktop app. `commit`, `lark`, and `swiftui` allow automatic
+matching to a task.
+
+Each skill declares this policy in `agents/openai.yaml`; keep that directory
+when installing or symlinking a skill. The existing `disable-model-invocation`
+frontmatter is separate metadata for other runtimes. Restart Codex if the
+updated invocation policy is not reflected in a new session.
+
 ## Available Skills
 
 ### [commit](skills/commit/)
