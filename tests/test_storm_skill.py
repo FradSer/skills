@@ -25,7 +25,7 @@ class StormSkillStructureTests(unittest.TestCase):
         self.assertTrue(SKILL_MD.is_file())
         for name in ("engine", *PHASE_REFERENCES):
             self.assertTrue((REFERENCES / f"{name}.md").is_file(), name)
-        self.assertFalse((SKILL_DIR / "agents").exists())
+        self.assertTrue((SKILL_DIR / "agents" / "openai.yaml").is_file())
         self.assertFalse((SKILL_DIR / ".claude-plugin").exists())
 
     def test_every_phase_reference_links_back_to_the_engine(self) -> None:

@@ -101,12 +101,24 @@ class SkillsStructureTests(unittest.TestCase):
         gitflow_dir = SKILLS / "gitflow"
         subdirs = [p for p in gitflow_dir.iterdir() if p.is_dir()]
         self.assertEqual(
-            {"references", "scripts"},
+            {"agents", "references", "scripts"},
             {p.name for p in subdirs},
-            "gitflow should only contain references and scripts directories",
+            "gitflow should only contain metadata, references, and scripts directories",
         )
         self.assertTrue((gitflow_dir / "scripts" / "start-branch.sh").is_file())
         self.assertTrue((gitflow_dir / "scripts" / "finish-branch.sh").is_file())
+
+    def test_codex_workflow_invocation_policies(self) -> None:
+        implicit_skills = {"commit", "lark", "swiftui"}
+        for skill_name in EXPECTED_SKILLS:
+            with self.subTest(skill=skill_name):
+                path = SKILLS / skill_name / "agents" / "openai.yaml"
+                self.assertTrue(path.is_file(), f"{skill_name} needs Codex metadata")
+                metadata = yaml.safe_load(path.read_text(encoding="utf-8"))
+                self.assertIs(
+                    metadata["policy"]["allow_implicit_invocation"],
+                    skill_name in implicit_skills,
+                )
 
     def test_markdown_links_resolve(self) -> None:
         ignored = {"…", "README.md", "README.zh-CN.md", "LICENSE", "链接", "inflect: true"}
