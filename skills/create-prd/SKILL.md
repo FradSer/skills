@@ -1,13 +1,20 @@
 ---
 name: create-prd
 description: This skill should be used when the user asks to "create PRD", "write
-  product requirements document", or mentions "PRD", "product requirements document".
+  product requirements document", revise or simplify an existing PRD or service
+  strategy table, or mentions "PRD", "product requirements document".
 disable-model-invocation: true
 ---
 
 # PRD Creation
 
-Follow the phases below to transform product ideas into a complete PRD document. All PRD content is written in Chinese (the target audience is Chinese-speaking teams).
+Transform product ideas into a usable PRD, or revise an existing one without inventing policy. All PRD content is written in Chinese (the target audience is Chinese-speaking teams).
+
+## Route and Evidence First
+
+Read `references/prd-revision-rules.md` before drafting or changing requirements. Separate sourced requirements, proposed decisions and unresolved dependencies. Broad repair requests do not approve arbitrary new business rules.
+
+For an existing document, audit, simplification or targeted replacement, do not restart the creation interview. Use the user's stated scope and format; read the latest source, patch the relevant section, and validate the result. Inspection alone does not authorize writing. Follow Phases 0–4 for new documents; ask only questions not already answered by the conversation or source.
 
 ## Output Mode
 
@@ -63,11 +70,11 @@ If Phase 0 found pre-filled content, show it to the user for confirmation and sk
 3. **AI Agent consumability**:
    - Write each requirement as a discrete, verifiable item (lists over long paragraphs)
    - Express non-goals as positive constraints
-   - Split P0 features into 5-15 minute agent work stages with testable checkpoints
+   - Keep implementation task breakdowns separate from business requirements; add them only when requested
    - Full version includes a three-layer boundary framework: autonomous / needs confirmation / prohibited
 
 4. **Quality requirements**:
-   - Problem statement backed by specific data or research
+   - Problem statement backed by available data or research; label missing evidence instead of inventing it
    - Goals follow SMART principles
    - Success metrics are quantifiable
    - Avoid vague terms ("approximately", "maybe", "try to")
@@ -75,7 +82,7 @@ If Phase 0 found pre-filled content, show it to the user for confirmation and sk
 
 5. **Format**:
    - `--md` mode: Standard Markdown with clear heading hierarchy
-   - `--lark` mode: Lark-flavored Markdown (see Feishu enhancements section)
+   - `--lark` mode: Follow the current Lark document skill for supported rich-text syntax
 
 ## Phase 4: Validate and Save
 
@@ -90,51 +97,21 @@ Save file after validation:
 
 ### `--lark` Mode
 
-Delegate document creation to the `lark` plugin:
-1. Confirm the `lark` plugin is available; follow its `lark-doc` skill (`lark-cli docs +create`) for authentication and document creation.
-2. Format PRD content with Lark-flavored Markdown (callouts, tables, and whiteboard blocks where appropriate).
-3. Create document via `lark-cli docs +create --title "PRD-[ProductName]-[YYYYMMDD]" [--folder-token|--wiki-node|--wiki-space] --markdown "<lark-markdown>"`.
-4. If whiteboard blocks are present, follow `lark-whiteboard` to populate diagram elements.
-5. Report the generated Feishu document URL.
+1. Load the current `lark-doc` skill and its create or update reference, plus the matching format guide. For spreadsheet content use `lark-sheets`. Discover supported flags from current CLI help instead of copying syntax from this skill.
+2. For existing documents, record the latest revision and targeted changes before local block/cell edits. Preserve unrelated content and resources; do not create a replacement document unless requested.
+3. Choose the smallest useful format: tables for parallel business rules, multiline boolean conditions for triggers, diagrams only for meaningful branching or an explicit user request. No mandatory decorative grids or empty whiteboards.
+4. Read back the changed scope. Check actual values, formatting, resources and dependent acceptance examples; report the URL, actual changes and any unresolved decisions.
 
 ## Phase 5: Next Steps
 
-After saving, suggest follow-up options:
-- Convert PRD into implementation tickets
-- Refine design decisions in open questions
-- Share with team for review and feedback
+After saving, report the result concisely. Suggest implementation tickets or additional review only when relevant; do not expand a localized edit into another full PRD workflow.
 
-## Feishu Document Enhancements
+## Format Principles
 
-**CRITICAL** — In `--lark` mode, use Lark-flavored Markdown syntax to leverage Feishu's rich-text capabilities.
-
-### Required Feishu Features by PRD Section
-
-| PRD Section | Feishu Feature | Description |
-|---|---|---|
-| Project metadata (version/date/owner) | `<lark-table>` | Enhanced table with header row |
-| Key risks/assumptions/dependencies | `<callout>` | Color-coded: risk=red, assumption=blue, dependency=yellow |
-| Core goals / success metrics | `<callout emoji="..." background-color="light-green">` | Highlight key OKRs |
-| Priority comparison (P0/P1/P2) | `<grid cols="3">` | Three-column side-by-side layout |
-| User journey / business process | `<whiteboard type="blank">` | Flowchart, filled via lark-whiteboard |
-| System architecture | `<whiteboard type="blank">` | Architecture diagram, filled via lark-whiteboard |
-| Milestones / timeline | `<whiteboard type="blank">` | Timeline chart |
-| Non-goals / scope exclusions | `<callout emoji="..." background-color="light-red">` | Red highlight for prohibited scope |
-| Glossary / abbreviations | Two-column Markdown table | Compact reference |
-| Decision records | `<callout>` + blockquote | Key decisions with rationale |
-
-### Whiteboard Rules
-
-Insert whiteboards for: user journeys, system architecture, data flows, milestones, team organization. Skip for pure text, data-heavy content (use tables), or when user requests text-only.
-
-### Format Principles
-
-- Max 4 heading levels
-- Use `---` dividers between sections
-- Do NOT write a top-level heading duplicating the title (Feishu auto-generates it)
-- Use callouts sparingly; bold only core terms
-- Use `<text color="red">` for key metrics or status
-- Feishu auto-generates table of contents — do not add manually
+- Use at most four heading levels and avoid duplicating the document title.
+- Prefer a business table and a few shared rules over paragraphs repeating the same policy.
+- Respect the user's latest format choice; replacement removes the superseded section rather than appending another explanation.
+- Keep one authoritative location per rule. Use descriptive references, not mutable spreadsheet row numbers as the rule itself.
 
 ## Quality Principles
 
