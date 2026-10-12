@@ -3,21 +3,33 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "Update the README files based on the current state of the project. The repo is at /Users/FradSer/Developer/FradSer/skills. Use this header format for README.md:\n\n# Skills by Frad ![](https://img.shields.io/badge/Agent-Skills-blue)\n\n[![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT) [![Twitter Follow](https://img.shields.io/twitter/follow/FradSer?style=social)](https://twitter.com/FradSer)\n\n**English** | [简体中文](README.zh-CN.md)",
-      "expected_output": "Updated README.md and README.zh-CN.md that accurately list all skills (agent-browser, create-prd, lark, patent-architect, tropes, update-readme) with correct installation commands, proper header format, and consistent bilingual content",
-      "files": []
+      "prompt": "Update the README named by the user from the current repository state. Inspect the manifest and actual component descriptors first. Preserve the existing header and language unless the user supplies a replacement, and write only the requested file.",
+      "expected_output": "The named README is updated from verified current files; commands, links, component names, and prerequisites are grounded; unrelated files are unchanged.",
+      "files": ["fixture-repo/README.md", "fixture-repo/package.json", "fixture-repo/packages/widget/SKILL.md"]
     },
     {
       "id": 2,
-      "prompt": "The README is out of date. I just added a new skill called 'update-readme' to the skills/ folder. Please update both README.md and README.zh-CN.md to reflect the current state of the project at /Users/FradSer/Developer/FradSer/skills.",
-      "expected_output": "Both README files updated to include the new update-readme skill with a description, installation command, and no stale content",
-      "files": []
+      "prompt": "Sync the English and Simplified Chinese README files in this fixture. Enumerate only the components that currently exist, keep both files parallel, and preserve the supplied project header and badges.",
+      "expected_output": "Both requested README files cover the same verified inventory and section order, with natural translation; no nonexistent component or hardcoded repository name is added.",
+      "files": ["fixture-repo/README.md", "fixture-repo/README.zh-CN.md", "fixture-repo/skills/alpha/SKILL.md"]
     },
     {
       "id": 3,
-      "prompt": "Sync my bilingual README files with the repo. Check what skills are actually in the repo under skills/ and make sure README.md and README.zh-CN.md both match. Header badges should reflect the actual tools used (chezmoi, zsh, etc. if relevant, otherwise appropriate alternatives).",
-      "expected_output": "Both README files are in sync, covering all and only the skills that exist, with accurate badge choices and consistent structure between EN and ZH versions",
-      "files": []
+      "prompt": "Review a nested package README and suggest a minimal diff for one stale install command. Do not change the root README or write any file until the user approves the suggestion.",
+      "expected_output": "The response identifies the nested target, cites the current package configuration, proposes the corrected command, and makes no write.",
+      "files": ["fixture-repo/README.md", "fixture-repo/packages/widget/README.md", "fixture-repo/packages/widget/pyproject.toml"]
+    },
+    {
+      "id": 4,
+      "prompt": "The user asks only to update the README in a repository that has one root README and one nested README. Determine the default target and explain any ambiguity before writing.",
+      "expected_output": "The skill selects the repository root README as the default when unambiguous, or asks which root when multiple repositories are plausible; it does not update every README automatically.",
+      "files": ["fixture-repo/README.md", "fixture-repo/packages/widget/README.md"]
+    },
+    {
+      "id": 5,
+      "prompt": "Update the root README.md of a single-package repository that has no LICENSE file, no badge target, and no README.zh-CN.md. Correct the stale claims from the current manifest and source, and preserve the existing section structure.",
+      "expected_output": "The README keeps its existing sections and is corrected against verified current files. No License section, badge, or README.zh-CN.md link is added, because the repository supplies no target for them. No catalog section is invented for a single-artifact repository.",
+      "files": ["fixture-repo/README.md", "fixture-repo/Package.swift"]
     }
   ]
 }
