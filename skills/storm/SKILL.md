@@ -1,6 +1,6 @@
 ---
 name: storm
-description: Research and write a Wikipedia-style long-form article with a resumable, multi-perspective STORM workflow when the user asks for a storm article, a Wikipedia-style article, or a researched long-form piece. Use available retrieval and local documents, preserve source provenance, and never invent citations. Do not use for ordinary creative writing or a simple summary.
+description: Research and write a Wikipedia-style long-form article with a resumable, multi-perspective STORM workflow when the user asks for a storm article, a Wikipedia-style article, or a researched long-form piece. Do not use for ordinary creative writing or a simple summary.
 disable-model-invocation: true
 ---
 

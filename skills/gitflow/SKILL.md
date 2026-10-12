@@ -1,6 +1,6 @@
 ---
 name: gitflow
-description: "Manages local Git-flow branch lifecycles: start or finish feature, hotfix, and release branches with automated changelog generation, version bumping, and cleanup. Use for repositories configured for local Git-flow finishing when the user explicitly mentions git-flow branch operations (e.g. 'gitflow start feature', 'gitflow finish release'). For standard GitHub PR-based reviews and merges, use create-pr."
+description: "Manages local Git-flow branch lifecycles: start or finish feature, hotfix, and release branches. Use for repositories configured for local Git-flow finishing when the user explicitly mentions git-flow branch operations (e.g. 'gitflow start feature', 'gitflow finish release'). For standard GitHub PR-based reviews and merges, use create-pr."
 disable-model-invocation: true
 ---
 

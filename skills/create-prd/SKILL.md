@@ -1,6 +1,6 @@
 ---
 name: create-prd
-description: Create, revise, simplify, or validate a product requirements document or service strategy table when the user asks for a PRD or product requirements document. Use the requested language, format, and destination; preserve existing business rules and clearly separate evidence, proposals, and unresolved decisions. Do not use for general product writing without a PRD request.
+description: Create, revise, simplify, or validate a PRD or service strategy table when the user asks for a product requirements document. Do not use for general product writing without a PRD request.
 disable-model-invocation: true
 ---
 

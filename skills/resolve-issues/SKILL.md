@@ -1,8 +1,7 @@
 ---
 name: resolve-issues
 description: Resolves GitHub issues using isolated worktrees and test-driven development,
-  then delegates PR creation to create-pr so the quality gate and the review-pr loop
-  always run. This skill should be used when the user asks to "resolve an issue",
+  then delegates PR creation to create-pr. Use when the user asks to "resolve an issue",
   "fix issue", or wants to implement fixes or features linked to tracked GitHub issues.
 disable-model-invocation: true
 ---
@@ -16,8 +15,7 @@ acceptance criteria and dependencies before changing files.
 Create or reuse an isolated worktree under `.agents/worktrees/` and a branch that
 identifies the issue (`fix/<number>-<slug>`, `feat/<number>-<slug>`, or
 `refactor/<number>-<slug>`). Read [workflow-details.md](references/workflow-details.md)
-for naming/reuse rules and [requirements.md](references/requirements.md) for the workflow
-requirements as a whole; read [repository-templates.md](references/repository-templates.md)
+for naming/reuse rules; read [repository-templates.md](references/repository-templates.md)
 only when repository templates or contributing rules are present. Implement with a
 real RED → GREEN → REFACTOR loop and run the relevant checks described in
 [quality-validation.md](references/quality-validation.md). Map every explicit

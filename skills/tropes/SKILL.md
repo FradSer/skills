@@ -1,6 +1,6 @@
 ---
 name: tropes
-description: Review a supplied draft for repetitive, formulaic, or AI-associated writing patterns and suggest or apply context-aware edits when the user asks for a style review, trope removal, or documentation-tone refinement. Preserve facts, meaning, author voice, quotations, code, and requested format; do not trigger for ordinary code generation or an initial document draft.
+description: Review a supplied draft for repetitive, formulaic, or AI-associated writing patterns and suggest or apply context-aware edits when the user asks for a style review, trope removal, or documentation-tone refinement. Do not trigger for ordinary code generation or an initial document draft.
 ---
 
 # AI writing trope review
