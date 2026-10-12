@@ -7,65 +7,34 @@ description: Creates GitHub issues following test-driven development principles 
 disable-model-invocation: true
 ---
 
-# Create GitHub Issues
+# Create GitHub issues
 
-Execute automated GitHub issue creation workflow for $ARGUMENTS following TDD principles and conventional commit standards.
+Use this skill for an explicit request to file a bug, feature, epic, or review issue.
+`$ARGUMENTS` is the source for the issue intent; preserve supplied issue links and
+references. Begin with read-only repository/branch and authentication checks, search
+open issues for duplicates, and read repository guidance/templates before drafting.
 
-## Context
+Route only the material needed for the request:
 
-- Current git status: !`git status`
-- Current branch: !`git branch --show-current`
-- Open issues: !`gh issue list --state open --limit 10`
-- GitHub authentication: !`gh auth status`
+- Read [decision-logic.md](references/decision-logic.md) to classify the issue and
+  decide whether a PR-branch comment should replace a new issue.
+- Read [repository-templates.md](references/repository-templates.md) when templates or
+  contributing rules may apply; read [issue-structure.md](references/issue-structure.md)
+  to shape the body.
+- Read [auto-closing-keywords.md](references/auto-closing-keywords.md) for a PR-scoped
+  issue. Auto-close works only when the eventual PR merges into the repository default
+  branch; warn when that condition is unknown or false. Epics never use close keywords.
+- Read [pr-creation-handoff.md](references/pr-creation-handoff.md) when the issue will be
+  implemented through the PR path, so the delegation to `create-pr` and the
+  confirmation-before-merge rule are stated.
 
-## Requirements Summary
-
-Follow TDD principles, conventional commits, and protected branch workflows. Use proper labels, auto-closing keywords, and atomic commits. See `references/requirements.md` for complete standards.
-
-## Phase 1: Repository Analysis
-
-**Goal**: Assess repository state, detect templates, and determine issue scope and type.
-
-**Actions**:
-1. Analyze current branch from context (main/develop vs PR branch)
-2. Review open issues to identify duplicates or related work
-3. Check for contributing guidelines (`CONTRIBUTING.md`) and follow its requirements
-4. Detect issue templates in `.github/ISSUE_TEMPLATE/` directory
-5. If templates exist: select appropriate template using `gh issue create --list`
-6. Determine issue type (epic, PR-scoped, or review) based on `$ARGUMENTS` complexity
-7. Apply branch-based decision logic from `references/decision-logic.md`
-
-See `references/repository-templates.md` for template detection and compliance details.
-
-## Phase 2: Issue Creation
-
-**Goal**: Create GitHub issue with proper structure, labels, and links.
-
-**Actions**:
-1. Create or verify required priority labels exist (see `references/decision-logic.md` for commands)
-2. Draft issue following structure requirements in `references/issue-structure.md`
-3. Apply appropriate labels (priority, type) using `--label`
-   - Assign owners using `--assignee`
-   - Link milestones using `--milestone` or projects using `--project` if requested
-4. Add auto-closing keywords if PR-scoped issue (NOT for epics)
-   - **CRITICAL: auto-closing keywords only fire when the PR merges into the repository's default branch.** If the issue will be resolved by a PR targeting a non-default branch, warn the user that the issue will NOT close automatically and must be closed manually — see `references/auto-closing-keywords.md` for the full rule and keyword table.
-5. Link to related issues or epics if applicable
-
-## Phase 3: Documentation and Handoff
-
-**Goal**: Document decisions and communicate follow-up actions.
-
-**Actions**:
-1. Document branch strategy decision and rationale
-2. Report created issue number and URL to user
-3. If on PR branch and blocking: add detailed comment to PR instead of creating issue
-4. Share next steps (create PR, assign to team member, etc.)
-
-## References
-
-- **Requirements**: `references/requirements.md` - Full TDD and commit standards
-- **Decision Logic**: `references/decision-logic.md` - Branch-based decisions and issue types
-- **Issue Structure**: `references/issue-structure.md` - Title, labels, body, auto-closing
-- **Auto-Closing Keywords**: `references/auto-closing-keywords.md` - Default-branch limitation and keyword table
-- **Repository Templates**: `references/repository-templates.md` - Contributing guidelines and issue templates
-- **Examples**: `references/examples.md` - Commit message examples
+Draft the title, body, labels, assignee, milestone, and project from the request and
+show the planned mutation. Create or update labels only when needed; do not hide a
+permission or network failure with `|| true`. Ask for confirmation immediately before
+creating an issue, comment, label, assignment, milestone, or project link unless the
+user's request explicitly authorizes that exact write. Report the resulting URL/number,
+chosen labels, and any skipped or failed mutation. TDD/commit guidance is conditional
+support for the eventual implementation; read [requirements.md](references/requirements.md)
+only when the issue needs those rules. When the issue prescribes the commits that will
+resolve it, read [commit-standards.md](references/commit-standards.md) and
+[examples.md](references/examples.md).
