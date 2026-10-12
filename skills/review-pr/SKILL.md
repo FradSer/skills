@@ -1,9 +1,7 @@
 ---
 name: review-pr
-description: 'Reviews a pull request: runs an independent baseline review, monitors
-  CI and incoming reviewer comments with bounded polls, triages and applies verified
-  fixes, then presents a closeout summary and waits for explicit user confirmation before
-  merging and cleaning the worktree and branch. Use this skill when the user asks to
+description: 'Reviews a pull request and resolves reviewer feedback: monitors CI and
+  review comments, applies verified fixes, and closes out before any merge. Use for
   "review a PR", "monitor PR review comments", "address reviewer feedback on #123",
   or "watch CI on a pull request".'
 disable-model-invocation: true

@@ -1,5 +1,3 @@
-# Quality Validation Process
-
 # Quality validation
 
 Choose commands from the repository's declared scripts and CI configuration; do not

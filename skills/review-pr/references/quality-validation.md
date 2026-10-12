@@ -1,5 +1,3 @@
-# Quality Validation Process
-
 # Quality validation for review fixes
 
 Follow the repository's scripts and CI. Prefer `pnpm` with a pnpm lockfile and `uv run`

@@ -1,6 +1,6 @@
 ---
 name: commit
-description: Creates clean, conventional git commits using standard git. Use when the user asks to "commit", "git commit", "create commit", or wants to commit staged or unstaged changes.
+description: Creates clean, conventional git commits using standard git. Use when the user asks to "commit", "git commit", "create commit", or wants to commit staged or unstaged changes. Does not push; use commit-and-push when the request includes a push.
 ---
 
 # Commit
