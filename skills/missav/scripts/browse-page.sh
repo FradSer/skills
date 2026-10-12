@@ -7,7 +7,7 @@ URL="${1:?Usage: browse-page.sh <url> [--session NAME] [--continue]}"
 shift || true
 
 CONTINUE=0
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/browser-env.sh
 source "$SCRIPT_DIR/lib/browser-env.sh"
 

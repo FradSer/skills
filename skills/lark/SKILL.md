@@ -8,7 +8,12 @@ metadata:
 
 # Lark CLI Skills
 
-**CRITICAL** -- Before any lark-cli operation, MUST first run `lark-cli skills read lark-shared` for authentication, identity (`--as user` vs `--as bot`), permissions, and security rules. If unauthenticated, run `lark-cli auth login`.
+**CRITICAL** -- Before any lark-cli operation, MUST first run the read-only
+`lark-cli skills read lark-shared` for authentication, identity (`--as user`
+vs `--as bot`), permissions, and security rules. If it reports that login is
+needed, explain the required authorization and wait for the user to request or
+approve `lark-cli auth login`; do not log in, change app configuration, or
+request scopes automatically.
 
 This skill is a **router only**. Do not invent CLI commands from memory. Sub-skills and reference guides are embedded in the `lark-cli` binary. Match user intent to one row in the index below, then execute `lark-cli skills read <sub-skill>` via bash.
 
@@ -28,6 +33,10 @@ This skill is a **router only**. Do not invent CLI commands from memory. Sub-ski
    - Prefer shortcuts: `lark-cli <domain> +<shortcut> --help`
    - Method schema: `lark-cli schema <service>.<resource>.<method>`
    - Dynamic discovery: `lark-cli skills list` / `lark-cli skills list <sub-skill>`
+
+For repository router maintenance, read [SYNC.md](SYNC.md). Its sync/check script
+requires `uv` and resolves PyYAML in an isolated environment; normal CLI routing
+needs only `lark-cli`.
 
 ## Sub-skill Index
 
@@ -63,7 +72,7 @@ This skill is a **router only**. Do not invent CLI commands from memory. Sub-ski
 
 ## Routing Rules
 
-1. **Always** run `lark-cli skills read lark-shared` first for authentication and permission rules.
+1. **Always** run `lark-cli skills read lark-shared` first for authentication and permission rules. This read is local to the installed CLI and does not mutate account or global configuration.
 2. Match intent to the **Use When** column; run that row's **Read Command** (e.g. `lark-cli skills read lark-doc`).
 3. Follow the returned guidance and read needed reference documents via `lark-cli skills read <sub-skill>/<path>`.
 4. Multi-domain tasks: execute `lark-cli skills read` for each relevant sub-skill in task order (auth shared once).

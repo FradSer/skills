@@ -192,3 +192,6 @@ dist
 .artifacts/recipes.local/
 .artifacts/fragments.local/
 .artifacts/manifest.local.json
+
+# Independent Codex evaluation workspaces and retained transcripts
+.skill-evals/

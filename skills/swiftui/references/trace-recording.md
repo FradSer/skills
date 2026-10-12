@@ -94,15 +94,15 @@ Device entries have `kind` (`devices`, `devices offline`, `simulators`),
 `name`, `os`, `udid`. Offline devices are known but unplugged / unpaired —
 plug them in before recording.
 
-## Picking a template
+## Picking a template (probe first, then fall back)
 
-> **Hard rule: the `SwiftUI` template only populates the SwiftUI lane on a
-> real device — a physical iOS/iPadOS device or the host Mac. On the iOS
-> Simulator it records but the SwiftUI lane comes back empty.** If the
-> chosen UDID falls under the `simulators` kind from `--list-devices`,
-> switch to `Time Profiler`. It still gives you Time Profiler + Hangs +
-> Animation Hitches, which `analyze_trace.py` analyses and correlates
-> normally; only the `swiftui` lane will report `available: false`.
+The available Instruments templates and lanes vary by Xcode release and
+target. Use `--list-devices` and `--list-templates` first, then choose the
+best template the host reports. On hosts where a simulator recording does not
+export a SwiftUI lane, use `Time Profiler` for CPU/hang/hitch evidence and let
+`analyze_trace.py` report `swiftui.available: false`; do not treat an empty
+lane as proof that the app has no SwiftUI work. If the host's own template
+listing contradicts this table, the host listing wins.
 
 Decision flow:
 
@@ -112,11 +112,11 @@ Decision flow:
 | Host Mac (macOS app, `--all-processes`, etc.)| `SwiftUI` (default)  |
 | iOS / iPadOS / watchOS / tvOS Simulator      | `Time Profiler`      |
 
-Always confirm the target kind with `--list-devices` before starting a
-recording: entries under `simulators` mean you must switch to Time
-Profiler; entries under `devices` (both connected devices and the host
-Mac) support the SwiftUI template. Entries under `devices offline` need
-the user to connect/unlock/trust the device before recording.
+Confirm the target kind with `--list-devices` before starting a recording.
+Entries under `devices offline` need the user to connect/unlock/trust the
+device before recording. If the selected template is unavailable or produces
+missing lanes, stop and choose a template shown by `--list-templates`; do not
+install Xcode components or alter device trust automatically.
 
 For ad-hoc hang hunting on any target, `Time Profiler` or
 `Animation Hitches` alone may be enough.

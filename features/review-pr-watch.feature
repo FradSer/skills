@@ -18,11 +18,28 @@ Feature: Watch PR events without losing them to output filtering
     Given a confirmed PR merge completed from a linked worktree on branch "feature/watch"
     When post-merge cleanup runs
     Then it removes the linked worktree from the main worktree
-    And it fast-forwards local main explicitly from origin/main before deleting branches
-    And it considers develop-merged branches only when origin/develop was synchronized
+    And it fast-forwards the PR base branch explicitly from its origin ref before deleting branches
     And it explicitly deletes local branch "feature/watch" after synchronizing its base branch
-    And it deletes every other local branch already merged into main or develop
+    And unrelated branches and worktrees require separate explicit cleanup authorization
     And it does not report success until cleanup completes
+
+  Scenario: Yield while an explicit merge decision is pending
+    Given the closeout summary has been presented and merge confirmation is pending
+    When the stop hook checks the awaiting-confirmation state
+    Then it allows the turn to end and preserves the pending state
+    And it does not merge before the user's reply
+
+  Scenario: Resume closeout after confirmation
+    Given the user confirms the presented merge while closeout is awaiting confirmation
+    When the workflow resumes the approved merge
+    Then it rearms the pending-operation reminder before verification and merge
+    And it clears the state only after merge and authorized cleanup complete
+
+  Scenario: Resolve material escalation before merge
+    Given a review comment leaves correctness, authorization, or scope unresolved
+    When review triage escalates it
+    Then the agent continues independent work and requests the missing decision
+    And it does not mark the merge gate ready until the decision is resolved
 
   Scenario: every PR handoff preserves the confirmed-merge contract
     Given create-pr, create-issues, and resolve-issues delegate PR review to review-pr
@@ -35,6 +52,13 @@ Feature: Watch PR events without losing them to output filtering
     Then it normalizes the PR number to "122"
     And it starts the standalone review-pr workflow with argument "122"
     And it does not finish after merely reporting the PR URL
+
+  Scenario: An explicitly bounded PR request stops after its requested snapshot
+    Given the user authorizes a draft PR and only one review and CI snapshot
+    When create-pr finishes that snapshot
+    Then it reports the PR URL and actual snapshot results
+    And it does not start monitoring, comment, merge, or clean up branches
+    And the explicit scope takes precedence over the full-workflow handoff
 
   Scenario: create-pr uses a focused review-pr handoff reference
     Given review-pr is distributed as a standalone skill
@@ -76,6 +100,13 @@ Feature: Watch PR events without losing them to output filtering
     Then it exits with a metadata error
     And it does not persist a current-time cursor
 
+  Scenario: An expired watch exits before a metadata outage can restart polling
+    Given the persisted watch deadline has passed
+    And the PR metadata request is unavailable
+    When the watch is restarted for PR "122"
+    Then it emits a deadline event
+    And it does not call the GitHub metadata or comment endpoints
+
   Scenario: A watch stops at its persisted deadline
     Given the watch deadline has passed
     When the watch is restarted for PR "122"
@@ -88,11 +119,38 @@ Feature: Watch PR events without losing them to output filtering
     Then the excluded node is not emitted
     And the new review is emitted
 
+  Scenario: A mismatched state file cannot expire a new PR watch
+    Given a persisted deadline belongs to another PR or repository
+    When the watch starts for PR "122"
+    Then it ignores that deadline and reads metadata for PR "122"
+
+  Scenario: An unacknowledged event replays when the API cursor advances
+    Given the first poll emitted review node "PRR_kwPending" without acknowledgement
+    And the next poll returns no comments newer than its cursor
+    When the watch is restarted for PR "122"
+    Then review node "PRR_kwPending" is emitted again
+
+  Scenario: A successful poll cursor starts at the poll boundary
+    Given a comment arrives while one poll is reading its endpoints
+    When that poll succeeds
+    Then its persisted cursor is no later than the poll start boundary
+
   Scenario: Exclusions also arrive through the EXCLUDE environment variable
     Given the EXCLUDE environment variable lists node "IC_kwHandled"
     When one poll returns that node together with a new review
     Then the excluded node is not emitted
     And the new review is emitted
+
+  Scenario: Preserve tab characters across replay
+    Given an unacknowledged comment contains a tab in its body
+    When the watch persists and later replays it
+    Then all comment context is retained
+
+  Scenario: Continuous watch reacquires its lock per poll
+    Given the watch runs continuously and the PR merges between two polls
+    When the next poll starts
+    Then the previous poll's lock has been released
+    And the watch exits successfully with the merged status
 
   Scenario: An unfiltered watch still surfaces every new event
     Given no exclusions are configured

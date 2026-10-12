@@ -3,25 +3,20 @@ name: commit
 description: Creates clean, conventional git commits using standard git. Use when the user asks to "commit", "git commit", "create commit", or wants to commit staged or unstaged changes.
 ---
 
-# Commit Skill (Standard Git)
+# Commit
 
-Create clean, atomic Conventional Commits using standard `git` commands.
+Create one atomic Conventional Commit from the changes the user placed in scope.
 
-## Workflow
+Inspect `git status --short`, staged diff, and unstaged diff first. Preserve unrelated
+work; stage paths explicitly and include untracked files only when they belong to the
+requested change. If there is nothing to commit, report that and stop. If HEAD is
+detached, report the commit hash and ask for a branch decision before committing.
 
-1. **Inspect status and diff**:
-   ```bash
-   git status --porcelain
-   git diff --staged
-   git diff
-   ```
-2. **Stage files**: Stage relevant modified or untracked files explicitly:
-   ```bash
-   git add <file1> <file2> ...
-   ```
-3. **Formulate Conventional Commit Message**: Follow the specification: `<type>(<optional scope>): <short description>` Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`.
-4. **Commit**: Execute standard `git commit`:
-   ```bash
-   git commit -m "<type>(<scope>): <summary>"
-   ```
-If a co-author trailer is required or requested, follow `references/coauthor-attribution.md`.
+Use `<type>(<optional-scope>): <imperative summary>` with a type such as `feat`, `fix`,
+`docs`, `refactor`, `test`, `build`, `ci`, or `chore`. Keep the message factual and
+short; include a body only when it explains why. Run the narrow relevant checks before
+committing when the repository documents them, then report the new commit hash and
+files included. A commit is a local mutation authorized by the user's commit request;
+do not push, amend, reset, or change unrelated files.
+
+For a requested co-author trailer, read [coauthor-attribution.md](references/coauthor-attribution.md).

@@ -30,10 +30,13 @@
 
 set -u
 
-PROJECT_LOCAL="${OFFICE_PROJECT_LOCAL:-./.agents/office.local.json}"
-PROJECT_SHARED="${OFFICE_PROJECT_SHARED:-./.agents/office.json}"
-GLOBAL_LOCAL="${OFFICE_GLOBAL_LOCAL:-$HOME/.agents/office.local.json}"
-GLOBAL_SHARED="${OFFICE_GLOBAL_SHARED:-$HOME/.agents/office.json}"
+# An explicitly empty override disables that layer. Use `-`, rather than `:-`,
+# so tests and callers can select a deterministic subset without consulting
+# the real project or home directory.
+PROJECT_LOCAL="${OFFICE_PROJECT_LOCAL-./.agents/office.local.json}"
+PROJECT_SHARED="${OFFICE_PROJECT_SHARED-./.agents/office.json}"
+GLOBAL_LOCAL="${OFFICE_GLOBAL_LOCAL-$HOME/.agents/office.local.json}"
+GLOBAL_SHARED="${OFFICE_GLOBAL_SHARED-$HOME/.agents/office.json}"
 
 # Fail open if jq is unavailable — tropes falls back to default rules.
 if ! command -v jq >/dev/null 2>&1; then
@@ -60,12 +63,14 @@ warn_legacy_md "./.agents/office.md"           "$PROJECT_SHARED" "project shared
 # Read a file as JSON, or emit '{}' if missing/invalid (warn on invalid).
 read_json() {
   local file="$1"
+  [ -n "$file" ] || return 0
   if [ ! -f "$file" ]; then
     return 0  # missing file = empty input, not an error
   fi
-  if ! jq -e . "$file" >/dev/null 2>&1; then
-    echo "office.*.json: invalid JSON in $file, ignoring" >&2
-    printf '{}'
+  # A layer must be a JSON object. Accepting arrays/scalars makes the later
+  # object merge fail and used to turn the final output into an empty string.
+  if ! jq -e 'type == "object"' "$file" >/dev/null 2>&1; then
+    echo "office.*.json: expected a JSON object in $file, ignoring" >&2
     return 0
   fi
   jq -c . "$file"
@@ -109,7 +114,11 @@ acc='{}'
 for f in "$GLOBAL_SHARED" "$GLOBAL_LOCAL" "$PROJECT_SHARED" "$PROJECT_LOCAL"; do
   layer="$(read_json "$f")"
   [ -z "$layer" ] && layer='{}'
-  acc="$(jq -n --argjson a "$acc" --argjson b "$layer" "$MERGE_PROG")"
+  if ! merged="$(jq -n --argjson a "$acc" --argjson b "$layer" "$MERGE_PROG")"; then
+    echo "office.*.json: could not merge preference layer $f" >&2
+    exit 1
+  fi
+  acc="$merged"
 done
 
 printf '%s\n' "$acc"

@@ -1,6 +1,6 @@
 # Co-Author Attribution & Standard Commit Reference
 
-Standard Git commit and co-author rules for GitFlow operations in the `git` package.
+Standard Git commit and co-author rules for the commit skills.
 
 ## 1. Conventional Commit Format
 

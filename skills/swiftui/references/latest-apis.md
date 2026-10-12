@@ -1,8 +1,16 @@
-# Latest SwiftUI APIs Reference
+# SwiftUI API and availability reference
 
-> Based on a comparison of Apple's documentation using the Sosumi MCP, we found the latest recommended APIs to use.
+> This is a vendored, versioned snapshot rather than a live API registry. The
+> installed SDK and Apple's current documentation are authoritative. Verify
+> signatures, availability, and deprecation annotations against the project's
+> toolchain before applying any recommendation, especially the iOS/macOS 26
+> section.
 
-> This file lists *what* the modern replacements are. For *how to behave* when you find a soft-deprecated API — when to migrate, when to leave it alone, and the scoping rule for unrelated edits — see `references/soft-deprecation.md`. Vendored from [AvdLee/SwiftUI-Agent-Skill](https://github.com/AvdLee/SwiftUI-Agent-Skill); refresh it from the upstream repository after a new SDK release.
+This file lists *what* the modern replacements are. For *how to behave* when
+you find a soft-deprecated API — when to migrate, when to leave it alone, and
+the scoping rule for unrelated edits — see `references/soft-deprecation.md`.
+Refresh this snapshot after an SDK release only after checking the upstream
+source and Apple's documentation.
 
 ## Table of Contents
 - [Always Use (iOS 15+)](#always-use-ios-15)

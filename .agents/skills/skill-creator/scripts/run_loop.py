@@ -17,25 +17,28 @@ from pathlib import Path
 
 from scripts.generate_report import generate_html
 from scripts.improve_description import improve_description
-from scripts.run_eval import find_project_root, run_eval
+from scripts.run_eval import find_project_root, run_eval, validate_eval_set, validate_execution_settings
 from scripts.utils import parse_skill_md
 
 
 def split_eval_set(eval_set: list[dict], holdout: float, seed: int = 42) -> tuple[list[dict], list[dict]]:
     """Split eval set into train and test sets, stratified by should_trigger."""
-    random.seed(seed)
+    validate_eval_set(eval_set)
+    if not 0 <= holdout < 1:
+        raise ValueError("holdout must be at least 0 and less than 1")
+    generator = random.Random(seed)
 
     # Separate by should_trigger
     trigger = [e for e in eval_set if e["should_trigger"]]
     no_trigger = [e for e in eval_set if not e["should_trigger"]]
 
     # Shuffle each group
-    random.shuffle(trigger)
-    random.shuffle(no_trigger)
+    generator.shuffle(trigger)
+    generator.shuffle(no_trigger)
 
     # Calculate split points
-    n_trigger_test = max(1, int(len(trigger) * holdout))
-    n_no_trigger_test = max(1, int(len(no_trigger) * holdout))
+    n_trigger_test = min(len(trigger) - 1, max(1, int(len(trigger) * holdout))) if len(trigger) > 1 and holdout else 0
+    n_no_trigger_test = min(len(no_trigger) - 1, max(1, int(len(no_trigger) * holdout))) if len(no_trigger) > 1 and holdout else 0
 
     # Split
     test_set = trigger[:n_trigger_test] + no_trigger[:n_no_trigger_test]
@@ -60,6 +63,12 @@ def run_loop(
     log_dir: Path | None = None,
 ) -> dict:
     """Run the eval + improvement loop."""
+    validate_eval_set(eval_set)
+    validate_execution_settings(num_workers, timeout, runs_per_query, trigger_threshold)
+    if type(max_iterations) is not int or max_iterations < 1:
+        raise ValueError("max_iterations must be a positive integer")
+    if not 0 <= holdout < 1:
+        raise ValueError("holdout must be at least 0 and less than 1")
     project_root = find_project_root()
     name, original_description, content = parse_skill_md(skill_path)
     current_description = description_override or original_description

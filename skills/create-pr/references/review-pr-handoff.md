@@ -1,11 +1,17 @@
 # Review-pr Handoff
 
-`create-pr` creates the pull request. `review-pr` owns everything after
-creation. This reference defines only the boundary between those workflows.
+`create-pr` creates the pull request. `review-pr` owns the requested review work
+after creation. This reference defines the boundary between those workflows.
+
+The user's explicit scope controls the handoff. A creation-only request ends with
+the verified URL and validation results. For a single snapshot, inspect CI and
+review metadata once and do not start monitoring. Neither bounded request
+authorizes comments, merging, or cleanup. Continue with the full workflow below
+only when it is within the requested scope.
 
 ## Required handoff
 
-After `gh pr create` succeeds:
+After `gh pr create` succeeds in the full workflow:
 
 1. Capture its returned URL in `PR_URL`.
 2. Resolve the canonical PR number from GitHub:

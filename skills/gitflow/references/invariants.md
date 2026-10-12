@@ -1,62 +1,37 @@
-# GitFlow Plugin Invariants
+# Git-flow invariants
 
-Core rules enforced by this skill suite.
+## Before mutation
 
-## Pre-operation Checks
+- Require a Git repository with a clean working tree and existing Git-flow configuration.
+- Read configured branch names and type prefixes instead of assuming main/develop.
+- Validate inputs and CLI capabilities before changing branches or files.
+- Starting may create a branch from its configured base regardless of the current branch.
+- Finishing requires the exact current branch to match the resolved type and name.
+- Validate all version manifests before branch creation; never change dependency versions.
 
-Before any start or finish operation:
-- Working tree must be clean (`git status --porcelain` is empty)
+## Before finishing
 
-Finish operations additionally require:
-- Current branch must match the operation type (`feature/*`, `hotfix/*`, `release/*`)
+Run applicable project tests and release checks. Repair change-caused failures and
+report unrelated failures; do not claim validation that did not run. Read changelog
+references only when the project/request needs a changelog. Preserve user-curated entries.
 
-Start operations create the branch from its base (`develop` for feature and release, `main` for hotfix), so the current branch is NOT required to match the operation type — only the clean-tree check applies.
+## Scope and authorization
 
-## Testing Requirements
+Use `--no-push` when only local operations are authorized. It disables remote operations
+but still performs real local changes. A requested finish includes local merges, tags
+when applicable, and the target branch lifecycle; clarify any unresolved destructive scope.
+Publication, GitHub release creation, remote deletion, and unrelated cleanup each need
+authorization covering their exact target. Reuse authorization already given.
 
-Before finishing any branch:
-- Run available test commands (`npm test`, `pytest`, `cargo test`, etc.)
-- Exit if tests fail; user must fix issues first
+The wrappers disable Git-flow's automatic remote operations before performing any
+explicit publication. Verify all command results. A failed push is partial completion,
+not a successful finish. Never silently force-push, force-delete, or publish all tags.
 
-## Changelog Generation
+## Commits and cleanup
 
-When updating CHANGELOG.md during finish operations:
+Stage only intended files. Use conventional commit messages and configured attribution
+only when applicable. Verify this operation's branch/tag and preserve unrelated work.
+Read [cleanup.md](cleanup.md) for conditional removal and managed-worktree handling.
 
-**Core principle:** Include commits representing **user-facing changes** since the previous version tag.
-
-**Include types:**
-- feat, fix, refactor, docs, perf
-- Security-related changes
-- Deprecation and removal notices
-
-**Exclude types:**
-- chore, build, ci, test
-- Merge commits and release commits
-
-See `changelog-generation.md` for complete mapping rules.
-
-## Committing
-
-When specific files must be staged (CHANGELOG.md, version files), stage and commit in ONE command:
-
-```bash
-git add <files> && git commit -m "<type>: <intent>"
-```
-
-Use standard Conventional Commits format (`feat`, `fix`, `chore`, `docs`, etc.).
-
-## Cleanup
-
-After every `finish` operation, run the cleanup procedure in `cleanup.md`:
-
-- Prune stale remote-tracking branches (`git fetch --prune`)
-- Prune stale worktrees (`git worktree prune`)
-- Confirm the just-finished branch is gone locally and on origin
-- Sweep other already-merged `feature/*`, `hotfix/*`, `release/*` branches
-
-Never delete `main`, `develop`, `master`, `production`, or the current branch. Prefer `git branch -d` over `-D` for the merged-branch sweep.
-
-## External References
-
-- [git-flow-next Documentation](https://git-flow.sh/docs/)
-- [git-flow-next Commands](https://git-flow.sh/docs/commands/)
+For current CLI semantics, inspect local `git flow <type> <operation> --help` first.
+If it lacks the required flags, stop before mutation and report the unsupported CLI.

@@ -6,12 +6,14 @@
 
 A collection of agent skills: specialized workflows and domain knowledge that can be used across agent runtimes.
 
+The distributable catalog below contains 16 skills. The repository's internal
+[skill-creator](.agents/skills/skill-creator/SKILL.md) supports authoring and validation.
+
 ## Invocation in Codex
 
-Workflow skills require an explicit skill mention, such as `$commit` or
-`$create-pr`. Select a skill with `$` or `/skills` in Codex CLI and the IDE,
-or with `@` in the desktop app. `commit`, `lark`, and `swiftui` allow automatic
-matching to a task.
+`commit`, `lark`, and `swiftui` allow automatic matching to a task. The other
+skills require an explicit mention, such as `$create-pr`. Select a skill with
+`$` or `/skills` in Codex CLI and the IDE, or with `@` in the desktop app.
 
 Each skill declares this policy in `agents/openai.yaml`; keep that directory
 when installing or symlinking a skill. The existing `disable-model-invocation`
@@ -40,7 +42,7 @@ npx skills add https://github.com/FradSer/skills --skill commit-and-push
 
 ### [create-issues](skills/create-issues/)
 
-Creates GitHub issues following test-driven development principles and labeling conventions. Use when the user asks to "create an issue", "file a bug", or document new requirements, epics, or PR-scoped tasks.
+Drafts or creates GitHub issues with reproduction steps or acceptance criteria, following repository templates and existing labels.
 
 **Installation:**
 ```bash
@@ -49,7 +51,7 @@ npx skills add https://github.com/FradSer/skills --skill create-issues
 
 ### [create-pr](skills/create-pr/)
 
-Creates GitHub pull requests with automated quality validation and security scanning, then hands off to `review-pr` for CI monitoring and comment triage. Use when the user asks to "create a PR" or "submit a pull request".
+Creates GitHub pull requests after relevant repository checks, then hands off once to `review-pr` for CI and feedback within the authorized scope.
 
 **Installation:**
 ```bash
@@ -58,7 +60,7 @@ npx skills add https://github.com/FradSer/skills --skill create-pr
 
 ### [create-prd](skills/create-prd/)
 
-Turns product ideas into Chinese PRD documents, with local Markdown output or Feishu/Lark document creation through `lark-cli`.
+Creates or revises PRDs while preserving supplied requirements and formats. Supports local Markdown and authorized Feishu/Lark document operations through `lark-cli`.
 
 **Installation:**
 ```bash
@@ -67,7 +69,7 @@ npx skills add https://github.com/FradSer/skills --skill create-prd
 
 ### [gitflow](skills/gitflow/)
 
-Manages Git-flow branch lifecycles: start or finish feature, hotfix, and release branches with automated changelog generation, version bumping, and cleanup. Use when the user asks to start/finish a feature, hotfix, or release branch, or mentions git-flow operations.
+Starts or finishes feature, hotfix, and release branches in repositories configured for Git-flow. Includes changelog and version handling, with local-only execution available.
 
 **Installation:**
 ```bash
@@ -76,7 +78,7 @@ npx skills add https://github.com/FradSer/skills --skill gitflow
 
 ### [lark](skills/lark/)
 
-Unified router for Lark/Feishu CLI operations via `lark-cli`. Routes intents to domain skills (docs, sheets, base, calendar, IM, mail, tasks, okr, drive, wiki, slides, whiteboard, apps/Miaoda, approval, attendance, contact, vc, minutes, note, events) via `lark-cli skills read <sub-skill>`.
+Routes Lark/Feishu requests through `lark-cli` and loads the relevant embedded domain guidance using `lark-cli skills read <sub-skill>`.
 
 **Installation:**
 ```bash
@@ -85,7 +87,7 @@ npx skills add https://github.com/FradSer/skills --skill lark
 
 ### [loop](skills/loop/)
 
-Runs a prompt or skill again on a fixed or self-paced interval, using the current host's durable timer, subscription, or monitored background-process facility.
+Repeats a prompt or skill on a fixed or variable interval using the host's supported scheduler, with a stopping condition and cancellation instructions.
 
 **Installation:**
 ```bash
@@ -94,7 +96,7 @@ npx skills add https://github.com/FradSer/skills --skill loop
 
 ### [missav](skills/missav/)
 
-Browse missav.ws AV listings with agent-browser, extract title/duration/url from listing cards, enrich detail-page plot descriptions for genre analysis, and rank recommendations against user preferences stored in ~/.missav/.
+Browses missav.ws listings with agent-browser, extracts listing and detail data, and ranks recommendations against user preferences. Preference persistence follows the user's request.
 
 **Installation:**
 ```bash
@@ -103,7 +105,7 @@ npx skills add https://github.com/FradSer/skills --skill missav
 
 ### [patent-architect](skills/patent-architect/)
 
-Searches prior art via SerpAPI and generates Chinese patent application forms. Use when the user wants to protect technical innovations or mentions "patents" or "inventions".
+Researches prior art and drafts Chinese technical patent materials with traceable sources and explicit evidence limits.
 
 **Installation:**
 ```bash
@@ -112,7 +114,7 @@ npx skills add https://github.com/FradSer/skills --skill patent-architect
 
 ### [resolve-issues](skills/resolve-issues/)
 
-Resolves GitHub issues using isolated worktrees and test-driven development, then hands PR creation to `create-pr` so the quality gate and review loop always run. Use when the user asks to "resolve an issue" or "fix issue #123".
+Implements tracked GitHub issues with acceptance scenarios, regression checks, and worktree isolation when needed. Hands off to `create-pr` when publication is requested.
 
 **Installation:**
 ```bash
@@ -121,7 +123,7 @@ npx skills add https://github.com/FradSer/skills --skill resolve-issues
 
 ### [review-pr](skills/review-pr/)
 
-Reviews a pull request: runs a baseline review of the diff, monitors CI and incoming reviewer comments, triages each comment through a skeptical agent, applies only verified fixes, and commits until CI passes. Use when the user asks to "review a PR" or "watch CI on a pull request".
+Reviews PR changes, monitors CI and feedback, and applies verified fixes within the requested scope. Merge and cleanup require explicit authorization.
 
 **Installation:**
 ```bash
@@ -130,7 +132,7 @@ npx skills add https://github.com/FradSer/skills --skill review-pr
 
 ### [storm](skills/storm/)
 
-Generates Wikipedia-style long-form articles grounded in multi-perspective research and retrieval, porting Stanford STORM's four-phase pipeline (research, outline, write, polish).
+Researches and writes source-grounded long articles through resumable research, outline, write, and polish phases. Supports available retrieval tools or supplied sources.
 
 **Installation:**
 ```bash
@@ -139,7 +141,7 @@ npx skills add https://github.com/FradSer/skills --skill storm
 
 ### [swiftui](skills/swiftui/)
 
-Builds, refactors, and reviews modern SwiftUI. Prioritizes macOS 26 and iOS 26 Liquid Glass while covering view architecture, state, concurrency, navigation, accessibility, performance, and testing.
+Builds, refactors, and reviews SwiftUI for the project's deployment target. Covers state, concurrency, navigation, accessibility, performance, and Liquid Glass where available.
 
 **Installation:**
 ```bash
@@ -148,7 +150,7 @@ npx skills add https://github.com/FradSer/skills --skill swiftui
 
 ### [tropes](skills/tropes/)
 
-Detects and eliminates AI writing tropes that make text sound artificial or formulaic. Use when generating text content, writing documentation, creating code comments, or reviewing writing style.
+Reviews writing for formulaic phrasing while preserving the author's facts, voice, and format. Reads optional layered writing preferences without changing them.
 
 **Installation:**
 ```bash
@@ -157,7 +159,7 @@ npx skills add https://github.com/FradSer/skills --skill tropes
 
 ### [update-readme](skills/update-readme/)
 
-Updates README.md and README.zh-CN.md to reflect the project's current state. Scans all skills, checks for stale entries, and writes both files with the correct header format and consistent bilingual content.
+Updates the requested README files from repository evidence while preserving existing structure and supplied formatting. Keeps existing translations consistent when relevant.
 
 **Installation:**
 ```bash
@@ -170,6 +172,23 @@ npx skills add https://github.com/FradSer/skills --skill update-readme
 2. Add `SKILL.md` with YAML frontmatter (`name`, `description`) and the skill body.
 3. Optionally add `evals/evals.json` for evaluation cases.
 4. Run the `update-readme` skill to sync both README files.
+
+## Validation
+
+Run the repository suite with `uv run --with pyyaml python -m unittest discover -s tests -v`.
+The default suite uses temporary repositories and mocked services; it does not publish
+issues or PRs, push to hosted remotes, or validate live accounts and devices. Installation
+checks require an explicit opt-in documented in the corresponding test.
+
+For authorized independent model testing, use the [Codex task runner](tools/skill_eval/README.md).
+It invokes all 17 source skills in fresh CLI sessions across 22 local cases,
+retains raw invocation and output evidence, and keeps external services in fixtures.
+These cases check explicit task behavior; they do not establish implicit trigger
+accuracy or live account integration.
+
+Use concise descriptions and load supporting references only when relevant to the task.
+Keep existing invocation policies when revising skills. See the
+[official skill guide](https://learn.chatgpt.com/docs/build-skills) for authoring guidance.
 
 ## License
 

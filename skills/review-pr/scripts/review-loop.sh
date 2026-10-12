@@ -38,6 +38,14 @@ if [ -z "$PR" ] || [ -z "$REPO" ]; then
   echo "review-loop.sh: --pr and --repo (or PR/REPO env) are required" >&2
   exit 2
 fi
+if ! [[ "$PR" =~ ^[0-9]+$ ]]; then
+  echo "review-loop.sh: PR must be a bare numeric pull request number" >&2
+  exit 2
+fi
+if ! [[ "$REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+  echo "review-loop.sh: REPO must be in owner/name form" >&2
+  exit 2
+fi
 
 WATCH_MAX_SECONDS="${WATCH_MAX_SECONDS:-7200}"
 if ! [[ "$WATCH_MAX_SECONDS" =~ ^[0-9]+$ ]]; then
@@ -48,13 +56,20 @@ if [ -z "${STATE_FILE:-}" ]; then
   STATE_FILE=$(git rev-parse --git-path "review-pr-watch-${PR}.json" 2>/dev/null \
     || printf '%s/review-pr-watch-%s-%s.json' "${TMPDIR:-/tmp}" "${REPO//\//-}" "$PR")
 fi
+STATE_DIR=$(dirname "$STATE_FILE")
+mkdir -p "$STATE_DIR" || {
+  echo "review-loop.sh: cannot create state directory $STATE_DIR" >&2
+  exit 1
+}
 LOCK_DIR="${LOCK_DIR:-${STATE_FILE}.lock}"
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   echo "review-loop.sh: another watch already owns $LOCK_DIR" >&2
   exit 75
 fi
 cleanup_lock() { rmdir "$LOCK_DIR" 2>/dev/null || true; }
-trap cleanup_lock EXIT INT TERM
+trap cleanup_lock EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # A state file is only accepted for this exact PR and repository. Invalid or
 # mismatched state is ignored rather than allowing one PR to affect another.
@@ -62,6 +77,16 @@ state_matches=0
 if [ -f "$STATE_FILE" ] && jq -e --arg pr "$PR" --arg repo "$REPO" \
     '.pr == $pr and .repo == $repo' "$STATE_FILE" >/dev/null 2>&1; then
   state_matches=1
+fi
+
+# A persisted deadline is authoritative. Check it before metadata so an expired
+# watch can terminate cleanly during a GitHub outage without making any API call.
+if [ "$state_matches" = 1 ]; then
+  saved_deadline=$(jq -r '.deadline_epoch // empty' "$STATE_FILE" 2>/dev/null || true)
+  if [[ "$saved_deadline" =~ ^[0-9]+$ ]] && [ "$(date +%s)" -ge "$saved_deadline" ]; then
+    echo "[watch] deadline reached for PR #$PR"
+    exit 0
+  fi
 fi
 
 metadata=$(gh pr view "$PR" --repo "$REPO" --json createdAt,headRefOid,state,mergedAt 2>/dev/null) || {
@@ -78,7 +103,8 @@ fi
 
 since=$(jq -r '.since // empty' "$STATE_FILE" 2>/dev/null || true)
 [ "$state_matches" = 1 ] && [ -n "$since" ] || since="$created_at"
-deadline_epoch=$(jq -r '.deadline_epoch // empty' "$STATE_FILE" 2>/dev/null || true)
+deadline_epoch=""
+[ "$state_matches" = 1 ] && deadline_epoch=$(jq -r '.deadline_epoch // empty' "$STATE_FILE" 2>/dev/null || true)
 if ! [[ "$deadline_epoch" =~ ^[0-9]+$ ]]; then
   deadline_epoch=$(($(date +%s) + WATCH_MAX_SECONDS))
 fi
@@ -88,11 +114,17 @@ fi
 # crash, so delivery is never treated as acknowledgement.
 emitted_comments=" "
 acknowledged_comments=" "
+pending_comments=""
 if [ "$state_matches" = 1 ]; then
   saved_emitted=$(jq -r '.emitted_comments[]? // .seen_comments[]? // empty' "$STATE_FILE" 2>/dev/null || true)
   saved_ack=$(jq -r '.acknowledged_comments[]? // empty' "$STATE_FILE" 2>/dev/null || true)
   while IFS= read -r node; do [ -n "$node" ] && emitted_comments="$emitted_comments$node "; done <<<"$saved_emitted"
   while IFS= read -r node; do [ -n "$node" ] && acknowledged_comments="$acknowledged_comments$node "; done <<<"$saved_ack"
+  saved_pending=$(jq -r '.pending_comments[]? | "\(.id)\t\(.line)"' "$STATE_FILE" 2>/dev/null || true)
+  while IFS=$'\t' read -r node line; do
+    [ -n "$node" ] || continue
+    case "$acknowledged_comments" in *" $node "*) ;; *) pending_comments+="$node"$'\t'"$line"$'\n';; esac
+  done <<<"$saved_pending"
 fi
 
 # Explicit ACK/EXCLUDE values represent triage performed by the caller. They
@@ -123,19 +155,20 @@ set_ci_bucket() {
 }
 
 persist_state() {
-  local state_dir tmp seen_json ack_json ci_json
+  local state_dir tmp seen_json ack_json ci_json pending_json
   state_dir=$(dirname "$STATE_FILE")
   mkdir -p "$state_dir" || { echo "review-loop.sh: cannot create state directory $state_dir" >&2; return 1; }
   seen_json=$(printf '%s' "$emitted_comments" | jq -Rsc 'split(" ") | map(select(length > 0))') || return 1
   ack_json=$(printf '%s' "$acknowledged_comments" | jq -Rsc 'split(" ") | map(select(length > 0))') || return 1
   ci_json=$(printf '%s' "$last_ci" | jq -Rsc 'split("\n") | map(select(length > 0))') || return 1
+  pending_json=$(printf '%s' "$pending_comments" | jq -Rsc 'split("\n") | map(select(length > 0) | split("\t") | {id:.[0],line:(.[1:] | join("\t"))})') || return 1
   tmp=$(mktemp "${STATE_FILE}.tmp.XXXXXX") || { echo "review-loop.sh: cannot create temporary state file" >&2; return 1; }
   if ! jq -n \
     --arg pr "$PR" --arg repo "$REPO" --arg head_sha "$head_sha" \
     --arg since "$since" --argjson deadline_epoch "$deadline_epoch" \
     --argjson emitted_comments "$seen_json" --argjson acknowledged_comments "$ack_json" \
-    --argjson last_ci "$ci_json" \
-    '{version:2,pr:$pr,repo:$repo,head_sha:$head_sha,since:$since,deadline_epoch:$deadline_epoch,emitted_comments:$emitted_comments,acknowledged_comments:$acknowledged_comments,last_ci:$last_ci}' \
+    --argjson last_ci "$ci_json" --argjson pending_comments "$pending_json" \
+    '{version:2,pr:$pr,repo:$repo,head_sha:$head_sha,since:$since,deadline_epoch:$deadline_epoch,emitted_comments:$emitted_comments,acknowledged_comments:$acknowledged_comments,pending_comments:$pending_comments,last_ci:$last_ci}' \
     > "$tmp"; then
     rm -f "$tmp"
     return 1
@@ -156,6 +189,7 @@ if [ "$(date +%s)" -ge "$deadline_epoch" ]; then
 fi
 
 poll_seen=" "
+poll_started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 emit_comment() {
   local id="$1" line="$2"
   [ -n "$id" ] || return
@@ -164,7 +198,15 @@ emit_comment() {
   echo "$line"
   poll_seen="$poll_seen$id "
   case "$emitted_comments" in *" $id "*) ;; *) emitted_comments="$emitted_comments$id ";; esac
+  case "$pending_comments" in *"$id"$'\t'""*) ;; *) pending_comments+="$id"$'\t'"$line"$'\n';; esac
 }
+
+# Replay delivered-but-unacknowledged events before querying the API. This keeps
+# replay independent of the server's inclusive `since` implementation.
+while IFS=$'\t' read -r id line; do
+  [ -n "$id" ] || continue
+  emit_comment "$id" "$line"
+done <<<"$pending_comments"
 
 api_ok=true
 checks=$(gh pr checks "$PR" --repo "$REPO" --json name,bucket 2>/dev/null) || {
@@ -201,11 +243,17 @@ review_summaries=$(gh api --paginate "repos/$REPO/pulls/$PR/reviews" \
 }
 while IFS=$'\t' read -r id line; do emit_comment "$id" "$line"; done <<<"${review_summaries:-}"
 
-[ "$api_ok" = true ] && since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+if [ "$api_ok" = true ]; then
+  since="$poll_started"
+fi
 persist_state || exit 1
 
 if [ "$ONCE" = 1 ]; then
   exit 0
 fi
 sleep "$INTERVAL"
+# exec does not invoke EXIT traps. Release this poll's lock before replacing
+# the process, otherwise the next poll refuses its own inherited lock.
+cleanup_lock
+trap - EXIT
 exec "$0" --pr "$PR" --repo "$REPO" --interval "$INTERVAL" --ack "$ACK" --exclude "$EXCLUDE"

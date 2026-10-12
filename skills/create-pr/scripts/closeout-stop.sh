@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
 # Stop-hook adapter — enforce the review-pr closeout on hosts with compatible stop hooks.
-# The default enforcement is in-prompt (see SKILL.md Runtime notes): never end the
-# turn while the closeout state is armed. On hosts that provide a compatible stop
+# The default enforcement is in-prompt (see SKILL.md): prepare and present the
+# closeout before yielding for confirmation. On hosts with a compatible stop
 # hook, wire this script into that hook so the rule is enforced mechanically; on
 # hosts without hooks, apply the same rule in the prompt. The script fails open
 # everywhere else.
@@ -12,7 +12,7 @@
 # by a hallucinated or premature stop. The skill arms a state file
 # (.git/review-pr-closeout.json) the moment Phase 4's stop conditions hold and
 # clears it once the user declines, the merge aborts, or the confirmed merge and all
-# required cleanup complete. While the file exists, this adapter blocks one turn-end per
+# required cleanup complete. Until confirmation is presented, this adapter reminds once per
 # user turn with a message naming the PR
 # and the pending step — the closeout cannot silently vanish, and it does not loop:
 # after the single block the turn ends.
@@ -69,7 +69,11 @@ STATE="$GITDIR/review-pr-closeout.json"
 PR=$(jq -r '.pr // empty' "$STATE")
 [[ "$PR" =~ ^[0-9]+$ ]] || exit 0
 
-SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# A presented approval question must yield so the human can respond. Persisting
+# the decision does not authorize a merge or warrant another stop reminder.
+[ "$(jq -r '.awaiting_confirmation // false' "$STATE")" != true ] || exit 0
+
+SKILL_DIR="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 CLEAR_SCRIPT="$SKILL_DIR/scripts/clear-closeout.sh"
 
 msg="review-pr closeout for PR #${PR} is pending: post the summary comment and rewrite the title/body if they are not complete, then present the closeout result and request explicit user confirmation before running gh pr merge --merge. Do not merge without that confirmation. First verify the pending closeout is real: the state file is stale (a false alarm) if the closeout was already resolved — the user declined and state was cleared, or the PR already merged. Judge simple checks directly (e.g. gh pr view --json state,mergedAt, the <!-- review-pr:summary --> marker lookup); for complex or ambiguous situations spawn an independent subagent with clean context to verify. If the state is stale, the user declined, or the merge failed and the PR is left open for manual handling, run bash ${CLEAR_SCRIPT} ${PR} to release the closeout."

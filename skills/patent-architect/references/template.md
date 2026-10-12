@@ -1,6 +1,6 @@
 # Patent Application Form Template
 
-Use this exact structure for the output.
+Use this as the default Chinese working-draft structure. Preserve a user-supplied jurisdictional or organizational format when one is specified; do not present this template as an official filing form.
 
 ```markdown
 # 背景技术
@@ -9,8 +9,8 @@ Use this exact structure for the output.
 
 # 检索分析
 
-检索过程及结论
-撰写提案前必须经过充分检索，充分检索有利于发明人自己理解发明创造的创意创新点
+检索状态：[已执行检索 / 未执行检索的披露草案]
+如执行检索，记录数据库、日期、范围、查询式、来源链接及局限；如无法检索，明确标记“未完成检索的披露草案”，保留待核实项，不填写虚构的检索结果或新颖性结论。
 
 1. 检索关键词：[技术领域 + 技术效果 + 技术特征]
 2. 检索式：[查询语句]

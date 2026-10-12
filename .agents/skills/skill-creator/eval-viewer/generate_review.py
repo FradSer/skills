@@ -18,10 +18,7 @@ import json
 import mimetypes
 import os
 import re
-import signal
-import subprocess
 import sys
-import time
 import webbrowser
 from functools import partial
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -61,16 +58,16 @@ def find_runs(workspace: Path) -> list[dict]:
     """Recursively find directories that contain an outputs/ subdirectory."""
     runs: list[dict] = []
     _find_runs_recursive(workspace, workspace, runs)
-    runs.sort(key=lambda r: (r.get("eval_id", float("inf")), r["id"]))
+    runs.sort(key=lambda r: (r["eval_id"] is None, r["eval_id"] if r["eval_id"] is not None else 0, r["id"]))
     return runs
 
 
 def _find_runs_recursive(root: Path, current: Path, runs: list[dict]) -> None:
-    if not current.is_dir():
+    if current.is_symlink() or not current.is_dir():
         return
 
     outputs_dir = current / "outputs"
-    if outputs_dir.is_dir():
+    if not outputs_dir.is_symlink() and outputs_dir.is_dir():
         run = build_run(root, current)
         if run:
             runs.append(run)
@@ -78,7 +75,7 @@ def _find_runs_recursive(root: Path, current: Path, runs: list[dict]) -> None:
 
     skip = {"node_modules", ".git", "__pycache__", "skill", "inputs"}
     for child in sorted(current.iterdir()):
-        if child.is_dir() and child.name not in skip:
+        if not child.is_symlink() and child.is_dir() and child.name not in skip:
             _find_runs_recursive(root, child, runs)
 
 
@@ -87,13 +84,25 @@ def build_run(root: Path, run_dir: Path) -> dict | None:
     prompt = ""
     eval_id = None
 
+    # The metadata belongs to eval-N above configuration/run directories. Never
+    # read ancestors beyond the selected workspace or follow resource symlinks.
+    metadata_dirs = [run_dir]
+    for parent in run_dir.parents:
+        if not parent.is_relative_to(root):
+            break
+        metadata_dirs.append(parent)
+        if parent == root:
+            break
+
     # Try eval_metadata.json
-    for candidate in [run_dir / "eval_metadata.json", run_dir.parent / "eval_metadata.json"]:
-        if candidate.exists():
+    for candidate in [directory / "eval_metadata.json" for directory in metadata_dirs]:
+        if not candidate.is_symlink() and candidate.is_file():
             try:
                 metadata = json.loads(candidate.read_text())
-                prompt = metadata.get("prompt", "")
-                eval_id = metadata.get("eval_id")
+                if isinstance(metadata, dict):
+                    prompt = metadata.get("prompt", "")
+                    identifier = metadata.get("eval_id")
+                    eval_id = identifier if type(identifier) is int else None
             except (json.JSONDecodeError, OSError):
                 pass
             if prompt:
@@ -102,7 +111,7 @@ def build_run(root: Path, run_dir: Path) -> dict | None:
     # Fall back to transcript.md
     if not prompt:
         for candidate in [run_dir / "transcript.md", run_dir / "outputs" / "transcript.md"]:
-            if candidate.exists():
+            if not candidate.is_symlink() and candidate.is_file() and not candidate.parent.is_symlink():
                 try:
                     text = candidate.read_text()
                     match = re.search(r"## Eval Prompt\n\n([\s\S]*?)(?=\n##|$)", text)
@@ -121,15 +130,15 @@ def build_run(root: Path, run_dir: Path) -> dict | None:
     # Collect output files
     outputs_dir = run_dir / "outputs"
     output_files: list[dict] = []
-    if outputs_dir.is_dir():
+    if not outputs_dir.is_symlink() and outputs_dir.is_dir():
         for f in sorted(outputs_dir.iterdir()):
-            if f.is_file() and f.name not in METADATA_FILES:
+            if not f.is_symlink() and f.is_file() and f.name not in METADATA_FILES:
                 output_files.append(embed_file(f))
 
     # Load grading if present
     grading = None
     for candidate in [run_dir / "grading.json", run_dir.parent / "grading.json"]:
-        if candidate.exists():
+        if not candidate.is_symlink() and candidate.is_file() and candidate.parent.is_relative_to(root):
             try:
                 grading = json.loads(candidate.read_text())
             except (json.JSONDecodeError, OSError):
@@ -276,7 +285,8 @@ def generate_html(
     if benchmark:
         embedded["benchmark"] = benchmark
 
-    data_json = json.dumps(embedded)
+    # HTML parses script end tags before JavaScript parses string literals.
+    data_json = json.dumps(embedded).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
 
     return template.replace("/*__EMBEDDED_DATA__*/", f"const EMBEDDED_DATA = {data_json};")
 
@@ -284,26 +294,6 @@ def generate_html(
 # ---------------------------------------------------------------------------
 # HTTP server (stdlib only, zero dependencies)
 # ---------------------------------------------------------------------------
-
-def _kill_port(port: int) -> None:
-    """Kill any process listening on the given port."""
-    try:
-        result = subprocess.run(
-            ["lsof", "-ti", f":{port}"],
-            capture_output=True, text=True, timeout=5,
-        )
-        for pid_str in result.stdout.strip().split("\n"):
-            if pid_str.strip():
-                try:
-                    os.kill(int(pid_str.strip()), signal.SIGTERM)
-                except (ProcessLookupError, ValueError):
-                    pass
-        if result.stdout.strip():
-            time.sleep(0.5)
-    except subprocess.TimeoutExpired:
-        pass
-    except FileNotFoundError:
-        print("Note: lsof not found, cannot check if port is in use", file=sys.stderr)
 
 class ReviewHandler(BaseHTTPRequestHandler):
     """Serves the review HTML and handles feedback saves.
@@ -435,14 +425,12 @@ def main() -> None:
         print(f"\n  Static viewer written to: {args.static}\n")
         sys.exit(0)
 
-    # Kill any existing process on the target port
     port = args.port
-    _kill_port(port)
     handler = partial(ReviewHandler, workspace, skill_name, feedback_path, previous, benchmark_path)
     try:
         server = HTTPServer(("127.0.0.1", port), handler)
     except OSError:
-        # Port still in use after kill attempt — find a free one
+        # Preserve any existing service and let the OS choose a free port.
         server = HTTPServer(("127.0.0.1", 0), handler)
         port = server.server_address[1]
 
@@ -464,6 +452,7 @@ def main() -> None:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nStopped.")
+    finally:
         server.server_close()
 
 

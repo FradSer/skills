@@ -20,17 +20,24 @@ Upstream `lark-cli` embeds all domain skills and reference documents directly in
 ## Installation & Setup
 
 ```bash
-# 1. Install lark-cli
-npm install -g @larksuite/cli@latest
+# 1. Install lark-cli separately, using the package manager and authorization
+#    appropriate for your machine. This skill never installs or upgrades it.
+#    Verify first:
+lark-cli --version
 
-# 2. Configure app credentials (one-time)
+# 2. Configure app credentials only when the user explicitly requests setup
 lark-cli config init
 
-# 3. Log in with recommended permissions
+# 3. Log in only after explicit authorization
 lark-cli auth login --recommend
 ```
 
 ## Updating Router Index
+
+Router maintenance requires `lark-cli` and `uv`. The script runs the local index
+generator with `uv run --no-project --with pyyaml python`; PyYAML is resolved in an
+isolated uv environment. Normal routing through `lark-cli skills read` does not
+require this Python helper or uv.
 
 ```bash
 bash skills/lark/scripts/sync-lark.sh --check     # dry-run check

@@ -1,6 +1,6 @@
 """Animation hitches lane parser.
 
-Xcode 26 schema `hitches` columns: start, duration (hitch time), process,
+Current Xcode `hitches` exports commonly include start, duration (hitch time), process,
 is-system, swap-id, label, display, narrative-description. The
 narrative-description field carries Apple's own attribution (e.g.
 "Potentially expensive app update(s)") which is the highest-signal column.

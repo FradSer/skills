@@ -1,4 +1,4 @@
-"""SwiftUI lane parser (Xcode 26+).
+"""SwiftUI lane parser for hosts that export SwiftUI update schemas.
 
 Primary schema is `swiftui-updates` with columns: start, duration, id,
 update-type, allocations, description, category, view-hierarchy, module,
@@ -49,7 +49,7 @@ def analyze(
         return {
             "lane": "swiftui",
             "available": False,
-            "notes": ["SwiftUI lane not in trace (Xcode 26+ SwiftUI template required)."],
+            "notes": ["SwiftUI lane not present in this trace; verify the selected template and host target."],
         }
 
     events: list[dict] = []

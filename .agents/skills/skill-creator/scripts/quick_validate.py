@@ -1,103 +1,73 @@
 #!/usr/bin/env python3
-"""
-Quick validation script for skills - minimal version
-"""
+"""Validate collection skill metadata without executing its instructions."""
 
-import sys
-import os
-import re
-import yaml
 from pathlib import Path
+import re
+import sys
 
-def validate_skill(skill_path):
-    """Basic validation of a skill"""
+import yaml
+
+
+ALLOWED_PROPERTIES = {
+    "name", "description", "license", "allowed-tools", "metadata",
+    "compatibility", "disable-model-invocation",
+}
+
+
+def validate_skill(skill_path: str | Path) -> tuple[bool, str]:
+    """Return the first actionable metadata or incomplete-content error."""
     skill_path = Path(skill_path)
-
-    # Check SKILL.md exists
-    skill_md = skill_path / 'SKILL.md'
-    if not skill_md.exists():
+    skill_md = skill_path / "SKILL.md"
+    if not skill_md.is_file():
         return False, "SKILL.md not found"
-
-    # Read and validate frontmatter
-    content = skill_md.read_text()
-    if not content.startswith('---'):
-        return False, "No YAML frontmatter found"
-
-    # Extract frontmatter
-    match = re.match(r'^---\n(.*?)\n---', content, re.DOTALL)
-    if not match:
-        return False, "Invalid frontmatter format"
-
-    frontmatter_text = match.group(1)
-
-    # Parse YAML frontmatter
     try:
-        frontmatter = yaml.safe_load(frontmatter_text)
-        if not isinstance(frontmatter, dict):
-            return False, "Frontmatter must be a YAML dictionary"
-    except yaml.YAMLError as e:
-        return False, f"Invalid YAML in frontmatter: {e}"
+        content = skill_md.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        return False, f"Cannot read SKILL.md: {error}"
+    match = re.match(r"^---\r?\n(.*?)\r?\n---(?:\r?\n|$)", content, re.DOTALL)
+    if not match:
+        return False, "Invalid or missing YAML frontmatter"
+    try:
+        metadata = yaml.safe_load(match.group(1))
+    except yaml.YAMLError as error:
+        return False, f"Invalid YAML: {error}"
+    if not isinstance(metadata, dict):
+        return False, "Frontmatter must be a YAML dictionary"
+    unexpected = set(metadata) - ALLOWED_PROPERTIES
+    if unexpected:
+        return False, f"Unexpected frontmatter keys: {', '.join(str(key) for key in unexpected)}"
+    name = metadata.get("name")
+    if not isinstance(name, str) or not name.strip():
+        return False, "Name must be a non-empty string"
+    if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", name) or len(name) > 64:
+        return False, "Name must be hyphen-case and at most 64 characters"
+    if name != skill_path.name:
+        return False, "Name must match the skill directory name"
+    description = metadata.get("description")
+    if not isinstance(description, str) or not description.strip():
+        return False, "Description must be a non-empty string"
+    if len(description) > 1024 or re.search(r"[<>]", description):
+        return False, "Description must be at most 1024 characters without angle brackets"
+    if "compatibility" in metadata:
+        compatibility = metadata["compatibility"]
+        if not isinstance(compatibility, str) or len(compatibility) > 500:
+            return False, "Compatibility must be a string of at most 500 characters"
+    if "disable-model-invocation" in metadata and not isinstance(metadata["disable-model-invocation"], bool):
+        return False, "disable-model-invocation must be a boolean"
+    if "metadata" in metadata and not isinstance(metadata["metadata"], dict):
+        return False, "metadata must be a dictionary"
+    body = content[match.end():]
+    if not body.strip():
+        return False, "Skill instructions are empty"
+    if description.lstrip().startswith("[TODO:"):
+        return False, "Description contains an unfinished placeholder"
+    return True, "Skill is valid"
 
-    # Define allowed properties
-    ALLOWED_PROPERTIES = {'name', 'description', 'license', 'allowed-tools', 'metadata', 'compatibility', 'disable-model-invocation'}
-
-    # Check for unexpected properties (excluding nested keys under metadata)
-    unexpected_keys = set(frontmatter.keys()) - ALLOWED_PROPERTIES
-    if unexpected_keys:
-        return False, (
-            f"Unexpected key(s) in SKILL.md frontmatter: {', '.join(sorted(unexpected_keys))}. "
-            f"Allowed properties are: {', '.join(sorted(ALLOWED_PROPERTIES))}"
-        )
-
-    # Check required fields
-    if 'name' not in frontmatter:
-        return False, "Missing 'name' in frontmatter"
-    if 'description' not in frontmatter:
-        return False, "Missing 'description' in frontmatter"
-
-    # Extract name for validation
-    name = frontmatter.get('name', '')
-    if not isinstance(name, str):
-        return False, f"Name must be a string, got {type(name).__name__}"
-    name = name.strip()
-    if name:
-        # Check naming convention (kebab-case: lowercase with hyphens)
-        if not re.match(r'^[a-z0-9-]+$', name):
-            return False, f"Name '{name}' should be kebab-case (lowercase letters, digits, and hyphens only)"
-        if name.startswith('-') or name.endswith('-') or '--' in name:
-            return False, f"Name '{name}' cannot start/end with hyphen or contain consecutive hyphens"
-        # Check name length (max 64 characters per spec)
-        if len(name) > 64:
-            return False, f"Name is too long ({len(name)} characters). Maximum is 64 characters."
-
-    # Extract and validate description
-    description = frontmatter.get('description', '')
-    if not isinstance(description, str):
-        return False, f"Description must be a string, got {type(description).__name__}"
-    description = description.strip()
-    if description:
-        # Check for angle brackets
-        if '<' in description or '>' in description:
-            return False, "Description cannot contain angle brackets (< or >)"
-        # Check description length (max 1024 characters per spec)
-        if len(description) > 1024:
-            return False, f"Description is too long ({len(description)} characters). Maximum is 1024 characters."
-
-    # Validate compatibility field if present (optional)
-    compatibility = frontmatter.get('compatibility', '')
-    if compatibility:
-        if not isinstance(compatibility, str):
-            return False, f"Compatibility must be a string, got {type(compatibility).__name__}"
-        if len(compatibility) > 500:
-            return False, f"Compatibility is too long ({len(compatibility)} characters). Maximum is 500 characters."
-
-    return True, "Skill is valid!"
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: python quick_validate.py <skill_directory>")
-        sys.exit(1)
-    
+        print("Usage: uv run --with pyyaml python quick_validate.py <skill-directory>")
+        raise SystemExit(2)
     valid, message = validate_skill(sys.argv[1])
     print(message)
-    sys.exit(0 if valid else 1)
+    raise SystemExit(0 if valid else 1)

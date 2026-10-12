@@ -10,7 +10,10 @@
 
 ### 1. Avoid Redundant State Updates
 
-SwiftUI doesn't compare values before triggering updates:
+Observation and Combine updates can still invalidate a view when an assigned
+value is unchanged; the exact coalescing behavior depends on the state model,
+property type, and publisher. Confirm this with the project's model and a
+trace before calling it a bug:
 
 ```swift
 // BAD - triggers update even if value unchanged

@@ -17,17 +17,15 @@ disable-model-invocation: true
 
 Browse [missav.ws](https://missav.ws) with **agent-browser**, extract listings, **enrich detail-page descriptions**, rank against `~/.missav/` preferences.
 
-**Prerequisite:** the `agent-browser` skill must be installed, and read [`references/browser-troubleshooting.md`](references/browser-troubleshooting.md) when browser access fails.
-
-Install: `npm i -g agent-browser && agent-browser install`
+**Prerequisite:** `agent-browser` must already be installed. Do not install packages or alter browser/global configuration as part of a recommendation run; if the command is missing, report the prerequisite and stop. Read [`references/browser-troubleshooting.md`](references/browser-troubleshooting.md) when browser access fails.
 
 > **Authorized access only:** If the site presents a Cloudflare challenge, stop the workflow immediately. Do not retry challenges, alter browser fingerprints, rotate proxies, or use challenge-solving services. Use a site-authorized API or access path instead.
 
 ## Preference store (`~/.missav/`)
 
 ```bash
-node skills/missav/scripts/preferences.mjs init
-node skills/missav/scripts/preferences.mjs show
+node skills/missav/scripts/preferences.mjs init [--dir PATH]
+node skills/missav/scripts/preferences.mjs show [--dir PATH]
 ```
 
 See [references/preferences-schema.md](references/preferences-schema.md).
@@ -46,9 +44,13 @@ Use **`run-recommend.sh`** for the full tested pipeline, or run steps manually.
 The workflow is fail-closed: a Cloudflare challenge detected by title or body returns exit code `42`, stops all later searches/detail requests, and never presents a partial recommendation as a successful run. Public search results and community-maintained clients are not a site-authorized API; do not replace this behavior with fingerprint changes, proxy rotation, challenge solving, or unofficial bypasses.
 
 ```bash
-chmod +x skills/missav/scripts/run-recommend.sh
-./skills/missav/scripts/run-recommend.sh --prefs ~/.missav/preferences.json
+bash skills/missav/scripts/run-recommend.sh --prefs ~/.missav/preferences.json
 ```
+
+Use `--prefs PATH` for an existing local profile when testing or isolating a
+workflow. A custom path is never initialized implicitly; this avoids creating
+or mutating `~/.missav` by accident. Preference values are sensitive user
+signals, so progress output uses query numbers rather than echoing them.
 
 This script: loads prefs → searches each liked **genre + label** → merges listings → ranks → enriches **top scored** detail pages → re-ranks with descriptions.
 

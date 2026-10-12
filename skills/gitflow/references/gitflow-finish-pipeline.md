@@ -1,81 +1,66 @@
-# GitFlow Finish Pipeline Reference
+# Git-flow finish pipeline
 
-Shared 6-Phase pipeline for finishing GitFlow branches (`feature`, `hotfix`, `release`).
+Finishing merges, may create a tag, and deletes the operation's local branch. Confirm
+these actions are within the user's request before running them. Read
+[invariants.md](invariants.md) for checks and [cleanup.md](cleanup.md) for boundaries.
 
-## Pre-flight Invariants
+## Resolve and verify the exact branch
 
-CRITICAL:
-- Verify working tree is clean (`git status --porcelain` is empty) before finishing.
-- Verify current branch matches `<type>/*` before finishing — wrong branch type merges to the wrong parent.
-See `invariants.md`.
+Read the current branch and configured type prefix. An explicit target must match
+the entire current branch, not just its type. Without a target, use the exact current
+branch suffix. Reject a detached HEAD or a mismatched target before any merge.
 
----
+Read configured production/development branches. Verify required local bases exist,
+the working tree is clean, and a requested tag is valid and absent. The default tag
+is `v<version>`; pass `--tagname` for the repository's actual tag convention.
 
-## Phase 1: Identify Target Name / Version
+## Verify the project
 
-1. If `$ARGUMENTS` is provided, use it as the target name or version (strip any leading `v` for versions).
-2. Otherwise, extract from current branch: `git branch --show-current` (strip `<type>/` prefix and any leading `v`).
-3. Store clean identifier `$NAME` or `$VERSION` (e.g. `dark-mode` or `1.2.0`).
+Run the affected project checks using its existing commands and package manager
+(`pnpm` for Node, `uv` for Python). Fix failures caused by the branch before finishing.
+Report unrelated failures and follow repository release policy.
 
-## Phase 2: Pre-finish Checks
+Update an existing changelog when required by the project or request. Preserve manual
+entries and use [changelog-generation.md](changelog-generation.md) and
+[changelog-example.md](changelog-example.md) for commit mapping and output. Stage only
+the changelog and intended changes. Attribution is conditional on an explicit identity
+or repository policy; see [coauthor-attribution.md](coauthor-attribution.md).
 
-1. Identify project test commands (check `package.json`, `Cargo.toml`, `Makefile`, `pyproject.toml`, etc.).
-2. Run test suite. **Abort immediately if tests fail.**
-
-## Phase 3: Update Changelog
-
-1. Get previous tag: `git tag --sort=-v:refname | head -1`.
-2. Collect commits per `changelog-generation.md`.
-3. Update `CHANGELOG.md` per `changelog-example.md`.
-4. Stage and commit in ONE chained command per `coauthor-attribution.md`:
-   ```bash
-   git add CHANGELOG.md && git commit -m "docs: update changelog for $NAME"
-   ```
-
-## Phase 4: Execute GitFlow Finish & Push
-
-Run the deterministic steps through the bundled script (the agent still runs tests in
-Phase 2 and updates the changelog in Phase 3; the script executes git-flow finish,
-push, return-to-develop, and cleanup):
+## Finish locally, then publish if authorized
 
 ```bash
-bash <skill-dir>/scripts/finish-branch.sh --type feature --name $NAME
-bash <skill-dir>/scripts/finish-branch.sh --type hotfix --version $VERSION
-bash <skill-dir>/scripts/finish-branch.sh --type release --version $VERSION
-# optional: --tagname v$VERSION --message "Release v$VERSION"
+bash <skill-dir>/scripts/finish-branch.sh --type feature --name "$NAME" --no-push
+bash <skill-dir>/scripts/finish-branch.sh --type hotfix --version "$VERSION" --no-push
+bash <skill-dir>/scripts/finish-branch.sh --type release --version "$VERSION" --no-push
+# Optional for release/hotfix: --tagname "$TAG" --message "Release $VERSION"
 ```
 
-Equivalent manual commands (when the script is unavailable):
+The wrapper requires an installed CLI supporting `--no-fetch`, `--no-push`,
+`--no-pushtag`, and `--keepremote`. It uses these flags even when publication is
+requested, then performs its own exact push. A local finish normally returns to the
+configured development branch. If Git-flow retains the caller's worktree as detached
+after finishing, the wrapper preserves and reports that state instead of forcing a
+checkout of a branch that may be in use elsewhere. No pull, remote branch deletion,
+unrelated branch sweep, or worktree pruning is implicit.
 
-### Feature (`feature`)
-```bash
-git flow feature finish $NAME
-git push origin develop
-```
+Native git-flow-next topic/base keys and legacy AVH keys are resolved by the shared
+configuration helper. When supported, `--keep-worktree` also preserves a Git-flow-created
+checkout; removal is a separate authorized action. Custom hierarchies require reviewing
+the configured parent/startpoint and auto-update relationships before finishing.
 
-### Hotfix (`hotfix`) & Release (`release`)
-```bash
-git flow <type> finish $VERSION --tagname "v$VERSION" -m "Release v$VERSION"
-git push origin main develop --tags
-```
+Existing script callers retain publication by default. Omit `--no-push` only when the
+user authorized the exact remote publication. Feature publication pushes the configured
+development branch; release/hotfix publication pushes the configured integration branches
+and this operation's exact tag. It never pushes every local tag. Missing origin fails
+before the local finish; a later push failure returns failure and reports that only
+the local finish completed. Preserve this state for recovery instead of rerunning finish.
 
-## Phase 5: Post-Finish Workflow Finalization
+For a manual fallback, inspect installed help and apply the same target, remote-operation,
+and error checks. Stop when the CLI cannot safely enforce them.
 
-1. **GitHub Release** (Release only):
-   Extract changelog section for `v$VERSION` and publish via GitHub CLI:
-   ```bash
-   gh release create "v$VERSION" --title "v$VERSION" --notes "<changelog-section>" --verify-tag
-   ```
-2. **Switch Back to Develop** (Hotfix & Release):
-   `git-flow-next` leaves the repository on `main` after finishing a hotfix or release. Return to `develop`:
-   ```bash
-   git checkout develop && git pull origin develop
-   ```
+## Optional release publication and cleanup
 
-## Phase 6: Workspace & Remote Cleanup
-
-Reclaim stale branches and worktrees per `cleanup.md`:
-1. `git fetch --prune`
-2. `git worktree prune` (and surface survivors with `git worktree list`)
-3. Confirm `<type>/$NAME` is deleted locally and on `origin`. Delete explicitly if a ref survived.
-4. Sweep any leftover merged `feature/*`, `hotfix/*`, or `release/*` branches.
+Create a GitHub release only when requested or already explicitly authorized. Prepare
+its notes from verified changes and use a notes file with `gh release create --notes-file`.
+Local Git-flow finish alone does not authorize publication or remote branch deletion.
+Read [cleanup.md](cleanup.md) to verify only this operation's branch and tag.

@@ -1,75 +1,35 @@
-# GitFlow Cleanup Procedure
+# Git-flow cleanup
 
-Run after every `finish` operation to reclaim stale branches and worktrees.
-git-flow-next `finish` already deletes the just-finished local and remote
-branch by default (see `--keep` / `--keepremote` flags); the steps below are
-**idempotent** — they confirm that deletion took effect and sweep up
-everything else.
+Cleanup is limited to this operation's authorized branch lifecycle. The wrapper keeps
+the remote branch and leaves unrelated branches and worktree metadata in place.
 
-## Steps
+## Verify the result
 
-### 1. Prune stale remote-tracking branches
+Record the exact configured branch prefix, name, bases, and tag before finishing.
+Verify the operation's local branch state, the merge result, and the tag when applicable.
+Git-flow configuration can retain the local branch; report that fact rather than
+assuming deletion or bypassing the configured policy.
 
-```bash
-git fetch --prune
-```
+When Git-flow preserves the caller's linked worktree as detached after finishing,
+verify its HEAD and report the retained checkout. Keep it in place; the development
+branch may already be checked out in another worktree.
 
-Removes local refs for remote branches that no longer exist on origin.
-
-### 2. Prune stale worktrees
+When removing the just-finished local branch is authorized and it is fully merged:
 
 ```bash
-git worktree prune
-git worktree list
+git branch -d "$BRANCH"
 ```
 
-`prune` clears metadata for worktree directories whose working folder is gone
-(e.g. a checked-out feature/hotfix branch that was finished and deleted). `list`
-surfaces any remaining worktrees so the user can decide whether to remove them
-explicitly with `git worktree remove <path>`.
+Do not delete the checked-out branch or an integration branch. If deletion refuses,
+inspect the reason and report it; do not force-delete or suppress the error.
 
-### 3. Confirm the just-finished branch is gone
+## Remote branch and worktrees
 
-```bash
-git branch --list "$BRANCH_PREFIX/$NAME"
-git branch -r --list "origin/$BRANCH_PREFIX/$NAME"
-```
+A local finish or publication of the integration branches does not authorize deletion
+of a remote branch. Delete the exact remote head only when authorized and after checking
+that no dependent PR or worktree still needs it.
 
-Both should print nothing. If a ref survives (e.g. `--keep` was in effect or a
-prior run was interrupted), delete it explicitly:
-
-```bash
-git branch -D "$BRANCH_PREFIX/$NAME" 2>/dev/null || true
-git push origin --delete "$BRANCH_PREFIX/$NAME" 2>/dev/null || true
-```
-
-### 4. Delete other already-merged local working branches
-
-Sweep `feature/*`, `hotfix/*`, `release/*` branches that have merged into
-`develop` **or** `main`. Never delete the current branch or the long-lived
-branches (`main`, `develop`, `master`, `production`).
-
-```bash
-# Branches merged into develop
-git branch --merged develop \
-  | grep -E '^\s*(feature|hotfix|release)/' \
-  | grep -v '\*' \
-  | xargs -r git branch -d 2>/dev/null || true
-
-# Branches merged into main (catches hotfix/release not yet in develop)
-git branch --merged main \
-  | grep -E '^\s*(feature|hotfix|release)/' \
-  | grep -v '\*' \
-  | xargs -r git branch -d 2>/dev/null || true
-```
-
-`git branch -d` only deletes fully-merged branches — it refuses unmerged ones,
-so this is safe. Use `2>/dev/null || true` so a single unmerged branch does not
-abort the sweep.
-
-## Safety
-
-- Never operate on `main`, `develop`, `master`, or `production`.
-- Never delete the branch you are currently on (`grep -v '\*'`).
-- Prefer `-d` over `-D`; reserve `-D` for the explicit just-finished branch in
-  step 3 only when git-flow-next's own deletion did not run.
+A broader branch sweep, `git worktree prune`, or worktree removal requires a separate
+explicit request with an enumerated target list. Use `git worktree list` for inventory.
+Preserve pre-existing worktrees and local changes, and use the host's managed-worktree
+lifecycle tool when applicable. Do not recommend blanket `rm -rf` cleanup.

@@ -60,7 +60,5 @@ class SystemWideConsentTests(unittest.TestCase):
 
         self.assertEqual(2, result)
         self.assertIn("only applies with --all-processes", stderr.getvalue())
-
-
 if __name__ == "__main__":
     unittest.main()

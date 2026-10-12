@@ -1,6 +1,6 @@
 ---
 name: swiftui
-description: Build, refactor, or review modern SwiftUI. Prioritize macOS 26 and iOS 26 Liquid Glass, while covering architecture, state, concurrency, navigation, accessibility, performance, and code quality. Use for any SwiftUI implementation, migration, or review.
+description: Build, refactor, or review SwiftUI with project-aware APIs, state, concurrency, navigation, accessibility, performance, and code quality. Use for SwiftUI implementation, migration, or review; consult Liquid Glass guidance when the project's SDK and deployment target support it.
 license: MIT
 metadata:
   sources:
@@ -12,7 +12,14 @@ metadata:
 
 # SwiftUI
 
-Build and review modern SwiftUI as one integrated discipline: platform design, view architecture, data flow, concurrency, navigation, accessibility, performance, and testing. **macOS 26 and iOS 26 are the primary targets**, so start from the system’s Liquid Glass design and native SwiftUI APIs. Do not recreate Liquid Glass with blur, opacity, gradients, or custom overlays.
+Build and review SwiftUI as one integrated discipline: platform design, view
+architecture, data flow, concurrency, navigation, accessibility, performance,
+and testing. Prefer the newest APIs supported by the project's actual SDK and
+deployment target. macOS 26/iOS 26 Liquid Glass is a focused path for projects
+that target those SDKs; it is not a reason to raise a project's deployment
+target or to assume an API is available. Verify availability and signatures in
+the installed SDK or Apple's documentation before making an unstable API claim.
+Do not recreate Liquid Glass with blur, opacity, gradients, or custom overlays.
 
 Standard SwiftUI components, navigation, toolbars, tab bars, menus, sheets, and controls already adopt the current system appearance. Start by using those components as intended; add custom glass only when a custom functional control needs it.
 
@@ -40,12 +47,19 @@ Read the focused reference before acting:
 | Previews | [references/previews.md](references/previews.md) |
 | Instruments `.trace` recording or analysis | [references/trace-recording.md](references/trace-recording.md) · [trace-analysis.md](references/trace-analysis.md) |
 
-When a task spans both, read both files. Apple documentation is the source of truth whenever an API signature, platform availability, or behavior may have changed. Topic references are vendored from [AvdLee/SwiftUI-Agent-Skill](https://github.com/AvdLee/SwiftUI-Agent-Skill) and [twostraws/swiftui-agent-skill](https://github.com/twostraws/swiftui-agent-skill) (authoritative baseline); the local Liquid Glass reference takes precedence where they differ.
+When a task spans both, read both files. Apple documentation and the
+project's installed SDK are the source of truth whenever an API signature,
+platform availability, or behavior may have changed. Topic references are
+vendored snapshots from [AvdLee/SwiftUI-Agent-Skill](https://github.com/AvdLee/SwiftUI-Agent-Skill)
+and [twostraws/swiftui-agent-skill](https://github.com/twostraws/swiftui-agent-skill);
+use them as review guidance and verify current claims before relying on them.
+The local Liquid Glass reference takes precedence for this repository's design
+policy where the snapshots differ.
 
 ## First decisions
 
-1. Consult [references/latest-apis.md](references/latest-apis.md) at the start of every task to avoid deprecated APIs.
-2. Identify the platform, deployment target, and supported OS versions from the project configuration. Treat macOS 26 and iOS 26 as the default for new apps.
+1. Identify the platform, deployment target, Swift/Xcode toolchain, and supported OS versions from the project configuration. Treat macOS 26 and iOS 26 as an option for new apps only when the installed SDK and product requirements support them.
+2. Read [references/latest-apis.md](references/latest-apis.md) when the task touches availability, deprecation, migration, or a current API claim; otherwise load only the focused topic reference.
 3. Preserve standard components before customizing. Build with the current SDK and inspect the app on macOS 26 and iOS 26 before adding custom effects.
 4. Classify each candidate surface:
    - **functional layer (Chrome / Controls):** controls, navigation, toolbars, transient actions, floating utility controls, and other UI that acts on content. Liquid Glass (`.glassEffect()`, `.buttonStyle(.glass)`) is appropriate here.
@@ -72,7 +86,7 @@ This is a SwiftUI skill, not a narrow visual-effect skill. Apply these standards
 
 Follow [references/twostraws.md](references/twostraws.md) for modern APIs, view composition, state and concurrency, navigation, accessibility, performance, and code hygiene. In particular:
 
-- Use modern SwiftUI and Swift 6.2+ concurrency. Do not introduce UIKit or AppKit, third-party UI frameworks, or custom infrastructure unless the project or request requires it.
+- Use the project's supported Swift concurrency model and modern SwiftUI APIs. Do not introduce UIKit or AppKit, third-party UI frameworks, or custom infrastructure unless the project or request requires it.
 - Prefer `@Observable` models with explicit main-actor isolation when the project does not define main-actor default isolation. Keep state ownership local and private; pass shared observable state using SwiftUI’s current observation tools.
 - Use `NavigationStack` or `NavigationSplitView`, typed `navigationDestination(for:)`, semantic `Label`s, `Button`s for actions, Dynamic Type, and meaningful accessibility labels.
 - Respect Reduce Motion and accessibility settings. Ensure interactive controls have an adequate hit target; do not communicate meaning through color alone.
@@ -93,22 +107,25 @@ For every finding, give the file and line, the broken rule, why it affects the a
 
 ## Correctness checklist
 
-Hard rules adapted from [AvdLee/SwiftUI-Agent-Skill](https://github.com/AvdLee/SwiftUI-Agent-Skill) — violations are always bugs. Performance optimizations beyond these rules are suggestions, not requirements:
+Use this as a focused correctness review. Treat an item as a confirmed bug
+only when the project's deployment target, data flow, or observed behavior
+supports the finding; compatibility and style choices need an explanation.
+Performance optimizations beyond these checks are suggestions, not automatic
+defects:
 
-- [ ] `@State` properties are `private`
-- [ ] `@Binding` appears only where a child modifies parent state
-- [ ] Passed values are never declared as `@State` (they ignore updates)
-- [ ] iOS 17+: view-owned `@Observable` models use `@State`; injected observables that need bindings use `@Bindable`
-- [ ] Legacy `ObservableObject` code: `@StateObject` for view-owned objects, `@ObservedObject` for injected; new code does not introduce them
-- [ ] `ForEach` uses stable identity (never `.indices`/`\.offset`; the id outlives the view and is not derived from mutable content)
-- [ ] Constant number of views per `ForEach` element; `List` rows are unary
-- [ ] No closures stored in custom `@Environment`/`@FocusedValue` keys
-- [ ] Custom `@Entry` default values are stable (no `Model()`/`Date()`/`UUID()` expressions)
-- [ ] `.animation(_:value:)` always includes the `value` parameter
-- [ ] `@FocusState` properties are `private`; no redundant `@FocusState` writes inside tap gesture handlers on `.focusable()` views
-- [ ] iOS 26+ APIs are gated with `#available` and a fallback is provided
-- [ ] `import Charts` present in files using chart types
-- [ ] Previews use self-contained mock data; no dependency on live services or network
+- [ ] `@State` properties are `private` when they are implementation-owned; verify intentional initialization and ownership before flagging visibility.
+- [ ] `@Binding` appears where a child actually modifies parent state; use a value for read-only input.
+- [ ] Passed values are not accidentally declared as `@State`; `@State` stores an owned value and does not track later parent input updates.
+- [ ] For the project's supported Observation model, view-owned models use the wrapper that preserves ownership (`@State` for `@Observable`, `@StateObject` for legacy `ObservableObject`); injected models use the corresponding observation or binding form.
+- [ ] `ForEach` uses stable identity for mutable or reordered collections; index-based identity is valid only when the collection and ordering are demonstrably fixed for the view's lifetime.
+- [ ] `ForEach` and `List` branches preserve the intended row identity and shape; multiple child views are allowed when the API and semantics require them.
+- [ ] Custom environment values do not create avoidable invalidation or unsafe action ownership; closures can be valid when the project intentionally models an action dependency.
+- [ ] Custom `@Entry` defaults are cheap and stable for the value's semantics; do not allocate a new model, date, or identifier merely as a default.
+- [ ] `.animation(_:value:)` includes the `value` parameter when an implicit animation is intended; use a transaction when broader animation is deliberate.
+- [ ] `@FocusState` ownership and writes match the focusable view's lifecycle; avoid redundant gesture writes only when they cause a real focus loop.
+- [ ] iOS 26+ APIs are gated with `#available` when the deployment target is earlier; provide an equivalent fallback where the product supports it.
+- [ ] `import Charts` is present in files using chart types, and chart availability matches the target.
+- [ ] Previews use self-contained mock data unless the project explicitly provides a safe deterministic preview dependency.
 
 ## Instruments trace workflow
 

@@ -3,8 +3,9 @@
 # Usage: run-recommend.sh [--prefs ~/.missav/preferences.json]
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PREFS="${HOME}/.missav/preferences.json"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_PREFS="${HOME}/.missav/preferences.json"
+PREFS="$DEFAULT_PREFS"
 SESSION="missav-run-$(date +%s)"
 export MISSAV_SESSION="$SESSION"
 
@@ -15,11 +16,25 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-node "$SCRIPT_DIR/preferences.mjs" init >/dev/null
+if [[ "$PREFS" == "$DEFAULT_PREFS" ]]; then
+  node "$SCRIPT_DIR/preferences.mjs" init --dir "$(dirname "$PREFS")" >/dev/null
+elif [[ ! -f "$PREFS" ]]; then
+  echo "FAIL: custom preferences file does not exist: $PREFS" >&2
+  exit 2
+fi
 
-QUERIES="$(python3 -c "
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/missav-run.XXXXXX")"
+cleanup() {
+  rm -rf "$WORK_DIR"
+}
+trap cleanup EXIT
+
+QUERY_FILE="$WORK_DIR/queries"
+PREFS_FILE="$PREFS" python3 -c "
 import json
-p = json.load(open('$PREFS'))
+import os
+import sys
+p = json.load(open(os.environ['PREFS_FILE']))
 q = []
 for g in p.get('likes', {}).get('genres', []):
     q.append(g)
@@ -30,22 +45,25 @@ if dk and dk not in q:
     q.append(dk)
 if not q:
     q = ['sm']
-print(' '.join(q))
-")"
+for item in dict.fromkeys(str(value).strip() for value in q if str(value).strip()):
+    print(item)
+" > "$QUERY_FILE"
 
 # shellcheck source=lib/browser-env.sh
 source "$SCRIPT_DIR/lib/browser-env.sh"
 missav_browser_start
 
-MERGED="/tmp/missav-run-listings.json"
+MERGED="$WORK_DIR/listings.json"
 echo "[]" > "$MERGED"
 
-for q in $QUERIES; do
+QUERY_INDEX=0
+while IFS= read -r q; do
+  QUERY_INDEX=$((QUERY_INDEX + 1))
   [[ "$MISSAV_ACCESS_BLOCKED" -eq 1 ]] && break
   URL="$(node "$SCRIPT_DIR/build-search-url.mjs" search "$q")"
-  echo "=== Query: $q → $URL ===" >&2
+  echo "=== Query $QUERY_INDEX ===" >&2
   if "$SCRIPT_DIR/browse-page.sh" "$URL" --session "$SESSION" --continue; then
-    TMP="/tmp/missav-run-$q.json"
+    TMP="$WORK_DIR/listings-$QUERY_INDEX.json"
     if "$SCRIPT_DIR/extract-listings.sh" --session "$SESSION" --output "$TMP"; then
       python3 <<PY
 import json
@@ -59,7 +77,7 @@ json.dump(list(by.values()), open("$MERGED", "w"), ensure_ascii=False, indent=2)
 print(f"merged total: {len(by)}")
 PY
     else
-      echo "WARN: no listings for query $q" >&2
+      echo "WARN: no listings for query $QUERY_INDEX" >&2
     fi
   else
     BROWSE_STATUS=$?
@@ -68,9 +86,9 @@ PY
       MISSAV_ACCESS_BLOCKED=1
       break
     fi
-    echo "WARN: browse failed for $q" >&2
+    echo "WARN: browse failed for query $QUERY_INDEX" >&2
   fi
-done
+done < "$QUERY_FILE"
 
 missav_browser_close
 
@@ -84,12 +102,12 @@ if [[ "$TOTAL" -eq 0 ]]; then
   exit 1
 fi
 
-RANKED="/tmp/missav-run-ranked.json"
+RANKED="$WORK_DIR/ranked.json"
 node "$SCRIPT_DIR/filter-recommendations.mjs" "$MERGED" --prefs "$PREFS" --limit 10 > "$RANKED"
 
 export MISSAV_SESSION="${SESSION}-enrich"
 missav_browser_start
-ENRICHED="/tmp/missav-run-enriched.json"
+ENRICHED="$WORK_DIR/enriched.json"
 if "$SCRIPT_DIR/enrich-listings.sh" \
   --input "$MERGED" \
   --ranked "$RANKED" \

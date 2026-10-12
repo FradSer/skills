@@ -1,5 +1,19 @@
 # Liquid Glass for macOS 26 and iOS 26
 
+## Contents
+
+Find the relevant section by heading:
+
+- Design boundary
+- Surface taxonomy: Glass vs. Materials vs. Cards
+- Core API patterns
+- Grouped glass
+- Purposeful morphs and unions
+- Background extension and edge-to-edge scrolling
+- Availability and migration
+- Review checklist
+- Primary sources
+
 Use this reference for custom Liquid Glass implementation, migration, and review. It complements native SwiftUI controls; it does not replace them.
 
 ## Design boundary

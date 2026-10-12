@@ -2,6 +2,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -44,18 +45,18 @@ case "$*" in
   "pr checks "*)
     cat "$FIXTURE_DIR/checks.json" ;;
   *"issues/122/comments"*)
-    cat "$FIXTURE_DIR/issue_comments.txt" ;;
+    if [ "${SUPPRESS_COMMENTS_WHEN_STATE_EXISTS:-}" = "1" ] && [ -f "${STATE_FILE:-}" ]; then :; else cat "$FIXTURE_DIR/issue_comments.txt"; fi ;;
   *"pulls/122/comments"*)
-    cat "$FIXTURE_DIR/pull_comments.txt" ;;
+    if [ "${SUPPRESS_COMMENTS_WHEN_STATE_EXISTS:-}" = "1" ] && [ -f "${STATE_FILE:-}" ]; then :; else cat "$FIXTURE_DIR/pull_comments.txt"; fi ;;
   *"pulls/122/reviews"*)
-    cat "$FIXTURE_DIR/reviews.txt" ;;
+    if [ "${SUPPRESS_COMMENTS_WHEN_STATE_EXISTS:-}" = "1" ] && [ -f "${STATE_FILE:-}" ]; then :; else cat "$FIXTURE_DIR/reviews.txt"; fi ;;
   *)
     : ;;
 esac
 """
 
 
-def run_watch(extra_args=(), extra_env=None):
+def run_watch(extra_args=(), extra_env=None, review_text=REVIEW_TEXT, continuous=False):
     with tempfile.TemporaryDirectory() as temporary_directory:
         temporary_path = Path(temporary_directory)
         bin_directory = temporary_path / "bin"
@@ -72,11 +73,15 @@ def run_watch(extra_args=(), extra_env=None):
         )
         (fixtures / "pull_comments.txt").write_text("", encoding="utf-8")
         (fixtures / "reviews.txt").write_text(
-            f"{NEW_REVIEW_NODE}\t{REVIEW_TEXT}\n", encoding="utf-8"
+            f"{NEW_REVIEW_NODE}\t{review_text}\n", encoding="utf-8"
         )
         fake_gh = bin_directory / "gh"
         fake_gh.write_text(FAKE_GH, encoding="utf-8")
         fake_gh.chmod(0o755)
+        if continuous:
+            sleeper = bin_directory / "sleep"
+            sleeper.write_text('#!/usr/bin/env bash\nprintf \'%s\\n\' \'{"createdAt":"2026-08-15T07:34:26Z","headRefOid":"head-sha","state":"MERGED","mergedAt":"2026-08-15T09:00:00Z"}\' > "$FIXTURE_DIR/metadata.json"\n')
+            sleeper.chmod(0o755)
 
         env = {
             **os.environ,
@@ -89,7 +94,7 @@ def run_watch(extra_args=(), extra_env=None):
         if extra_env:
             env.update(extra_env)
         return subprocess.run(
-            ["bash", str(SCRIPT), "--once", *extra_args],
+            ["bash", str(SCRIPT), *([] if continuous else ["--once"]), *extra_args],
             env=env,
             capture_output=True,
             text=True,
@@ -100,9 +105,9 @@ def run_watch(extra_args=(), extra_env=None):
 
 class ReviewLoopWatchTests(unittest.TestCase):
     def test_review_pr_requires_pi_monitor_start_for_each_poll(self) -> None:
-        skill = REVIEW_PR_SKILL.read_text(encoding="utf-8")
+        skill = " ".join(REVIEW_PR_SKILL.read_text(encoding="utf-8").split())
         self.assertIn("monitor_start", skill)
-        self.assertIn("Do NOT run a foreground `while` loop", skill)
+        self.assertIn("do not run a foreground `while` loop", skill.lower())
         for name in ("runbook.md", "review-loop.md"):
             document = (REVIEW_PR_SKILL.parent / "references" / name).read_text(
                 encoding="utf-8"
@@ -134,11 +139,55 @@ class ReviewLoopWatchTests(unittest.TestCase):
         self.assertIn('git branch -d "$HEAD_BRANCH"', closeout)
         self.assertIn('git -C "$MAIN_WORKTREE" worktree remove "$WORKTREE_PATH"', closeout)
         self.assertIn('cd "$MAIN_WORKTREE"', closeout)
-        self.assertIn('git checkout main && git merge --ff-only origin/main', closeout)
-        self.assertIn('git show-ref --verify --quiet refs/remotes/origin/develop', closeout)
-        self.assertIn("git branch --merged main", closeout)
-        self.assertIn("git branch --merged develop", closeout)
+        self.assertIn('git checkout "$BASE_BRANCH"', closeout)
+        self.assertIn('git merge --ff-only "origin/$BASE_BRANCH"', closeout)
+        self.assertNotIn("git branch --merged main", closeout)
+        self.assertNotIn("git branch --merged develop", closeout)
+        self.assertIn("separate explicit authorization", closeout)
         self.assertIn("must complete before reporting success", closeout)
+
+    def test_waiting_for_merge_confirmation_allows_the_user_turn(self) -> None:
+        scripts = REVIEW_PR_SKILL.parent / "scripts"
+        with tempfile.TemporaryDirectory() as directory:
+            subprocess.run(["git", "init", directory], check=True, capture_output=True)
+            result = subprocess.run(["bash", str(scripts / "arm-closeout.sh"), "122", "--awaiting-confirmation"], cwd=directory, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            result = subprocess.run(["bash", str(scripts / "closeout-stop.sh")], input='{"stop_hook_active":false}', cwd=directory, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, "")
+            state = json.loads((Path(directory) / ".git/review-pr-closeout.json").read_text())
+            self.assertEqual(state["pr"], "122")
+            self.assertTrue(state["awaiting_confirmation"])
+
+    def test_received_confirmation_rearms_the_closeout_reminder(self) -> None:
+        scripts = REVIEW_PR_SKILL.parent / "scripts"
+        with tempfile.TemporaryDirectory() as directory:
+            subprocess.run(["git", "init", directory], check=True, capture_output=True)
+            for arguments in (("122", "--awaiting-confirmation"), ("122",)):
+                result = subprocess.run(["bash", str(scripts / "arm-closeout.sh"), *arguments], cwd=directory, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+            result = subprocess.run(["bash", str(scripts / "closeout-stop.sh")], input='{"stop_hook_active":false}', cwd=directory, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("hookSpecificOutput", json.loads(result.stdout))
+            state = json.loads((Path(directory) / ".git/review-pr-closeout.json").read_text())
+            self.assertFalse(state["awaiting_confirmation"])
+
+    def test_relative_closeout_hook_has_clean_helper_paths_with_cdpath(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scripts = root / ".agents/skills/review-pr/scripts"
+            shutil.copytree(REVIEW_PR_SKILL.parent / "scripts", scripts)
+            subprocess.run(["git", "init", str(root)], check=True, capture_output=True)
+            armed = subprocess.run(["bash", str(scripts / "arm-closeout.sh"), "122"], cwd=root, capture_output=True, text=True)
+            self.assertEqual(armed.returncode, 0, armed.stderr)
+            result = subprocess.run(
+                ["bash", ".agents/skills/review-pr/scripts/closeout-stop.sh"],
+                input='{"stop_hook_active":false}', cwd=root, env={**os.environ, "CDPATH": str(root)}, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+            self.assertIn(str(scripts / "clear-closeout.sh"), context)
+            self.assertNotIn("\n", context)
 
     def test_every_pr_handoff_requires_confirmation_before_merging(self) -> None:
         for handoff in PR_HANDOFFS:
@@ -159,15 +208,24 @@ class ReviewLoopWatchTests(unittest.TestCase):
 
     def test_phase_four_enters_closeout_before_user_confirmation(self) -> None:
         skill = REVIEW_PR_SKILL.read_text(encoding="utf-8")
-        self.assertIn("proceed to Phase 5's confirmation request", skill)
+        self.assertIn("When the gate holds", skill)
+        self.assertIn("[closeout.md](references/closeout.md)", skill)
+        self.assertIn("explicit user confirmation before merging", skill)
         self.assertNotIn("the pipeline has run to completion.", skill)
 
+    def test_explicitly_bounded_pr_requests_do_not_require_a_monitoring_handoff(self) -> None:
+        for path in (CREATE_PR_SKILL, REVIEW_HANDOFF_REFERENCE):
+            text = path.read_text()
+            self.assertIn("single snapshot", text, path)
+            self.assertIn("do not start monitoring", text, path)
+            self.assertIn("explicit scope", text, path)
+
     def test_create_pr_requires_a_single_review_pr_handoff(self) -> None:
-        skill = CREATE_PR_SKILL.read_text(encoding="utf-8")
+        skill = " ".join(CREATE_PR_SKILL.read_text(encoding="utf-8").split())
         self.assertIn("Start the standalone `review-pr` workflow exactly once", skill)
         self.assertIn("references/review-pr-handoff.md", skill)
         self.assertIn("monitor_start", skill)
-        self.assertIn("do not reproduce its review workflow here", skill)
+        self.assertIn("Do not call `review-pr` twice", skill)
 
     def test_exclude_flag_suppresses_handled_node(self) -> None:
         result = run_watch(extra_args=("--exclude", HANDLED_NODE))
@@ -266,6 +324,10 @@ class ReviewLoopWatchTests(unittest.TestCase):
             self.assertEqual(state["emitted_comments"], [HANDLED_NODE, NEW_REVIEW_NODE])
             self.assertEqual(state["acknowledged_comments"], [])
             self.assertNotEqual(state["since"], "2026-08-15T07:34:26Z")
+            self.assertEqual(
+                [item["id"] for item in state["pending_comments"]],
+                [HANDLED_NODE, NEW_REVIEW_NODE],
+            )
 
             second = run_watch(extra_env={"STATE_FILE": str(state_file)})
             self.assertEqual(second.returncode, 0, second.stderr)
@@ -344,12 +406,60 @@ class ReviewLoopWatchTests(unittest.TestCase):
                 extra_env={"STATE_FILE": str(state_file), "CALL_LOG": str(call_log)}
             )
             self.assertEqual(result.returncode, 0, result.stderr)
-            calls = call_log.read_text(encoding="utf-8").splitlines()
-            self.assertTrue(any("pr view" in call for call in calls))
+            calls = call_log.read_text(encoding="utf-8").splitlines() if call_log.exists() else []
+            self.assertFalse(any("pr view" in call for call in calls))
             self.assertFalse(any("pr checks" in call for call in calls))
             self.assertFalse(any("issues/122/comments" in call for call in calls))
             self.assertFalse(any("pulls/122/comments" in call for call in calls))
             self.assertFalse(any("pulls/122/reviews" in call for call in calls))
+
+    def test_expired_watch_skips_metadata_and_comment_endpoints(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_path = Path(temporary_directory)
+            state_file = temporary_path / "watch-state.json"
+            call_log = temporary_path / "gh-calls.log"
+            state_file.write_text(
+                json.dumps(
+                    {
+                        "version": 2,
+                        "pr": "122",
+                        "repo": "octo/repo",
+                        "since": "2026-08-15T07:34:26Z",
+                        "deadline_epoch": 0,
+                        "emitted_comments": [],
+                        "acknowledged_comments": [],
+                        "last_ci": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = run_watch(
+                extra_env={
+                    "STATE_FILE": str(state_file),
+                    "CALL_LOG": str(call_log),
+                    "GH_MODE": "metadata-failure",
+                }
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("deadline reached", result.stdout)
+            calls = call_log.read_text(encoding="utf-8").splitlines() if call_log.exists() else []
+            self.assertEqual(calls, [])
+
+    def test_rejects_invalid_pr_and_repository_inputs(self) -> None:
+        for env in (
+            {"PR": "https://github.com/octo/repo/pull/122", "REPO": "octo/repo"},
+            {"PR": "122", "REPO": "octo/repo?x=1"},
+        ):
+            result = run_watch(extra_env=env)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("must be", result.stderr)
+
+    def test_creates_parent_directory_for_explicit_state_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            state_file = Path(temporary_directory) / "nested" / "watch-state.json"
+            result = run_watch(extra_env={"STATE_FILE": str(state_file)})
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(state_file.exists())
 
     def test_acknowledged_comments_are_suppressed_but_emitted_comments_replay(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -372,6 +482,59 @@ class ReviewLoopWatchTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn(REVIEW_TEXT, result.stdout)
             self.assertNotIn(ISSUE_COMMENT_TEXT, result.stdout)
+
+    def test_mismatched_state_deadline_is_ignored(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            state_file = Path(temporary_directory) / "watch-state.json"
+            state_file.write_text(
+                json.dumps(
+                    {
+                        "version": 2,
+                        "pr": "999",
+                        "repo": "other/repo",
+                        "deadline_epoch": 0,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = run_watch(extra_env={"STATE_FILE": str(state_file)})
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("IC_kwHandled", result.stdout)
+            self.assertEqual(json.loads(state_file.read_text(encoding="utf-8"))["pr"], "122")
+
+    def test_unacknowledged_event_replays_when_cursor_returns_no_events(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            state_file = Path(temporary_directory) / "watch-state.json"
+            first = run_watch(
+                extra_env={
+                    "STATE_FILE": str(state_file),
+                    "SUPPRESS_COMMENTS_WHEN_STATE_EXISTS": "0",
+                }
+            )
+            self.assertEqual(first.returncode, 0, first.stderr)
+            second = run_watch(
+                extra_env={
+                    "STATE_FILE": str(state_file),
+                    "SUPPRESS_COMMENTS_WHEN_STATE_EXISTS": "1",
+                }
+            )
+            self.assertEqual(second.returncode, 0, second.stderr)
+            self.assertIn(REVIEW_TEXT, second.stdout)
+
+    def test_pending_comment_retains_tabs_in_the_body(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state_file = Path(directory) / "watch-state.json"
+            comment = REVIEW_TEXT + "\tadditional context"
+            first = run_watch(extra_env={"STATE_FILE": str(state_file)}, review_text=comment)
+            self.assertEqual(first.returncode, 0, first.stderr)
+            second = run_watch(extra_env={"STATE_FILE": str(state_file), "SUPPRESS_COMMENTS_WHEN_STATE_EXISTS": "1"})
+            self.assertEqual(second.returncode, 0, second.stderr)
+            self.assertIn(comment, second.stdout)
+
+    def test_continuous_mode_releases_lock_before_the_next_poll(self) -> None:
+        result = run_watch(continuous=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("[status] PR #122 is MERGED", result.stdout)
 
 
 if __name__ == "__main__":

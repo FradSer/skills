@@ -6,11 +6,13 @@
 
 面向多种 agent 运行环境的技能集合，包含专项工作流与领域知识。
 
+以下发布目录包含 16 个技能；仓库内部的
+[skill-creator](.agents/skills/skill-creator/SKILL.md) 用于编写和验证技能。
+
 ## Codex 中的触发方式
 
-工作流技能需要明确点名，例如 `$commit` 或 `$create-pr`。在 Codex CLI 和 IDE
-中使用 `$` 或 `/skills` 选择技能，在桌面应用中使用 `@`。`commit`、`lark` 和
-`swiftui` 允许根据任务自动匹配。
+`commit`、`lark` 和 `swiftui` 允许根据任务自动匹配，其他技能需要明确点名，例如
+`$create-pr`。在 Codex CLI 和 IDE 中使用 `$` 或 `/skills` 选择技能，在桌面应用中使用 `@`。
 
 每个技能通过 `agents/openai.yaml` 声明触发策略；安装或建立软链接时应保留这个目录。
 原有的 `disable-model-invocation` frontmatter 是其他运行时的独立元数据。
@@ -38,7 +40,7 @@ npx skills add https://github.com/FradSer/skills --skill commit-and-push
 
 ### [create-issues](skills/create-issues/)
 
-遵循测试驱动开发原则和标签规范创建 GitHub issue。当用户要求 "create an issue"、"file a bug" 或记录新需求、epic、PR 范围内的任务时使用。
+起草或创建 GitHub issue，包含复现步骤或验收条件，并遵循仓库模板和现有标签。
 
 **安装命令：**
 ```bash
@@ -47,7 +49,7 @@ npx skills add https://github.com/FradSer/skills --skill create-issues
 
 ### [create-pr](skills/create-pr/)
 
-创建 GitHub Pull Request，包含自动化质量校验与安全扫描，随后交给 `review-pr` 进行 CI 监控与评论分类处理。当用户要求 "create a PR" 或 "submit a pull request" 时使用。
+完成相关仓库检查后创建 GitHub PR，随后单次交接给 `review-pr`，在授权范围内监控 CI 和处理反馈。
 
 **安装命令：**
 ```bash
@@ -56,7 +58,7 @@ npx skills add https://github.com/FradSer/skills --skill create-pr
 
 ### [create-prd](skills/create-prd/)
 
-将产品想法转化为中文 PRD 文档，支持本地 Markdown 输出，也支持通过 `lark-cli` 创建飞书/Lark 文档。
+创建或修订 PRD，保留已有需求和指定格式。支持本地 Markdown，以及经授权通过 `lark-cli` 操作飞书/Lark 文档。
 
 **安装命令：**
 ```bash
@@ -65,7 +67,7 @@ npx skills add https://github.com/FradSer/skills --skill create-prd
 
 ### [gitflow](skills/gitflow/)
 
-管理 Git-flow 分支生命周期：自动化启动或完成 feature、hotfix 和 release 分支，支持自动生成 changelog、版本号递增及分支清理。当用户要求启动/完成分支或提及 git-flow 时使用。
+在已配置 Git-flow 的仓库中启动或完成 feature、hotfix 和 release 分支，包含 changelog 和版本处理，支持仅在本地执行。
 
 **安装命令：**
 ```bash
@@ -74,7 +76,7 @@ npx skills add https://github.com/FradSer/skills --skill gitflow
 
 ### [lark](skills/lark/)
 
-飞书/Lark CLI 统一路由技能，基于 `lark-cli`。通过 `lark-cli skills read <sub-skill>` 将用户意图分发至各业务域技能（文档、电子表格、多维表格、日历、即时通讯、邮箱、任务、OKR、云空间、知识库、幻灯片、画板、妙搭应用、审批、考勤、通讯录、视频会议、妙记、纪要、实时事件等）。
+通过 `lark-cli` 路由飞书/Lark 请求，并使用 `lark-cli skills read <sub-skill>` 按需加载内置业务域指引。
 
 **安装命令：**
 ```bash
@@ -83,7 +85,7 @@ npx skills add https://github.com/FradSer/skills --skill lark
 
 ### [loop](skills/loop/)
 
-按固定或动态间隔再次执行提示词或技能，使用当前宿主提供的持久计时器、订阅机制或受监控的后台进程。
+使用宿主支持的调度机制，按固定或动态间隔重复执行提示词或技能，并提供停止条件和取消方式。
 
 **安装命令：**
 ```bash
@@ -92,7 +94,7 @@ npx skills add https://github.com/FradSer/skills --skill loop
 
 ### [missav](skills/missav/)
 
-使用 agent-browser 浏览 missav.ws 视频列表，提取标题/时长/链接，解析详情页剧情描述进行题材分析，并基于 ~/.missav/ 中的用户偏好进行个性化推荐与排序。
+使用 agent-browser 浏览 missav.ws 列表，提取列表和详情数据，结合用户偏好进行推荐排序；按用户要求决定是否保存偏好。
 
 **安装命令：**
 ```bash
@@ -101,7 +103,7 @@ npx skills add https://github.com/FradSer/skills --skill missav
 
 ### [patent-architect](skills/patent-architect/)
 
-通过 SerpAPI 检索现有技术并生成中文专利申请表。当用户想要保护技术创新或提到 "patents"、"inventions" 时使用。
+检索现有技术并起草中文专利技术材料，保留可追溯来源并说明证据边界。
 
 **安装命令：**
 ```bash
@@ -110,7 +112,7 @@ npx skills add https://github.com/FradSer/skills --skill patent-architect
 
 ### [resolve-issues](skills/resolve-issues/)
 
-使用隔离 worktree 和测试驱动开发解决 GitHub issue，随后交给 `create-pr` 创建 PR，确保质量关卡与 review 流程始终执行。当用户要求 "resolve an issue" 或 "fix issue #123" 时使用。
+通过验收场景和回归检查实现 GitHub issue，按需使用 worktree 隔离；用户要求发布时交接给 `create-pr`。
 
 **安装命令：**
 ```bash
@@ -119,7 +121,7 @@ npx skills add https://github.com/FradSer/skills --skill resolve-issues
 
 ### [review-pr](skills/review-pr/)
 
-审查 Pull Request：对 diff 进行基线审查、监控 CI 与评审评论、由独立 sceptic agent 分类处理每条评论、只应用已验证的修复，并持续提交直到 CI 通过。当用户要求 "review a PR" 或 "watch CI on a pull request" 时使用。
+审查 PR 改动、监控 CI 和反馈，并在请求范围内应用已验证的修复；合并和清理需要明确授权。
 
 **安装命令：**
 ```bash
@@ -128,7 +130,7 @@ npx skills add https://github.com/FradSer/skills --skill review-pr
 
 ### [storm](skills/storm/)
 
-基于多视角研究与检索生成维基百科风格的长文，移植了 Stanford STORM 的四阶段管道（research、outline、write、polish）。
+通过可续跑的研究、提纲、写作和润色阶段生成有来源支撑的长文，支持可用检索工具或用户提供的材料。
 
 **安装命令：**
 ```bash
@@ -137,7 +139,7 @@ npx skills add https://github.com/FradSer/skills --skill storm
 
 ### [swiftui](skills/swiftui/)
 
-用于构建、重构和审查现代 SwiftUI。优先采用 macOS 26 与 iOS 26 的 Liquid Glass，同时涵盖视图架构、状态、并发、导航、无障碍、性能和测试。
+根据项目部署目标构建、重构和审查 SwiftUI，涵盖状态、并发、导航、无障碍、性能，以及可用平台上的 Liquid Glass。
 
 **安装命令：**
 ```bash
@@ -146,7 +148,7 @@ npx skills add https://github.com/FradSer/skills --skill swiftui
 
 ### [tropes](skills/tropes/)
 
-检测并消除使文本显得生硬或公式化的 AI 写作套路。生成文本内容、编写文档、创建代码注释或审阅写作风格时使用。
+审查公式化写作表达，保留作者事实、语气和格式；可读取分层写作偏好，不修改偏好文件。
 
 **安装命令：**
 ```bash
@@ -155,7 +157,7 @@ npx skills add https://github.com/FradSer/skills --skill tropes
 
 ### [update-readme](skills/update-readme/)
 
-将 README.md 和 README.zh-CN.md 同步到项目最新状态。扫描所有技能、检查过期条目，并按正确的头部格式输出双语文件。
+依据仓库事实更新指定的 README，保留已有结构和指定格式；存在相关译本时保持内容一致。
 
 **安装命令：**
 ```bash
@@ -168,6 +170,19 @@ npx skills add https://github.com/FradSer/skills --skill update-readme
 2. 添加 `SKILL.md`，包含 YAML frontmatter（`name`、`description`）及技能正文。
 3. 可选：添加 `evals/evals.json` 作为评估用例。
 4. 运行 `update-readme` skill 同步两个 README 文件。
+
+## 验证
+
+运行仓库测试：`uv run --with pyyaml python -m unittest discover -s tests -v`。
+默认测试使用临时仓库和模拟服务，不发布 issue 或 PR、不向托管远端推送，也不验证真实账号或设备。
+安装检查需按对应测试的说明显式开启。
+
+用户授权独立模型测试后，可使用 [Codex 任务评估器](tools/skill_eval/README.md)。
+它通过全新 CLI 会话调用全部 17 个源 skill，执行 22 个本地用例，保留原始调用与产物证据；
+外部服务使用 fixture。这些用例验证显式任务行为，不代表隐式触发准确率或真实账号集成已通过。
+
+使用简洁的触发描述，仅在任务需要时加载参考资料。修订技能时保留已有触发策略。
+编写指引见[官方 skill 文档](https://learn.chatgpt.com/docs/build-skills)。
 
 ## License
 

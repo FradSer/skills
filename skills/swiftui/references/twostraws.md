@@ -1,5 +1,33 @@
 # Swift and SwiftUI review standards (twostraws)
 
+## Contents
+
+Find the relevant section by heading:
+
+- Using modern SwiftUI API
+- Using ObservableObject
+- SwiftUI Views
+- Animating views
+- Data flow, shared state, and property wrappers
+- Shared state
+- Local state
+- Bindings
+- Working with data
+- SwiftData
+- If the project uses SwiftData with CloudKit
+- Navigation and presentation
+- Alerts, confirmation dialogs, and sheets
+- Design
+- Creating a uniform design in this app
+- Requirements for flexible, accessible design
+- Standard system styling
+- Ensuring designs work for everyone
+- Accessibility
+- Performance
+- Swift
+- Swift Concurrency
+- Hygiene
+
 Vendored verbatim from [twostraws/swiftui-agent-skill](https://github.com/twostraws/swiftui-agent-skill) (MIT, Paul Hudson) — the authoritative review baseline. Where a rule here conflicts with the local Liquid Glass reference, the local reference takes precedence.
 
 ## Using modern SwiftUI API

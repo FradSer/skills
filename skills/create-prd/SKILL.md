@@ -1,133 +1,65 @@
 ---
 name: create-prd
-description: This skill should be used when the user asks to "create PRD", "write
-  product requirements document", revise or simplify an existing PRD or service
-  strategy table, or mentions "PRD", "product requirements document".
+description: Create, revise, simplify, or validate a product requirements document or service strategy table when the user asks for a PRD or product requirements document. Use the requested language, format, and destination; preserve existing business rules and clearly separate evidence, proposals, and unresolved decisions. Do not use for general product writing without a PRD request.
 disable-model-invocation: true
 ---
 
-# PRD Creation
+# PRD creation and revision
 
-Transform product ideas into a usable PRD, or revise an existing one without inventing policy. All PRD content is written in Chinese (the target audience is Chinese-speaking teams).
+Turn a product idea or an existing requirements document into a clear, testable PRD. A PRD is a product decision record: keep business intent and evidence visible, while leaving implementation choices open unless the user or a source has decided them.
 
-## Route and Evidence First
+## Route before writing
 
-Read `references/prd-revision-rules.md` before drafting or changing requirements. Separate sourced requirements, proposed decisions and unresolved dependencies. Broad repair requests do not approve arbitrary new business rules.
+Read [prd-revision-rules.md](references/prd-revision-rules.md) before revising an existing PRD, strategy table, or requirements section. Classify material as:
 
-For an existing document, audit, simplification or targeted replacement, do not restart the creation interview. Use the user's stated scope and format; read the latest source, patch the relevant section, and validate the result. Inspection alone does not authorize writing. Follow Phases 0–4 for new documents; ask only questions not already answered by the conversation or source.
+- confirmed requirement or verified fact;
+- proposed decision, which must stay labelled as a proposal until accepted;
+- unresolved question or dependency, with the missing evidence and impact recorded.
 
-## Output Mode
+“Fix all issues” authorizes repairs within the stated scope. It does not approve new thresholds, durations, priorities, triggers, actions, retention rules, or policy. Correct clear errors and broken references directly; ask or record a decision when behavior would change. If the user asks only for review, do not write files.
 
-Determine output mode from `$ARGUMENTS`:
+For an existing document, use the latest source as the baseline, patch the requested sections, update directly affected references, and preserve unrelated content and formatting. For a local or remote document, write only through the requested destination and report what was changed and read back. Follow the current Lark skill and CLI help for remote edits; do not assume a command or tool exists.
 
-| Argument | Mode | Output |
-|----------|------|--------|
-| `--md` (default) | Local Markdown | Save as `.md` file to project directory |
-| `--lark` | Feishu Cloud Doc | Create via `lark-cli` using Lark rich-text features |
+## Output and language
 
-`--lark` mode accepts optional location arguments (mutually exclusive), supporting token or Feishu URL:
-- `--folder-token` — Target folder (token or URL)
-- `--wiki-node` — Target wiki node (token or URL)
-- `--wiki-space` — Target wiki space root (ID or URL, or `my_library`)
+Honor the user's language, output format, filename, and location. If they have not specified a language, use the language of the request and ask only when the audience makes that choice material. Do not silently create a Markdown file or a cloud document during inspection or review.
 
-Pass URL directly to `lark-cli` — no manual token extraction needed. Defaults to user's personal space root when no location specified.
+`$ARGUMENTS` may select the output mode:
 
-## Phase 0: Import Context
+| Argument | Mode |
+| --- | --- |
+| `--md` or no mode | Save a local Markdown PRD when the user requested a file; prefer an existing `docs/` or `prd/` directory. |
+| `--lark` | Create or update a Feishu document only when the user requested that destination and the Lark skill/CLI is available. |
 
-Check for existing design or requirements documents:
+In `--lark` mode, accept at most one of `--folder-token`, `--wiki-node`, or `--wiki-space`. A token or URL may be passed through to the current CLI. Report any unavailable connector or unresolved authorization instead of fabricating success. For an existing document, preserve unrelated blocks and read back the changed scope.
 
-1. Search for `docs/`, `prd/` directories or user-specified files
-2. If found, extract key information (problem statement, target users, core features) as pre-filled content
-3. If nothing found, skip this phase
+When a filename is not supplied for a new local document, use `PRD-[ProductName]-[YYYYMMDD].md`, choosing `docs/` or `prd/` if either exists. Sanitize path separators and do not overwrite an unrelated file without explicit instruction.
 
-## Phase 1: Determine PRD Type
+## Choose the smallest workflow
 
-Ask the user which PRD type they need:
+1. **New PRD:** inspect the project or user-provided source for relevant context, then choose Full, Brief, or One-pager from the user's request or the problem's complexity. Ask only for information that is missing and affects the document. Use the question bank in [prd-interview-questions.md](references/prd-interview-questions.md) as a menu, not a mandatory one-question-at-a-time script.
+2. **Revision, simplification, or audit:** do not restart the creation interview. Read the current document and requested section, identify the smallest safe edit, and keep the existing format unless the user requests a new one.
+3. **Template selection:** use [prd-template-full.md](references/prd-template-full.md), [prd-template-brief.md](references/prd-template-brief.md), or [prd-template-onepager.md](references/prd-template-onepager.md) only for a new document or when the user asks to reformat. Read [prd-best-practices.md](references/prd-best-practices.md) when a decision or writing problem needs its guidance; do not load every example by default.
 
-- **Full** (recommended): All standard sections, suitable for complex features
-- **Brief**: Core sections only, suitable for small features or quick iteration
-- **One-pager**: Single-page summary, suitable for concept validation and executive reporting
+## Content contract
 
-## Phase 2: Gather Information
+- Start with the user problem, affected users, context, and available evidence. Mark unknowns as unknown; never invent survey results, baselines, targets, dates, costs, or vendor capabilities.
+- State goals and success measures with an owner, population, calculation, baseline, target, and time window when those facts are known. If they are not known, record the measurement gap instead of manufacturing SMART values.
+- Write each requirement as a discrete, observable behavior. Use Given/When/Then acceptance scenarios for behavior that needs testing, including relevant error and boundary cases.
+- Keep business requirements separate from implementation tasks, architecture, schema, and agent work breakdowns. Include the three-layer agent boundary (autonomous / confirmation required / prohibited) only when the PRD will be consumed by an AI coding agent or the user asks for it.
+- Distinguish delivery priority (P0–P3) from runtime ordering, recommendation ranking, or notification timing.
+- State non-goals as scope constraints with a reason or dependency when known. Do not convert an unresolved issue into a prohibition.
+- Preserve operators, time anchors, inclusivity, deduplication, actions, and exit conditions when reformatting rules. Check the same boundary inputs before and after a behavioral edit; if the behavior changes, cite its source or mark it for decision.
 
-Follow the interview questions in `references/prd-interview-questions.md`, one question at a time. Wait for the answer before continuing.
+## Validation and handoff
 
-- Basic info (7 items): required for all types
-- Full version extras (5 items): full type only
-- AI Agent boundaries: needed when the PRD will be consumed by AI coding agents
+Read [prd-validation-checklist.md](references/prd-validation-checklist.md) after drafting or changing a PRD. For a local file, verify headings, links, acceptance criteria, and the saved path. For a remote document, verify the changed values and formatting in the source system. Report evidence coverage, open decisions, actual changes, and any validation boundary. Suggest tickets or another review only when relevant; do not expand a localized edit into a new PRD.
 
-If Phase 0 found pre-filled content, show it to the user for confirmation and skip covered questions.
+Supporting references:
 
-## Phase 3: Generate PRD Document
-
-1. **Select template**:
-   - Full: `references/prd-template-full.md`
-   - Brief: `references/prd-template-brief.md`
-   - One-pager: `references/prd-template-onepager.md`
-
-2. **Fill content**: Use gathered information for each section, following `references/prd-best-practices.md` writing principles
-
-3. **AI Agent consumability**:
-   - Write each requirement as a discrete, verifiable item (lists over long paragraphs)
-   - Express non-goals as positive constraints
-   - Keep implementation task breakdowns separate from business requirements; add them only when requested
-   - Full version includes a three-layer boundary framework: autonomous / needs confirmation / prohibited
-
-4. **Quality requirements**:
-   - Problem statement backed by available data or research; label missing evidence instead of inventing it
-   - Goals follow SMART principles
-   - Success metrics are quantifiable
-   - Avoid vague terms ("approximately", "maybe", "try to")
-   - Use active voice and concrete verbs
-
-5. **Format**:
-   - `--md` mode: Standard Markdown with clear heading hierarchy
-   - `--lark` mode: Follow the current Lark document skill for supported rich-text syntax
-
-## Phase 4: Validate and Save
-
-Run validation per `references/prd-validation-checklist.md` — completeness, SMART goals, content quality, BDD acceptance criteria.
-
-### `--md` Mode
-
-Save file after validation:
-- Filename: `PRD-[ProductName]-[YYYYMMDD].md`
-- Prefer `docs/` or `prd/` directory, otherwise current working directory
-- Report path and file summary
-
-### `--lark` Mode
-
-1. Load the current `lark-doc` skill and its create or update reference, plus the matching format guide. For spreadsheet content use `lark-sheets`. Discover supported flags from current CLI help instead of copying syntax from this skill.
-2. For existing documents, record the latest revision and targeted changes before local block/cell edits. Preserve unrelated content and resources; do not create a replacement document unless requested.
-3. Choose the smallest useful format: tables for parallel business rules, multiline boolean conditions for triggers, diagrams only for meaningful branching or an explicit user request. No mandatory decorative grids or empty whiteboards.
-4. Read back the changed scope. Check actual values, formatting, resources and dependent acceptance examples; report the URL, actual changes and any unresolved decisions.
-
-## Phase 5: Next Steps
-
-After saving, report the result concisely. Suggest implementation tickets or additional review only when relevant; do not expand a localized edit into another full PRD workflow.
-
-## Format Principles
-
-- Use at most four heading levels and avoid duplicating the document title.
-- Prefer a business table and a few shared rules over paragraphs repeating the same policy.
-- Respect the user's latest format choice; replacement removes the superseded section rather than appending another explanation.
-- Keep one authoritative location per rule. Use descriptive references, not mutable spreadsheet row numbers as the rule itself.
-
-## Quality Principles
-
-- **Data-driven**: Support problem statements with specific data and user research
-- **SMART goals**: Specific, Measurable, Achievable, Relevant, Time-bound
-- **Concise and clear**: Avoid verbosity; descriptions must be clear enough for dev teams to implement directly
-- **Collaboration-oriented**: PRD is a collaboration tool; tone promotes discussion, not command
-- **Dual-audience design**: Serve both human teams and AI coding agents
-
-## Supporting Files
-
-- `references/prd-interview-questions.md` — Information gathering questionnaire
-- `references/prd-validation-checklist.md` — Validation checklist
-- `references/prd-template-full.md` — Full version template
-- `references/prd-template-brief.md` — Brief version template
-- `references/prd-template-onepager.md` — One-pager template
-- `references/prd-best-practices.md` — Best practices guide
-- `references/prd-examples.md` — High-quality PRD examples
-- Standalone `lark` plugin — Lark CLI skills (`--lark` mode)
+- [prd-revision-rules.md](references/prd-revision-rules.md): required for semantic-preserving revision.
+- [prd-interview-questions.md](references/prd-interview-questions.md): questions to fill material gaps in a new PRD.
+- [prd-best-practices.md](references/prd-best-practices.md): read for applicable product-writing guidance.
+- [prd-validation-checklist.md](references/prd-validation-checklist.md): completion checks.
+- The three templates: read only the selected template.
+- [prd-examples.md](references/prd-examples.md): optional illustration; treat all names, metrics, dates, and claims as fictional examples.

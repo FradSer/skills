@@ -22,6 +22,12 @@ function parseArgs(argv) {
     prefsFile: null,
     cliOverrides: {},
   };
+  const requiredValue = (arg, value) => {
+    if (value == null || value.startsWith("-")) {
+      throw new Error(`${arg} requires a value`);
+    }
+    return value;
+  };
   for (let i = 2; i < argv.length; i++) {
     const arg = argv[i];
     const next = argv[i + 1];
@@ -32,42 +38,42 @@ function parseArgs(argv) {
         .filter(Boolean);
     switch (arg) {
       case "--prefs":
-        opts.prefsFile = next;
+        opts.prefsFile = requiredValue(arg, next);
         i++;
         break;
       case "--genres":
-        opts.cliOverrides.genres = splitList(next);
+        opts.cliOverrides.genres = splitList(requiredValue(arg, next));
         i++;
         break;
       case "--performers":
       case "--actresses":
       case "--actors":
-        opts.cliOverrides.performers = splitList(next);
+        opts.cliOverrides.performers = splitList(requiredValue(arg, next));
         i++;
         break;
       case "--labels":
       case "--series":
-        opts.cliOverrides.labels = splitList(next).map((s) => s.toUpperCase());
+        opts.cliOverrides.labels = splitList(requiredValue(arg, next)).map((s) => s.toUpperCase());
         i++;
         break;
       case "--keywords":
-        opts.cliOverrides.keywords = splitList(next);
+        opts.cliOverrides.keywords = splitList(requiredValue(arg, next));
         i++;
         break;
       case "--codes":
-        opts.cliOverrides.codes = splitList(next).map((s) => s.toUpperCase());
+        opts.cliOverrides.codes = splitList(requiredValue(arg, next)).map((s) => s.toUpperCase());
         i++;
         break;
       case "--min-duration":
-        opts.cliOverrides.minDuration = Number(next);
+        opts.cliOverrides.minDuration = Number(requiredValue(arg, next));
         i++;
         break;
       case "--max-duration":
-        opts.cliOverrides.maxDuration = Number(next);
+        opts.cliOverrides.maxDuration = Number(requiredValue(arg, next));
         i++;
         break;
       case "--limit":
-        opts.cliOverrides.limit = Number(next);
+        opts.cliOverrides.limit = Number(requiredValue(arg, next));
         i++;
         break;
       default:

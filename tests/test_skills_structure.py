@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import re
 import unittest
 import yaml
@@ -6,6 +7,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILLS = ROOT / "skills"
+INTERNAL_SKILLS = ROOT / ".agents" / "skills"
 EXPECTED_SKILLS = {
     "commit",
     "commit-and-push",
@@ -53,10 +55,35 @@ class SkillsStructureTests(unittest.TestCase):
 
     def test_skill_frontmatter_metadata(self) -> None:
         for skill_name in EXPECTED_SKILLS:
-            entry = SKILLS / skill_name / "SKILL.md"
-            metadata = parse_frontmatter(entry)
-            self.assertEqual(skill_name, metadata.get("name"))
-            self.assertTrue(metadata.get("description"))
+            with self.subTest(skill=skill_name):
+                entry = SKILLS / skill_name / "SKILL.md"
+                metadata = parse_frontmatter(entry)
+                self.assertEqual(skill_name, metadata.get("name"))
+                self.assertRegex(skill_name, r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+                self.assertLessEqual(len(skill_name), 64)
+                description = metadata.get("description")
+                self.assertIsInstance(description, str)
+                self.assertTrue(description.strip())
+                self.assertLessEqual(len(description), 1024)
+                self.assertNotRegex(description, r"[<>]")
+                if "disable-model-invocation" in metadata:
+                    self.assertIsInstance(metadata["disable-model-invocation"], bool)
+
+    def test_evaluation_cases_match_their_skill_and_have_unique_ids(self) -> None:
+        for path in SKILLS.glob("*/evals/evals.json"):
+            with self.subTest(path=path):
+                data = json.loads(path.read_text(encoding="utf-8"))
+                self.assertEqual(path.parents[1].name, data["skill_name"])
+                self.assertIsInstance(data["evals"], list)
+                self.assertTrue(data["evals"])
+                identifiers = [case["id"] for case in data["evals"]]
+                self.assertEqual(len(identifiers), len(set(identifiers)))
+                for case in data["evals"]:
+                    self.assertIsInstance(case["prompt"], str)
+                    self.assertTrue(case["prompt"].strip())
+                    self.assertIsInstance(case["expected_output"], str)
+                    self.assertTrue(case["expected_output"].strip())
+                    self.assertIsInstance(case.get("files", []), list)
 
     def test_human_only_skills_have_disable_model_invocation(self) -> None:
         human_only_skills = {
@@ -123,7 +150,7 @@ class SkillsStructureTests(unittest.TestCase):
     def test_markdown_links_resolve(self) -> None:
         ignored = {"…", "README.md", "README.zh-CN.md", "LICENSE", "链接", "inflect: true"}
         missing = []
-        for path in SKILLS.rglob("*.md"):
+        for path in (*SKILLS.rglob("*.md"), *INTERNAL_SKILLS.rglob("*.md")):
             text = path.read_text(encoding="utf-8")
             for target in re.findall(r"\[[^]]+\]\(([^)#]+)", text):
                 if target.startswith(("http://", "https://", "mailto:", "#", "<")):

@@ -1,4 +1,6 @@
 from pathlib import Path
+import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -9,6 +11,112 @@ SCRIPTS = ROOT / "skills/missav/scripts"
 
 
 class MissavWorkflowTests(unittest.TestCase):
+    def test_relative_browser_wrapper_preserves_challenge_stop_with_cdpath(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            installed = root / ".agents/skills/missav/scripts"
+            shutil.copytree(SCRIPTS, installed)
+            fake_bin = root / "bin"
+            fake_bin.mkdir()
+            browser = fake_bin / "agent-browser"
+            browser.write_text("#!/usr/bin/env bash\nif [[ \"$*\" == *\"get title\"* ]]; then printf '%s\\n' 'Just a moment...'; fi\n")
+            browser.chmod(0o755)
+            result = subprocess.run(
+                ["bash", ".agents/skills/missav/scripts/browse-page.sh", "https://missav.ws/cn/search/example"],
+                cwd=root, env={**os.environ, "CDPATH": str(root), "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}", "MISSAV_CHROME": "/does/not/exist"},
+                capture_output=True, text=True, timeout=30,
+            )
+            self.assertEqual(result.returncode, 42, result.stdout + result.stderr)
+            self.assertIn("Authorized API or site-owner access is required", result.stderr)
+
+    def test_run_recommend_keeps_queries_with_spaces_as_one_url(self) -> None:
+        """Given a multi-word preference, one query must reach the browser intact."""
+        run_recommend = SCRIPTS / "run-recommend.sh"
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            fake_bin = root / "bin"
+            fake_bin.mkdir()
+            command_log = root / "commands.log"
+            prefs = root / "preferences.json"
+            prefs.write_text(
+                '{"likes":{"genres":["first query"]},"search":{}}',
+                encoding="utf-8",
+            )
+            fake_browser = fake_bin / "agent-browser"
+            fake_browser.write_text(
+                f'''#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "{command_log}"
+if [[ "$*" == *"get title"* ]]; then printf '%s\\n' 'Just a moment...'; fi
+''',
+                encoding="utf-8",
+            )
+            fake_browser.chmod(0o755)
+
+            result = subprocess.run(
+                [
+                    "bash",
+                    "-c",
+                    f'''export PATH="{fake_bin}:$PATH"
+export HOME="{root}/home"
+export MISSAV_CHROME=/does/not/exist
+source "{run_recommend}" --prefs "{prefs}"
+''',
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 42)
+            opened = [
+                line for line in command_log.read_text(encoding="utf-8").splitlines()
+                if " open " in f" {line} "
+            ]
+            self.assertEqual(len(opened), 1)
+            self.assertIn("/cn/search/first+query", opened[0])
+            self.assertNotIn("first query", result.stderr)
+
+    def test_run_recommend_does_not_initialize_default_home_for_custom_prefs(self) -> None:
+        """A custom --prefs file must not create or mutate ~/.missav."""
+        run_recommend = SCRIPTS / "run-recommend.sh"
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            fake_bin = root / "bin"
+            fake_bin.mkdir()
+            prefs = root / "custom" / "preferences.json"
+            prefs.parent.mkdir()
+            prefs.write_text(
+                '{"likes":{"genres":["first"]},"search":{}}',
+                encoding="utf-8",
+            )
+            fake_browser = fake_bin / "agent-browser"
+            fake_browser.write_text(
+                "#!/usr/bin/env bash\n"
+                "if [[ \"$*\" == *\"get title\"* ]]; then printf '%s\\n' 'Just a moment...'; fi\n",
+                encoding="utf-8",
+            )
+            fake_browser.chmod(0o755)
+
+            result = subprocess.run(
+                [
+                    "bash",
+                    "-c",
+                    f'''export PATH="{fake_bin}:$PATH"
+export HOME="{root}/home"
+export MISSAV_CHROME=/does/not/exist
+source "{run_recommend}" --prefs "{prefs}"
+''',
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 42)
+            self.assertFalse((root / "home/.missav").exists())
+
     def test_short_genre_does_not_match_code_prefix(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             listings = Path(temporary_directory) / "listings.json"

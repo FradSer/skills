@@ -1,5 +1,18 @@
 # JSON Schemas
 
+## Contents
+
+Find the relevant section by heading:
+
+- evals.json
+- history.json
+- grading.json
+- metrics.json
+- timing.json
+- benchmark.json
+- comparison.json
+- analysis.json
+
 This document defines the JSON schemas used by skill-creator.
 
 ---
@@ -290,7 +303,8 @@ Output from Benchmark mode. Located at `benchmarks/<timestamp>/benchmark.json`.
   - `skill_name`: Name of the skill
   - `timestamp`: When the benchmark was run
   - `evals_run`: List of eval names or IDs
-  - `runs_per_configuration`: Number of runs per config (e.g. 3)
+  - `runs_per_configuration`: Observed runs per evaluation and config; null when counts vary or nothing was measured
+  - `run_counts_by_eval`: Actual counts keyed by configuration and evaluation ID
 - `runs[]`: Individual run results
   - `eval_id`: Numeric eval identifier
   - `eval_name`: Human-readable eval name (used as section header in the viewer)
@@ -299,7 +313,8 @@ Output from Benchmark mode. Located at `benchmarks/<timestamp>/benchmark.json`.
   - `result`: Nested object with `pass_rate`, `passed`, `total`, `time_seconds`, `tokens`, `errors`
 - `run_summary`: Statistical aggregates per configuration
   - `with_skill` / `without_skill`: Each contains `pass_rate`, `time_seconds`, `tokens` objects with `mean` and `stddev` fields
-  - `delta`: Difference strings like `"+0.50"`, `"+13.0"`, `"+1700"`
+  - `delta`: Difference strings like `"+0.50"`, `"+13.0"`, `"+1700"`; omit when no measured baseline exists. Compare with_skill minus without_skill, or new_skill minus old_skill
+  - Missing timing or token measurements have null statistics. Never substitute output character counts for tokens or missing measurements for zero
 - `notes`: Freeform observations from the analyzer
 
 **Important:** The viewer reads these field names exactly. Using `config` instead of `configuration`, or putting `pass_rate` at the top level of a run instead of nested under `result`, will cause the viewer to show empty/zero values. Always reference this schema when generating benchmark.json manually.

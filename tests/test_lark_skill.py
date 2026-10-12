@@ -1,6 +1,9 @@
 import json
+import os
 from pathlib import Path
+import shutil
 import subprocess
+import tempfile
 import unittest
 import yaml
 
@@ -94,6 +97,35 @@ class LarkSkillTests(unittest.TestCase):
         self.assertTrue(SYNC_SCRIPT.exists(), f"{SYNC_SCRIPT} must exist")
         result = subprocess.run([str(SYNC_SCRIPT), "--check"], capture_output=True, text=True)
         self.assertIn(result.returncode, (0, 1))
+
+    def test_sync_never_prunes_local_skill_directories_implicitly(self) -> None:
+        script = SYNC_SCRIPT.read_text(encoding="utf-8")
+        self.assertNotIn("rm -rf", script)
+        self.assertNotIn("-exec rm", script)
+
+    def test_refresh_updates_last_checked_date_and_preserves_local_files(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "skills/lark"
+            shutil.copytree(LARK_DIR, target)
+            tool = root / "tools/skill-sync"
+            tool.mkdir(parents=True)
+            shutil.copy(ROOT / "tools/skill-sync/gen-index.py", tool)
+            (target / "SYNC.md").write_text("**Last checked**: 2000-01-01\n**lark-cli version**: 0.0.0\n")
+            local = target / "local-draft/note.md"
+            local.parent.mkdir()
+            local.write_text("Preserve local fixture")
+            commands = root / "bin"
+            commands.mkdir()
+            for name, body in (("lark-cli", '#!/bin/sh\nif [ "$1" = --version ]; then echo "lark-cli 1.2.3"; else echo \'{"skills":[{"name":"lark-shared","description":"Shared fixture","version":"1"}]}\'; fi\n'), ("date", "#!/bin/sh\necho 2099-01-01\n")):
+                path = commands / name
+                path.write_text(body)
+                path.chmod(0o755)
+            result = subprocess.run(["bash", str(target / "scripts/sync-lark.sh")], env={**os.environ, "PATH": f"{commands}{os.pathsep}{os.environ['PATH']}"}, capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("**Last checked**: 2099-01-01", (target / "SYNC.md").read_text())
+            self.assertIn("**lark-cli version**: 1.2.3", (target / "SYNC.md").read_text())
+            self.assertEqual(local.read_text(), "Preserve local fixture")
 
 
 if __name__ == "__main__":

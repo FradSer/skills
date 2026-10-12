@@ -1129,16 +1129,16 @@
       html += "<h2 style='font-family: Poppins, sans-serif; margin-bottom: 0.5rem;'>Benchmark Results</h2>";
       html += "<p style='color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.25rem;'>";
       if (metadata.skill_name) html += "<strong>" + escapeHtml(metadata.skill_name) + "</strong> &mdash; ";
-      if (metadata.timestamp) html += metadata.timestamp + " &mdash; ";
-      if (metadata.evals_run) html += "Evals: " + metadata.evals_run.join(", ") + " &mdash; ";
-      html += (metadata.runs_per_configuration || "?") + " runs per configuration";
+      if (metadata.timestamp) html += escapeHtml(metadata.timestamp) + " &mdash; ";
+      if (metadata.evals_run) html += "Evals: " + escapeHtml(metadata.evals_run.join(", ")) + " &mdash; ";
+      html += metadata.runs_per_configuration == null ? "Run counts vary or are unmeasured; see run details" : escapeHtml(String(metadata.runs_per_configuration)) + " runs per configuration";
       html += "</p>";
 
       // Summary table
       html += '<table class="benchmark-table">';
 
       function fmtStat(stat, pct) {
-        if (!stat) return "—";
+        if (!stat || !Number.isFinite(stat.mean) || !Number.isFinite(stat.stddev)) return "—";
         const suffix = pct ? "%" : "";
         const m = pct ? (stat.mean * 100).toFixed(0) : stat.mean.toFixed(1);
         const s = pct ? (stat.stddev * 100).toFixed(0) : stat.stddev.toFixed(1);
@@ -1155,36 +1155,21 @@
 
       // Discover config names dynamically (everything except "delta")
       const configs = Object.keys(summary).filter(k => k !== "delta");
-      const configA = configs[0] || "config_a";
-      const configB = configs[1] || "config_b";
-      const labelA = configA.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-      const labelB = configB.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-      const a = summary[configA] || {};
-      const b = summary[configB] || {};
-      const delta = summary.delta || {};
-
-      html += "<thead><tr><th>Metric</th><th>" + escapeHtml(labelA) + "</th><th>" + escapeHtml(labelB) + "</th><th>Delta</th></tr></thead>";
-      html += "<tbody>";
-
-      html += "<tr><td><strong>Pass Rate</strong></td>";
-      html += "<td>" + fmtStat(a.pass_rate, true) + "</td>";
-      html += "<td>" + fmtStat(b.pass_rate, true) + "</td>";
-      html += '<td class="' + deltaClass(delta.pass_rate) + '">' + (delta.pass_rate || "—") + "</td></tr>";
-
-      // Time (only show row if data exists)
-      if (a.time_seconds || b.time_seconds) {
-        html += "<tr><td><strong>Time (s)</strong></td>";
-        html += "<td>" + fmtStat(a.time_seconds, false) + "</td>";
-        html += "<td>" + fmtStat(b.time_seconds, false) + "</td>";
-        html += '<td class="' + deltaClass(delta.time_seconds) + '">' + (delta.time_seconds ? delta.time_seconds + "s" : "—") + "</td></tr>";
+      const delta = summary.delta;
+      html += "<thead><tr><th>Metric</th>";
+      for (const config of configs) {
+        const label = config.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+        html += "<th>" + escapeHtml(label) + "</th>";
       }
-
-      // Tokens (only show row if data exists)
-      if (a.tokens || b.tokens) {
-        html += "<tr><td><strong>Tokens</strong></td>";
-        html += "<td>" + fmtStat(a.tokens, false) + "</td>";
-        html += "<td>" + fmtStat(b.tokens, false) + "</td>";
-        html += '<td class="' + deltaClass(delta.tokens) + '">' + (delta.tokens || "—") + "</td></tr>";
+      if (delta) html += "<th>Delta</th>";
+      html += "</tr></thead>";
+      html += "<tbody>";
+      for (const [metric, label, percentage, suffix] of [["pass_rate", "Pass Rate", true, ""], ["time_seconds", "Time (s)", false, "s"], ["tokens", "Tokens", false, ""]]) {
+        if (metric !== "pass_rate" && !configs.some(config => Number.isFinite(summary[config][metric]?.mean))) continue;
+        html += "<tr><td><strong>" + label + "</strong></td>";
+        for (const config of configs) html += "<td>" + fmtStat(summary[config][metric], percentage) + "</td>";
+        if (delta) html += '<td class="' + deltaClass(delta[metric]) + '">' + (delta[metric] ? escapeHtml(delta[metric]) + suffix : "—") + "</td>";
+        html += "</tr>";
       }
 
       html += "</tbody></table>";

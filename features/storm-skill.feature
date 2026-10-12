@@ -1,5 +1,11 @@
 Feature: STORM long-form article generation as a portable skill
 
+  Scenario: Retrieval limitations stay visible
+    Given the runtime has no search or fetch capability
+    When the research phase starts
+    Then it reports the missing retrieval capability
+    And it does not present parametric claims as source-grounded findings
+
   Scenario: The storm skill is a single self-contained directory
     Given the skills repository distributes one skill per directory
     When the storm skill is packaged from the dotclaude plugin

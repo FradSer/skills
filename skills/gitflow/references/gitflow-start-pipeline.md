@@ -1,72 +1,57 @@
-# GitFlow Start Pipeline Reference
+# Git-flow start pipeline
 
-Shared pipeline for starting GitFlow branches (`feature`, `hotfix`, `release`).
+Read [invariants.md](invariants.md) before starting a branch.
 
-## Pre-flight Invariants
+## Resolve the target
 
-CRITICAL: Verify working tree is clean (`git status --porcelain` is empty) before starting. Abort if dirty. See `invariants.md`.
+Use the user's explicit name or version. For a feature request with a clear task but
+no slug, derive a short kebab-case name and state it before creating the local branch.
+For a release or hotfix, preserve the project's release/version convention. Propose a
+version from reachable tags and commits only when the request authorizes choosing it;
+ask when the version or release scope is unresolved. Do not infer a release version
+from an unrelated highest tag or assume an unversioned project starts at 0.0.0.
 
----
+For git-flow-next, read `gitflow.branch.<type>.prefix`, `.parent`, and `.startpoint`,
+and verify referenced nodes have `.type=base`. Feature parent is its development base;
+release startpoint is its development base; a classic hotfix uses the feature parent
+as the return/integration branch. The shared helper also reads legacy AVH
+`gitflow.prefix.<type>` and `gitflow.branch.master/develop` when native topic keys are
+absent. Native keys take precedence. Examples use conventional prefixes; actual names
+and base branches come from repository configuration.
 
-## Phase 0: Resolve Target Branch Name or Version
+## Validate before mutation
 
-Arguments (`$ARGUMENTS`) are **optional**. If `$ARGUMENTS` is empty or omitted, activate **Full-Auto Inference**:
+Require a clean working tree, an existing configured base, a valid new branch ref, and
+a supported installed Git-flow CLI. The wrapper checks `git flow <type> start --help`
+for the flags that disable fetch and automatic worktree creation.
 
-### 1. Feature (`feature`)
-- Turn `$ARGUMENTS` into a concrete branch slug `NAME`:
-  1. If `$ARGUMENTS` is empty, auto-derive `NAME` from recent conversation topic, task description, or `git diff` / uncommitted context.
-  2. If `$ARGUMENTS` is already a slug (lowercase, hyphen-separated, no spaces), use it directly.
-  3. Otherwise, derive a concise kebab-case `NAME` (lowercase, words joined by hyphens, drop filler words, ≤5 words).
-  4. Report: "Resolved feature branch: feature/<NAME> (from: $ARGUMENTS)."
+An explicit `--version` requires at least one supported version manifest. The helper
+validates every recognized manifest before branch creation and before writing any file.
+It updates the root `package.json.version`, static `[project]` or `[tool.poetry]` versions,
+`Cargo.toml [package].version`, or a single SemVer line in `VERSION`/`version.txt`.
+Dynamic/inherited versions need the project's release tooling. Dependency and nested
+metadata versions remain unchanged. Version updates require `uv` and Python 3.11+.
 
-### 2. Hotfix (`hotfix`)
-- Turn `$ARGUMENTS` into a concrete next version `TARGET`:
-  1. Get latest tag: `git tag --sort=-v:refname | head -1` (strip `v`). If no tags exist, treat latest as `0.0.0`.
-  2. If `$ARGUMENTS` is empty or a natural-language description, auto-bump the **patch** component of the latest tag (`x.y.Z+1`) — hotfixes are patch-level fixes by definition.
-  3. If `$ARGUMENTS` is semver (`^v?\d+\.\d+\.\d+$`), use it directly as `TARGET`.
-  4. Abort if `TARGET` is not strictly greater than the latest tag.
-  5. Report: "Resolved hotfix version: <TARGET> (from: $ARGUMENTS)."
+## Execute
 
-### 3. Release (`release`)
-- Turn `$ARGUMENTS` into a concrete target version `TARGET`:
-  1. Get latest tag: `git tag --sort=-v:refname | head -1` (strip `v`). If no tags exist, treat latest as `0.0.0`.
-  2. If `$ARGUMENTS` is semver (`^v?\d+\.\d+\.\d+$`), use it directly as `TARGET`.
-  3. If `$ARGUMENTS` is empty or a natural-language description, analyze commits since latest tag (`git log <latest-tag>..develop --oneline`) and choose bump:
-     - **major** (X+1.0.0): breaking/incompatible changes.
-     - **minor** (x.Y+1.0): new features/enhancements (default).
-     - **patch** (x.y.Z+1): bug fixes only.
-  4. Abort if `TARGET` is not strictly greater than the latest tag.
-  5. Report: "Resolved release version: <TARGET> (from: $ARGUMENTS)."
-
----
-
-## Phase 1: Start GitFlow Branch & Version Bump
-
-Run the deterministic steps through the bundled script (the agent still decides the
-name/version in Phase 0; the script executes clean-tree check, `git flow start`,
-version-file bump commit, and push):
+For authorized local work:
 
 ```bash
-bash <skill-dir>/scripts/start-branch.sh --type <feature|hotfix|release> --name <NAME_OR_TARGET>
-# hotfix/release also pass the resolved version so the bump commit is created:
-bash <skill-dir>/scripts/start-branch.sh --type hotfix --version <TARGET>
-bash <skill-dir>/scripts/start-branch.sh --type release --version <TARGET>
-# add --no-push to skip the push (e.g. dry runs)
+bash <skill-dir>/scripts/start-branch.sh --type feature --name <name> --no-push
+bash <skill-dir>/scripts/start-branch.sh --type release --version <version> --no-push
+bash <skill-dir>/scripts/start-branch.sh --type hotfix --version <version> --no-push
 ```
 
-Equivalent manual commands (when the script is unavailable):
+Use `--name` without `--version` for a branch-only operation. The wrapper stages only
+validated version paths and commits a real version change. `--no-push` performs actual
+local mutations; it is not a dry run.
 
-1. Execute git-flow start command:
-   ```bash
-   git flow <type> start <NAME_OR_TARGET>
-   ```
-2. For `hotfix` and `release`:
-   - Update project version files (`package.json`, `Cargo.toml`, `pyproject.toml`, `VERSION`, etc.) to `<TARGET>`.
-   - Stage version files and commit in ONE chained command per `coauthor-attribution.md`:
-     ```bash
-     git add <modified version files> && git commit -m "chore: bump version to <TARGET>"
-     ```
-3. Push branch to remote:
-   ```bash
-   git push -u origin <type>/<NAME_OR_TARGET>
-   ```
+Existing script callers retain publication by default. Omit `--no-push` only when
+publication to the configured origin is authorized. A missing origin fails before
+branch creation. A push failure leaves the local branch in place, returns failure,
+and must be reported; do not claim remote completion.
+
+Use the wrapper when available. For a manual fallback, inspect current CLI help,
+validate all proposed version edits before starting, disable automatic remote
+operations, stage only the intended paths, and publish only the exact branch when
+authorized. Do not improvise unsupported flags or initialize Git-flow configuration.

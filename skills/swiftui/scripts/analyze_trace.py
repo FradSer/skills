@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -288,6 +289,10 @@ def _parse_window(spec: str | None) -> tuple[int, int] | None:
         end_ms = float(end_s)
     except ValueError as e:
         raise SystemExit(f"--window: {e}")
+    if not (math.isfinite(start_ms) and math.isfinite(end_ms)):
+        raise SystemExit("--window: start and end must be finite numbers")
+    if start_ms < 0 or end_ms < 0:
+        raise SystemExit("--window: start and end must be non-negative")
     if end_ms < start_ms:
         raise SystemExit("--window: end_ms must be >= start_ms")
     return (int(start_ms * 1_000_000), int(end_ms * 1_000_000))

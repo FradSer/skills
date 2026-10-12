@@ -1,169 +1,49 @@
 ---
 name: patent-architect
-description: Automatically searches prior art via SerpAPI and generates Chinese patent
-  application forms. This skill should be used when the user wants to generate Chinese
-  patent application forms, or mentions "patents", "inventions", or wants to protect
-  technical innovations.
+description: Draft a patent disclosure or application from a technical invention, or perform a source-traceable prior-art review when the user asks for patent drafting, invention disclosure, or prior-art analysis. Use the requested jurisdiction, language, format, and destination; do not use for general technical writing.
 disable-model-invocation: true
 ---
 
-# Patent Architect
+# Patent drafting and prior-art analysis
 
-You are **Patent Architect**, a senior patent engineer specializing in AI systems, XR devices, and software-hardware co-design. Execute these phases sequentially to transform technical ideas into complete Chinese patent application forms.
+Turn the user's technical disclosure into a traceable working draft: identify the technical problem, solution elements, effects, variants, assumptions, and open questions; then compare those elements with retrieved sources. This skill supports drafting and research. A patent attorney or the relevant patent office must make legal, filing, novelty, inventive-step, enablement, and claim-scope decisions.
 
-## Output Mode
+## Route and authorization
 
-Parse `$ARGUMENTS` to determine output mode:
+Preserve the user's jurisdiction, language, output format, title, and requested scope. The bundled template and terminology reference are Chinese-oriented; read them for a Chinese draft and adapt rather than silently applying them to another jurisdiction.
 
-| Argument | Mode | Output |
-|----------|------|--------|
-| `--md` (default) | Local Markdown | Save as `.md` file to project directory |
-| `--lark` | Feishu Cloud Doc | Create via `lark-cli`, using Lark rich-text features |
+If the user marks the disclosure confidential, says it contains unpublished trade-secret details, or restricts external sharing, use a redacted/local corpus or ask which safe search scope they want. Otherwise follow the user's request for retrieval. Do not expose credentials, private files, or unnecessary invention details in commands, logs, or citations. Do not make a filing, send a cloud document, or contact an attorney without explicit user authorization.
 
-`--lark` mode accepts optional location arguments (mutually exclusive), supporting token or Feishu URL:
-- `--folder-token` -- Target folder (token like `fldcnXXXX` or URL like `https://xxx.feishu.cn/drive/folder/fldcnXXXX`)
-- `--wiki-node` -- Target wiki node (token like `wikcnXXXX` or URL like `https://xxx.feishu.cn/wiki/wikcnXXXX`)
-- `--wiki-space` -- Target wiki space root (ID like `7000000000000000000`, URL like `https://xxx.feishu.cn/wiki/settings/7000000000000000000`, or `my_library`)
+`$ARGUMENTS` may select:
 
-Pass URL directly to `lark-cli` -- no manual token extraction needed. Defaults to user's personal space root when no location is specified.
+| Argument | Mode |
+| --- | --- |
+| `--md` or no mode | Save a local Markdown draft when the user requested a file. Prefer an existing `docs/` or `patents/` directory. |
+| `--lark` | Create or update a Feishu document only when the user requested that destination and the current Lark skill/CLI is available. |
 
-## Phase 1: Understand the Invention
+In `--lark` mode accept at most one of `--folder-token`, `--wiki-node`, or `--wiki-space`, passing the selected token or URL through the current CLI. Verify the changed scope after writing and report the actual URL; never infer success from a command request alone. If a connector or permission is unavailable, provide the local draft or a clear blocked report instead.
 
-**Goal**: Extract core technical elements from the user's invention description.
+## Workflow
 
-**Actions**:
-1. **Domain Analysis**: Identify the technical field
-2. **Problem Identification**: Define what technical problem is being solved
-3. **Solution Extraction**: Extract the proposed technical solution
-4. **Effect Assessment**: Determine the technical effects and advantages
+1. **Disclosure map.** Extract the technical field, concrete problem, system or method elements, data/control flow, alternatives, measurable or observable effects, assumptions, and missing facts. Keep user facts, retrieved facts, and proposed drafting language distinguishable.
+2. **Search plan.** Build queries from technical elements, effects, and alternatives. Use the retrieval tools actually available. When a patent database or API is available, record its name, query, date, result URL or publication number, and the fields actually inspected. Do not assume `SERPAPI_KEY`, `EXA_API_KEY`, `curl`, or a particular web-search command exists. If no retrieval is available, say so and produce a disclosure draft without a fabricated search result.
+3. **Source ledger.** For each source retain the publication/application identifier, title, jurisdiction, kind code when available, priority/publication dates, applicant or assignee when available, URL, retrieval date, and the passage or claim supporting each comparison. Treat search snippets and generated summaries as leads until the source page or official record is checked.
+4. **Comparison.** Compare the disclosed technical features with the closest sources feature by feature. Separate identical, overlapping, missing, and unverified elements. Use cautious wording such as “本次检索中未发现” or “需要进一步核实”; a search result cannot establish global novelty or inventive step.
+5. **Draft.** For a Chinese application-style draft, read [references/template.md](references/template.md) and [references/reference.md](references/reference.md). Include only supported technical effects; label assumptions, alternatives, and unresolved claim decisions. Read [references/examples.md](references/examples.md) only when an example is useful, and treat its names, metrics, dates, and patent numbers as illustrative rather than evidence.
+6. **Validate.** Check antecedent basis and consistent names, that claims do not introduce unsupported elements, that embodiments cover disclosed variants, and that every prior-art assertion has a source ledger entry. Report missing drawings, experiments, inventorship, ownership, jurisdiction, dates, or legal review as open items.
 
-**Output**: Structured understanding of the four key elements.
+## Chinese draft guidance
 
-## Phase 2: Prior Art Search
+Use the provided template's sections for background technology, search analysis, invention content, embodiments, and other alternatives/limitations. Use precise technical nouns and causal effects. Do not force three embodiments when the disclosure does not support them: offer clearly labelled implementation variants or mark the missing detail. Do not turn product names, UI labels, or marketing benefits into technical limitations without evidence. Avoid asserting that a draft is “ready for filing.”
 
-**Goal**: Validate novelty by searching existing patents and technical documentation.
+The reference's terminology table is a drafting aid, not a universal legal rule. Preserve meaningful user terminology where changing it would alter scope, and define synonyms once. Distinguish an embodiment, an optional feature, and a claim limitation.
 
-**Actions**:
+## Output and evidence report
 
-### Step 2.1: Conditional API Search
-Check for availability of `SERPAPI_KEY` and `EXA_API_KEY`:
-- If both keys are available, proceed with structured API searches as described in Steps 2.2-2.4
-- If keys are missing, inform the user briefly and automatically proceed with web search as a fallback
+For local Markdown, use `Patent-[ShortTitle]-[YYYYMMDD].md` only when the user has not supplied a filename, sanitize path separators, and do not overwrite an unrelated file. Report the path, search scope, source count, comparison limits, unresolved decisions, and whether the result is a disclosure draft, a working application draft, or an attorney-review draft. Never report “novel,” “patentable,” “grantable,” or “ready to file” as an established conclusion.
 
-### Step 2.2: API Patent Search (Conditional)
-Execute only if API keys are available:
+Supporting references:
 
-**Method A: SerpAPI Google Patents** (Keyword-based)
-```bash
-# Example: Search for AR gesture recognition patents
-curl -s "https://serpapi.com/search.json?engine=google_patents&q=(augmented%20reality)%20AND%20(gesture%20recognition)&api_key=${SERPAPI_KEY}&num=10"
-```
-
-**Method B: Exa.ai** (Semantic)
-```bash
-# Example: Semantic search for similar inventions
-curl -X POST 'https://api.exa.ai/search' \
-  -H "x-api-key: ${EXA_API_KEY}" \
-  -H 'Content-Type: application/json' \
-  -d '{ "query": "augmented reality gesture recognition hand tracking", "type": "neural", "numResults": 10, "includeDomains": ["patents.google.com"] }'
-```
-
-**Extract from API results**:
-- Patent IDs and titles
-- Publication dates
-- Key claims and technical solutions
-- Assignees and filing dates
-
-### Step 2.3: Web Search Fallback (Used when APIs unavailable)
-When API keys are not available, automatically use the agent's web search capability:
-- Use the web search tool to find relevant patent and technical information
-- Query format: "[user's invention description] prior art patent search comparative analysis"
-- Example: `WebSearch("[specific technical concept] prior art patent 2025")`
-
-### Step 2.4: Parallel Web Search
-Perform web searches to gather comprehensive context regardless of API availability:
-
-1. **Specific patents**: Search for detailed patent information by technical concept
-2. **Technical implementations**: Search for how the solution works in practice
-3. **Industry standards**: Search for relevant technical standards and specifications
-4. **Academic research**: Search for latest research papers on related technologies
-5. **Existing products**: Search for commercial product comparisons and reviews
-
-Search query patterns (customize based on invention):
-- "[user's specific technical concept] vs [similar concept] patent"
-- "[user's solution approach] implementation challenges and approaches"
-- "[domain] technical standards and requirements 2025"
-- "recent research [user's technical concept] academic papers"
-- "[user's solution category] commercial implementation comparison"
-
-### Step 2.5: Novelty Analysis
-
-**Synthesize findings** from both API and web search results:
-1. **Comparison**: Compare the user's idea with the top 3-5 most relevant patents
-2. **Prior Art Identification**: Identify the closest prior art
-3. **Distinguishing Features**: Determine distinguishing features
-4. **Novelty Gaps**: Note any potential novelty gaps or white spaces
-5. **Feasibility Check**: Confirm technical feasibility from implementation sources
-
-**Output**: Comprehensive prior art analysis with novelty assessment.
-
-## Phase 3: Generate Application Form
-
-**Goal**: Draft the complete patent application document.
-
-**Actions**:
-1. **Structure Setup**: Follow the exact format specified in `references/template.md`
-2. **Language Precision**: Use formal Chinese patent terminology from `references/reference.md`
-3. **Embodiments Creation**: Design at least 3 distinct embodiments:
-   - Vary data flow (push/pull, sync/async)
-   - Vary trigger conditions (time-based, event-based, threshold-based)
-   - Vary architecture (monolithic, distributed, edge-cloud)
-4. **Novelty Articulation**: Clearly state creative points vs. existing solutions
-5. **Completeness Check**: Ensure all required sections are present
-
-**Output**: Complete Chinese patent application form ready for filing.
-
-### `--md` Mode
-
-Save the generated form as a local Markdown file:
-- Filename: `Patent-[ShortTitle]-[YYYYMMDD].md`
-- Prefer `docs/` or `patents/` directory, otherwise current working directory
-
-### `--lark` Mode
-
-Create the form as a Feishu cloud document via the `lark` plugin:
-1. Confirm the `lark` plugin is available; follow its `lark-doc` skill (`lark-cli docs +create`) for authentication and publishing.
-2. Structure patent sections using Lark-flavored Markdown (metadata table, novelty callouts, and architecture whiteboards).
-3. Publish document via `lark-cli docs +create --title "Patent-[ShortTitle]-[YYYYMMDD]" [--folder-token|--wiki-node|--wiki-space] --markdown "<lark-markdown>"`.
-4. If whiteboard blocks (`board_tokens`) exist, populate embodiment diagrams via `lark-whiteboard`.
-5. Report the final Feishu document URL.
-
-### Lark Format Principles
-
-- Title layer depth max 4 levels
-- Do NOT write a top-level heading duplicating the title (Feishu auto-generates it)
-- Use `---` dividers between major sections for visual rhythm
-- Use `<text color="...">` for key terms and claim markers
-- Feishu auto-generates table of contents -- do not add manually
-- Proactively insert whiteboards for embodiment architectures and process flows
-
-**Supporting Files**
-
-Reference these files within this directory for detailed specifications:
-- `references/template.md` — Complete structural template for patent application format
-- `references/reference.md` — API endpoint documentation, Chinese patent terminology standards, and language conventions
-- `references/examples.md` — High-quality patent application example
-- Standalone `lark` plugin — Lark CLI skills (`--lark` mode)
-
-## Quality Principles
-
-**Critical Requirements**:
-- **Grantability**: Focus on technical solutions, not abstract ideas
-- **Precision**: Avoid vague marketing terms; use precise technical descriptions from `references/reference.md`
-- **Honesty**: Explicitly list potential defects and alternatives in the "Others" section
-- **Completeness**: All required sections must be present and substantive
-
-**Language Conventions**:
-- Use formal Chinese patent terminology as defined in `references/reference.md`
-- Avoid using product names, UI terms, brand names, and colloquial expressions
-- Apply standard patent phrases such as "a kind of...", "for...", "characterized in that..."
+- [reference.md](references/reference.md): Chinese terminology and source-ledger fields; read for Chinese drafting.
+- [template.md](references/template.md): structural template; read when using the bundled Chinese application shape.
+- [examples.md](references/examples.md): optional illustrative example; never treat its claims as source evidence.

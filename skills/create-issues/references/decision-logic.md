@@ -17,11 +17,13 @@
 
 1. **Analyze context** from current repository state and existing issues.
 2. **Determine issue type** based on scope and complexity.
-3. **Create proper labels** if they don't exist:
+3. **Create proper labels** if they don't exist, after confirmation for that write:
    ```bash
-   gh label create "priority:high" --description "High priority - this sprint" --color "d73a4a" || true
-   gh label create "priority:medium" --description "Medium priority - next sprint" --color "fbca04" || true
-   gh label create "priority:low" --description "Low priority - backlog" --color "0075ca" || true
+   gh label create "priority:high" --description "High priority - this sprint" --color "d73a4a"
+   gh label create "priority:medium" --description "Medium priority - next sprint" --color "fbca04"
+   gh label create "priority:low" --description "Low priority - backlog" --color "0075ca"
+   # If a label already exists, inspect the command's explicit already-exists result;
+   # do not suppress authentication, validation, or network failures.
    ```
 4. **Create issue** with proper structure and labels.
 5. **Link related items** if applicable.

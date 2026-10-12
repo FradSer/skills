@@ -1,70 +1,50 @@
 ---
 name: storm
-description: Generates Wikipedia-style long-form articles grounded in multi-perspective
-  research and retrieval, porting Stanford STORM's four-phase pipeline (research,
-  outline, write, polish). Each phase is independently runnable and resumable; runtime-neutral
-  by design. Use when the user asks for a "storm article", a "wikipedia-style article",
-  or to "research and write a long-form piece".
+description: Research and write a Wikipedia-style long-form article with a resumable, multi-perspective STORM workflow when the user asks for a storm article, a Wikipedia-style article, or a researched long-form piece. Use available retrieval and local documents, preserve source provenance, and never invent citations. Do not use for ordinary creative writing or a simple summary.
 disable-model-invocation: true
 ---
 
-# STORM — Long-Form Research Article Generation
+# STORM long-form research article
 
-Generate a Wikipedia-style long-form article on any topic via [Stanford STORM](https://github.com/stanford-oval/storm) (Synthesis of Topic Outlines through Retrieval and Multi-perspective Question Asking, NAACL'24/EMNLP'24). The output is grounded in retrieval, not parametric memory: multi-perspective simulated interviews collect sources first, then sections are written with inline `[n]` citations and a trailing References list.
+Use the four phase workflow from Stanford STORM: research, outline, write, and polish. The workflow is runtime-neutral and uses whatever search, fetch, prompt, and worker capabilities are actually available. Read [references/engine.md](references/engine.md) before any phase; it is the shared contract for artifacts, resumption, retrieval, and citations.
 
-## Pipeline
+The default deliverable is a source-grounded article. A user-provided local corpus may be the only source pool when `--docs-only` is selected. A user who asks for an unsourced creative article should be routed to ordinary writing instead of using this skill.
 
-```
-research  ->  outline  ->  write  ->  polish
-  (persona      (draft +     (per-section,      (summary +
-   discovery)    refine)      cited)             dedup)
-```
+## Invocation and phases
 
-Two invariants hold across every phase:
+For a complete run, accept:
 
-1. **Never skip research.** An article written from memory alone will hallucinate citations and miss the multi-perspective grounding that defines STORM.
-2. **Never invent citations.** Every inline `[n]` maps to a source collected during research. A section without support is written uncited and flagged, never fabricated.
-
-Read the shared contracts before running any phase: [engine](references/engine.md) defines the artifact layout, stage-gating, retrieval backend abstraction, citation hygiene, and persona discovery used by all four phases.
-
-## Invocation
-
-Run the whole pipeline end to end when asked to "write a storm article about X", "research and write a long-form piece on X", or similar:
-
-```
-storm <topic> [--max-perspective N] [--max-turns N] [--output-dir PATH | --save]
-              [--docs DIR] [--docs-only] [--force] [--retriever mcp|web|local]
+```text
+storm <topic> [--max-perspective N] [--max-turns N]
+  [--output-dir PATH | --save] [--docs DIR] [--docs-only]
+  [--force] [--retriever mcp|web|local]
 ```
 
-Each phase is also independently runnable and resumable — honor such requests ("run just the outline", "redo polish") by executing only that phase's workflow against an existing run directory:
+Honor a request for one phase (`research`, `outline`, `write`, or `polish`) and operate only on its existing run directory. The phase references define their arguments and prerequisites:
 
-| Phase | Workflow | Primary artifact |
-|-------|----------|------------------|
-| 1 | [references/research.md](references/research.md) | `research/sources.json` |
-| 2 | [references/outline.md](references/outline.md) | `outline.md` |
-| 3 | [references/write.md](references/write.md) | `article.md` |
-| 4 | [references/polish.md](references/polish.md) | `article-polished.md` |
+| Phase | Read | Primary artifact |
+| --- | --- | --- |
+| Research | [references/research.md](references/research.md) | `research/sources.json` |
+| Outline | [references/outline.md](references/outline.md) | `outline.md` |
+| Write | [references/write.md](references/write.md) | `article.md` |
+| Polish | [references/polish.md](references/polish.md) | `article-polished.md` |
 
-## Orchestration Procedure
+Phases are sequential because each consumes the prior artifact. Within research or writing, use workers only if the runtime supports them and only with the same source and output contracts; otherwise work sequentially. Do not claim parallel execution occurred when it did not.
 
-1. If no topic was provided, ask the user for one through whatever prompting mechanism the runtime offers.
-2. Read [engine](references/engine.md). Derive `<slug>`, resolve `<output_dir>` per the engine contract, and create the directory.
-3. Write `run-config.json` snapshotting all parameters, including `started_at` from the runtime's current time.
-4. For each phase in order — `research`, `outline`, `write`, `polish`:
-   - Check the phase's completion artifact per the engine stage-gating contract.
-   - If complete and not `--force`: mark `phases.<name>: "skipped"` in `run-config.json` and move on.
-   - Otherwise execute the phase workflow from its reference file, then verify its artifact and record `"completed"` (or `"failed"` with the reason).
-5. Read `article-polished.md` and report to the user: absolute path, word count, section count, number of cited sources, and the output directory (flag it prominently if temporary).
+## Model routing
 
-Phases run strictly sequentially — each depends on the previous phase's artifacts. Parallelism exists *inside* phases 1 and 3 (see their references), never across phases.
+If the runtime offers multiple models, use a cheaper or faster model for persona turns and the strongest available model for outline, section writing, and polish when that improves cost or quality. This is optional routing guidance, not a requirement to use a named provider or model.
 
-If a phase fails, stop and report. Do not proceed. Re-invocation without `--force` resumes from the failed phase because earlier completed phases are skipped.
+## Invariants
 
-## Portability Notes
+- Every phase must have its prerequisite artifact. A missing research artifact stops outline/write/polish with a direction to run the prerequisite; do not produce a final parametric-only article.
+- Reuse a completed artifact when `--force` is absent, and record `skipped`, `completed`, or `failed` in `run-config.json`. `--force` explicitly permits rerunning the selected pipeline against the same run directory.
+- Every inline `[n]` must resolve to a collected source id. Never mint ids in outline, write, or polish. A claim without support stays uncited and is visibly flagged for review.
+- The final References section is exactly the sources cited in the body. Preserve source title, URL, description, and retrieval/access date; strip citation markers embedded in retrieved snippets before reusing them as context.
+- Keep topic, slug, output directory, parameters, and timestamps in `run-config.json`. Temporary output must be clearly reported and must not be described as published.
 
-This skill is runtime-neutral by design:
+## Retrieval and reporting
 
-- **Subagents**: phases 1 and 3 benefit from running persona conversations / section writes in parallel. If the runtime can spawn subagents, do so; otherwise run the units sequentially in-context following the same role instructions.
-- **Retrieval**: probe whatever search tooling the runtime exposes (MCP search servers, built-in web search/fetch, browser tools) per the engine's retrieval contract. `--docs DIR` grounds on local files instead of or in addition to the web.
-- **Model routing**: if the runtime offers several models, run persona conversation turns on cheap/fast models and reserve the strongest available model for outline, section writing, and polish — mirroring upstream's cost/quality split.
-- **User prompts**: use the runtime's native question/prompt mechanism when input is missing.
+Probe the runtime's actual search and fetch capabilities. Prefer a specialized retriever when available, otherwise use available web search/page fetching; with `--docs`, include local files, and with `--docs-only`, exclude the web. If retrieval is unavailable, stop or produce a clearly incomplete research artifact rather than silently relying on memory.
+
+At completion, report the absolute run directory and final artifact, word and section counts, cited-source count, skipped phases, and unresolved citation or evidence flags. Read each changed artifact before reporting success. Do not imply peer review, publication, or factual completeness from a local run alone.

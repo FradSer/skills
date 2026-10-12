@@ -131,7 +131,7 @@ Examples:
 ```json
 {
   "trace": "...",
-  "xctrace_version": "26.4 (...)",
+      "xctrace_version": "<host-reported version>",
   "template": "SwiftUI",
   "duration_s": 14.83,
   "schemas_available": [...],

@@ -1,4 +1,10 @@
 Feature: Evidence-preserving PRD revision
+  Scenario: A localized revision does not force a new interview
+    Given an existing PRD and a request to change one section
+    When the skill revises that section
+    Then it reads the current baseline and asks only for missing decisions
+    And it preserves the requested language, format, and unrelated sections
+
   Scenario: Broad repair does not approve invented policy
     Given a source defines separate event and silent recommendation rules
     When the user asks to fix all issues

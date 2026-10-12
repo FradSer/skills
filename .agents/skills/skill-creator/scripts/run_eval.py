@@ -7,6 +7,7 @@ for a set of queries. Outputs results as JSON.
 
 import argparse
 import json
+import math
 import os
 import select
 import subprocess
@@ -17,6 +18,31 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 from scripts.utils import parse_skill_md
+
+
+def validate_eval_set(eval_set: list[dict]) -> None:
+    """Reject inputs that cannot produce an unambiguous measured score."""
+    if not isinstance(eval_set, list) or not eval_set:
+        raise ValueError("eval_set must be a nonempty list")
+    queries: set[str] = set()
+    for item in eval_set:
+        if not isinstance(item, dict) or not isinstance(item.get("query"), str) or not item["query"].strip():
+            raise ValueError("each evaluation needs a nonempty query string")
+        if type(item.get("should_trigger")) is not bool:
+            raise ValueError("should_trigger must be a boolean")
+        query = item["query"].strip()
+        if query in queries:
+            raise ValueError(f"duplicate evaluation query: {query}")
+        queries.add(query)
+
+
+def validate_execution_settings(num_workers: int, timeout: int, runs_per_query: int, trigger_threshold: float) -> None:
+    """Validate controls before starting subprocesses or model requests."""
+    for name, value in (("num_workers", num_workers), ("timeout", timeout), ("runs_per_query", runs_per_query)):
+        if type(value) is not int or value < 1:
+            raise ValueError(f"{name} must be a positive integer")
+    if not isinstance(trigger_threshold, (int, float)) or not math.isfinite(trigger_threshold) or not 0 < trigger_threshold <= 1:
+        raise ValueError("trigger_threshold must be finite, greater than 0, and at most 1")
 
 
 def find_project_root() -> Path:
@@ -90,92 +116,83 @@ def run_single_query(
             env=env,
         )
 
-        triggered = False
-        start_time = time.time()
-        buffer = ""
-        # Track state for stream event detection
         pending_tool_name = None
         accumulated_json = ""
+        result_seen = False
 
+        def consume(line: str) -> bool:
+            nonlocal pending_tool_name, accumulated_json, result_seen
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                return False
+            if event.get("type") == "stream_event":
+                stream_event = event.get("event", {})
+                kind = stream_event.get("type")
+                if kind == "content_block_start":
+                    block = stream_event.get("content_block", {})
+                    pending_tool_name = block.get("name") if block.get("type") == "tool_use" else None
+                    accumulated_json = ""
+                elif kind == "content_block_delta" and pending_tool_name in ("Skill", "Read"):
+                    delta = stream_event.get("delta", {})
+                    if delta.get("type") == "input_json_delta":
+                        accumulated_json += delta.get("partial_json", "")
+                        if clean_name in accumulated_json:
+                            return True
+                elif kind == "content_block_stop":
+                    pending_tool_name = None
+            elif event.get("type") == "assistant":
+                for item in event.get("message", {}).get("content", []):
+                    if item.get("type") != "tool_use":
+                        continue
+                    arguments = item.get("input", {})
+                    if item.get("name") == "Skill" and clean_name in arguments.get("skill", ""):
+                        return True
+                    if item.get("name") == "Read" and clean_name in arguments.get("file_path", ""):
+                        return True
+            elif event.get("type") == "result":
+                if event.get("is_error") or str(event.get("subtype", "")).startswith("error"):
+                    raise RuntimeError("Claude returned an evaluation error")
+                result_seen = True
+            return False
+
+        deadline = time.monotonic() + timeout
+        buffer = ""
         try:
-            while time.time() - start_time < timeout:
-                if process.poll() is not None:
-                    remaining = process.stdout.read()
-                    if remaining:
-                        buffer += remaining.decode("utf-8", errors="replace")
-                    break
-
-                ready, _, _ = select.select([process.stdout], [], [], 1.0)
-                if not ready:
-                    continue
-
-                chunk = os.read(process.stdout.fileno(), 8192)
-                if not chunk:
-                    break
+            while time.monotonic() < deadline:
+                completed = process.poll() is not None
+                if completed:
+                    # A fast CLI may exit before the first poll. Its queued
+                    # events still contain the measurement and must be parsed.
+                    chunk = process.stdout.read()
+                else:
+                    ready, _, _ = select.select([process.stdout], [], [], min(1.0, max(0.0, deadline - time.monotonic())))
+                    if not ready:
+                        continue
+                    chunk = os.read(process.stdout.fileno(), 8192)
+                    if not chunk:
+                        process.wait(timeout=max(0.01, deadline - time.monotonic()))
+                        completed = True
                 buffer += chunk.decode("utf-8", errors="replace")
-
                 while "\n" in buffer:
                     line, buffer = buffer.split("\n", 1)
-                    line = line.strip()
-                    if not line:
-                        continue
-
-                    try:
-                        event = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-
-                    # Early detection via stream events
-                    if event.get("type") == "stream_event":
-                        se = event.get("event", {})
-                        se_type = se.get("type", "")
-
-                        if se_type == "content_block_start":
-                            cb = se.get("content_block", {})
-                            if cb.get("type") == "tool_use":
-                                tool_name = cb.get("name", "")
-                                if tool_name in ("Skill", "Read"):
-                                    pending_tool_name = tool_name
-                                    accumulated_json = ""
-                                else:
-                                    return False
-
-                        elif se_type == "content_block_delta" and pending_tool_name:
-                            delta = se.get("delta", {})
-                            if delta.get("type") == "input_json_delta":
-                                accumulated_json += delta.get("partial_json", "")
-                                if clean_name in accumulated_json:
-                                    return True
-
-                        elif se_type in ("content_block_stop", "message_stop"):
-                            if pending_tool_name:
-                                return clean_name in accumulated_json
-                            if se_type == "message_stop":
-                                return False
-
-                    # Fallback: full assistant message
-                    elif event.get("type") == "assistant":
-                        message = event.get("message", {})
-                        for content_item in message.get("content", []):
-                            if content_item.get("type") != "tool_use":
-                                continue
-                            tool_name = content_item.get("name", "")
-                            tool_input = content_item.get("input", {})
-                            if tool_name == "Skill" and clean_name in tool_input.get("skill", ""):
-                                triggered = True
-                            elif tool_name == "Read" and clean_name in tool_input.get("file_path", ""):
-                                triggered = True
-                            return triggered
-
-                    elif event.get("type") == "result":
-                        return triggered
+                    if line.strip() and consume(line):
+                        return True
+                if completed:
+                    if buffer.strip() and consume(buffer):
+                        return True
+                    if process.returncode:
+                        raise RuntimeError(f"Claude exited {process.returncode} before completing the measurement")
+                    if not result_seen:
+                        raise RuntimeError("Claude exited without a terminal evaluation result")
+                    return False
+            raise TimeoutError(f"Trigger evaluation exceeded {timeout} seconds")
         finally:
-            # Clean up process on any exit path (return, exception, timeout)
             if process.poll() is None:
                 process.kill()
                 process.wait()
+            process.stdout.close()
 
-        return triggered
     finally:
         if command_file.exists():
             command_file.unlink()
@@ -193,6 +210,8 @@ def run_eval(
     model: str | None = None,
 ) -> dict:
     """Run the full eval set and return results."""
+    validate_eval_set(eval_set)
+    validate_execution_settings(num_workers, timeout, runs_per_query, trigger_threshold)
     results = []
 
     with ProcessPoolExecutor(max_workers=num_workers) as executor:
@@ -212,6 +231,7 @@ def run_eval(
 
         query_triggers: dict[str, list[bool]] = {}
         query_items: dict[str, dict] = {}
+        query_errors: dict[str, list[str]] = {}
         for future in as_completed(future_to_info):
             item, _ = future_to_info[future]
             query = item["query"]
@@ -222,6 +242,7 @@ def run_eval(
                 query_triggers[query].append(future.result())
             except Exception as e:
                 print(f"Warning: query failed: {e}", file=sys.stderr)
+                query_errors.setdefault(query, []).append(str(e))
                 query_triggers[query].append(False)
 
     for query, triggers in query_triggers.items():
@@ -232,13 +253,15 @@ def run_eval(
             did_pass = trigger_rate >= trigger_threshold
         else:
             did_pass = trigger_rate < trigger_threshold
+        errors = query_errors.get(query, [])
         results.append({
             "query": query,
             "should_trigger": should_trigger,
             "trigger_rate": trigger_rate,
             "triggers": sum(triggers),
             "runs": len(triggers),
-            "pass": did_pass,
+            "pass": did_pass and not errors,
+            "errors": errors,
         })
 
     passed = sum(1 for r in results if r["pass"])

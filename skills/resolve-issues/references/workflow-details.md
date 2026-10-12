@@ -40,16 +40,17 @@ worktree tool may use it instead — the result is the same):
 
 ## TDD Implementation Cycle
 
-Follow the red-green-refactor cycle with agent collaboration:
+Follow the red-green-refactor cycle:
 
 1. **Plan implementation**:
+   - Map every explicit acceptance criterion, including preserved boundaries, to an automated test
    - Assess architectural impact of the change
    - Identify potential design issues or anti-patterns
    - Plan the implementation approach
 
 2. **Red Phase**: Write failing tests
-   - Create test cases that verify issue is fixed
-   - Run tests to confirm they fail as expected
+   - Add tests for the reported bug and all preserved acceptance boundaries
+   - Confirm the bug test fails for the expected reason; already-correct boundary tests may pass
 
 3. **Green Phase**: Implement minimal fix
    - Write code to make tests pass
@@ -62,20 +63,19 @@ Follow the red-green-refactor cycle with agent collaboration:
 
 ## Quality Validation
 
-During the TDD cycle, run project-specific quality checks for fast local feedback — see `quality-validation.md` for commands. `create-pr` re-runs the full quality and security gate before it opens the PR, so these checks are not the gate itself.
+During the TDD cycle, run project-specific checks for local feedback; see `quality-validation.md`. Before opening a PR, `create-pr` verifies the applicable project checks and changed-content boundaries. Report unavailable checks and unrelated failures precisely.
 
 ## PR Creation and Cleanup
 
-1. **Push branch**: `git push -u origin <branch-name>`
+1. **Push branch when authorized**: `git push -u origin <branch-name>`.
 2. **Create PR**: **CRITICAL: never call `gh pr create` from this skill.** Invoke the
    `create-pr` skill with the issue reference (e.g. `create-pr: Closes #456`) — see
-   `pr-creation-handoff.md` for the full contract. The review loop is unconditional:
-   CI watch, comment triage, fixes, and the closeout ceremony run automatically. It then
-   requests explicit user confirmation before it merges with a merge commit.
-3. **After merge**: `review-pr` owns closeout and post-merge cleanup — it removes the linked
-   worktree (`git worktree remove <path>`), switches to `main`, and syncs
-   `main`/`develop` with origin. resolve-issues Phase 4 only runs as a fallback if review-pr's
-   cleanup was skipped (a merge failure or interrupt, or a fresh session) — check
-   `git worktree list` first and `git worktree remove <path>` only if the worktree persists.
-   - If uncommitted changes exist, removal will refuse; confirm with the user before
-     discarding them.
+   `pr-creation-handoff.md` for the contract. Use actual host tools for bounded review,
+   triage, verified fixes, and closeout. Resolve material escalations before readiness.
+   Request missing explicit user confirmation after presenting the reviewed merge.
+3. **After a confirmed merge**: `review-pr` verifies the result and owns authorized cleanup
+   of this PR's exact branch/worktree. A fallback must first verify the merge, inspect
+   `git worktree list`, and confirm the target was created by this task or its removal
+   was explicitly authorized. Preserve local changes and unrelated worktrees. A merge
+   failure leaves the PR open and does not trigger deletion. Use the PR's actual base;
+   do not synchronize every integration branch or run a broader cleanup sweep.

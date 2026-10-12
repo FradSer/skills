@@ -13,7 +13,10 @@
 
 ## ForEach Identity and Stability
 
-**Always provide stable identity for `ForEach`.** Never use `.indices` for dynamic content.
+Provide stable identity for `ForEach` when content can be inserted, removed,
+or reordered. Index-based identity can be correct for a fixed, immutable
+sequence, but is unsafe for dynamic content because rows can inherit the
+wrong state after a mutation.
 
 ```swift
 // Good - stable identity via Identifiable

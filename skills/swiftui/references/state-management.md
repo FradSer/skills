@@ -23,7 +23,7 @@
 
 | Wrapper | Use When | Notes |
 |---------|----------|-------|
-| `@State` | Internal view state that triggers updates | Must be `private` |
+| `@State` | Internal view-owned state that triggers updates | Usually `private`; confirm the ownership boundary and initialization semantics |
 | `@Binding` | Child view needs to modify parent's state | Don't use for read-only |
 | `@Bindable` | iOS 17+: View receives `@Observable` object and needs bindings | For injected observables |
 | `let` | Read-only value passed from parent | Simplest option |

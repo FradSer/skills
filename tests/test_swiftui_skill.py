@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import unittest
 
 
@@ -29,7 +30,7 @@ class SwiftUISkillTests(unittest.TestCase):
     def test_routes_general_review_to_authoritative_reference(self) -> None:
         self.assertIn("references/twostraws.md", self.text)
         self.assertNotIn("references/review.md", self.text)
-        for reference in ("accessibility", "performance", "data", "navigation", "Swift 6.2"):
+        for reference in ("accessibility", "performance", "data", "navigation", "concurrency"):
             self.assertIn(reference, self.text)
 
     def test_bilingual_readmes_link_to_the_skill(self) -> None:
@@ -50,6 +51,10 @@ class SwiftUISkillTests(unittest.TestCase):
         self.assertIn("Landmarks: Building an app with Liquid Glass", reference)
         self.assertNotIn(".scrollExtensionMode(", reference)
 
+    @unittest.skipUnless(
+        os.environ.get("CHECK_SKILL_INSTALLATION") == "1",
+        "opt-in: checks user-owned skill installation links",
+    )
     def test_installed_runtimes_link_to_the_repository_skill(self) -> None:
         expected = (ROOT / "skills/swiftui").resolve()
         for runtime_skills in (SHARED_SKILLS, PI_SKILLS, CLAUDE_SKILLS):
@@ -104,11 +109,11 @@ class SwiftUISkillTests(unittest.TestCase):
         for rule in (
             "@State` properties are `private`",
             "ForEach` uses stable identity",
-            ".animation(_:value:)` always includes the `value` parameter",
+            ".animation(_:value:)` includes the `value` parameter",
             "references/latest-apis.md",
         ):
             self.assertIn(rule, self.text)
-        self.assertIn("at the start of every task", self.text)
+        self.assertIn("when the task touches availability", self.text)
 
 
 if __name__ == "__main__":

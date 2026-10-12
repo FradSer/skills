@@ -1,8 +1,22 @@
 # Review Loop: Watch, Triage, Auto-Fix
 
+## Contents
+
+Find the relevant section by heading:
+
+- Poll interval by PR size
+- Start one Monitor for CI and Comments
+- Excluding already-triaged comments on restart
+- You do not have to adopt review comments
+- Baseline review agent
+- Reacting to Events
+- Lifecycle
+
 A single bash script (`scripts/review-loop.sh`) drives the watch: it emits one tagged
-stdout line per new event for BOTH CI checks and PR comments. Start each one-shot poll
-with Pi's `monitor_start` tool, which returns its terminal result to the next turn. The
+stdout line per new event for BOTH CI checks and PR comments. In Pi, start each one-shot poll
+with `monitor_start`, which returns its terminal result to the next turn. Elsewhere,
+use an available cancellable background tool or a bounded `--once` execution and
+the host's actual continuation facility; do not invent a monitor tool. The
 script is a plain executable emitting lines on stdout. Do not block on a manual `while
 true` loop.
 
@@ -26,7 +40,8 @@ Read size via `gh pr view <PR> --repo <REPO> --json additions,deletions` and pic
 
 ## Start one Monitor for CI and Comments
 
-Use one Pi `monitor_start` invocation per poll. The script below emits:
+Use one Pi `monitor_start` invocation per poll when that tool is available;
+other hosts use the bounded execution contract in [runbook.md](runbook.md). The script below emits:
 
 - `[ci] <name>: <bucket>` once per check reaching a terminal bucket (pass/fail/cancel/skipping)
 - `[comment] issue node=<id> id=<n> @<user>: <body>` for new issue-level comments
@@ -67,10 +82,9 @@ Stop scheduling monitors when the PR is settled — never leave a monitor runnin
 
 ## Excluding already-triaged comments on restart
 
-Every monitor run seeds `since` to the PR's creation time, so poll 1 re-surfaces the
-ENTIRE comment history — including comments a previous watch run already triaged.
-When restarting a watch mid-PR, pass the already-handled node ids so they are not
-re-notified:
+A new state seeds `since` to PR creation time. A matching persisted state resumes
+its cursor and replays unacknowledged event content. Pass already-triaged node IDs
+as ACKs; delivery alone never means the comment was handled:
 
 ```bash
 # ACK env: space-separated node ids acknowledged after triage. EXCLUDE is retained
@@ -92,15 +106,17 @@ for exactly this reason. If a downstream filter is ever truly unavoidable, make
 it line-buffered (`grep --line-buffered`).
 
 Behavior notes:
-- `since` is seeded to the PR's **creation time** (not launch time), so comments posted
-  before the skill started are surfaced on poll 1. It advances to `now` after each poll.
-- Comments dedup client-side by `node_id` (GitHub's `?since=` is inclusive, so a comment
-  posted in the boundary second could otherwise re-emit).
+- A new cursor starts at PR creation time. Advance to the poll start boundary only
+  after all endpoints succeed; retaining the boundary prevents losing comments
+  that arrive while another endpoint is being read.
+- Deduplicate by `node_id` within a poll. Persist full pending event content until
+  the caller ACKs it after triage, so restart replay does not depend on API history.
 - Reviews are fetched without a `submitted_at` filter and deduped by `node_id` — the old
   client-side `submitted_at > since` string compare dropped reviews posted in the launch
   second.
-- `|| true` / `2>/dev/null` on every API call keeps one transient failure from killing
-  the watch; `INTERVAL` is floored at 60s.
+- Metadata failure exits without advancing state. Other endpoint failures emit
+  diagnostics and retain the cursor/CI state. A successful process exit alone does
+  not establish a successful API poll or merge readiness. Interval is at least 60s.
 
 Start one `monitor_start` `--once` poll with the unique terminal sentinel. After
 processing that result, start the next poll in a new `monitor_start` invocation.
@@ -157,8 +173,9 @@ rejected like any other comment.
 
 ## Reacting to Events
 
-Each emitted line is a notification. Keep the Monitor running while you act, so apply
-fixes, push, and let the same monitor re-emit the resulting CI lines.
+Each line is data to triage. Handle a completed poll before scheduling the next
+one-shot poll. A new head resets CI buckets; later polls observe the new results.
+Publish fixes only within the user's authorized PR workflow.
 
 ### `[ci]` failure
 
@@ -186,7 +203,7 @@ infrastructure (`timeout`, `OOM`, `runner unavailable`).
 **Why independent evaluation:**
 - The PR author context rationalizes ("this is intentional") or capitulates ("the reviewer must be right")
 - A fresh agent reads the diff and comment without sunk-cost bias
-- The comments mostly come from **other agents** (linters, code-review bots) and human reviewers — they can be wrong, overzealous, or misunderstand context. Only ~40-60% of automated review comments are actually valid in practice
+- Both automated and human comments can be wrong or lack context; verify each claim against the current diff.
 - The triage agent's job is to be a **skeptical gatekeeper**, not a fix applicator. Not adopting a comment is a normal, correct outcome.
 
 **Triage agent prompt template:**
@@ -216,7 +233,7 @@ For EACH comment, return one of:
 Evaluation criteria (ALL must be true for `fix`):
 1. Points to a specific file/line or names a concrete change
 2. The claim is actually correct when you read the diff (verify it!)
-3. The fix does not change behavior or API surface
+3. The fix is within the authorized behavior/API contract; a material contract change needs a decision
 4. The fix would not introduce worse problems than it solves
 5. Consistent with the surrounding code style and project conventions
 
@@ -242,9 +259,9 @@ Be terse. One line per comment, verdict first.
 **After the triage agent returns:**
 1. Parse verdicts — apply ONLY `fix` verdicts
 2. Reply to each `reject` comment explaining why it was declined
-3. Record each `escalate` verdict (comment body + author + file context) for the closeout
-   summary comment — they are documented in the summary, never asked about and never
-   blocking.
+3. Record each `escalate` verdict with its context and request the missing decision
+   when correctness, authorization, scope, or merge policy is unresolved. Continue
+   independent work; resolve material escalations before declaring the gate ready.
 4. Commit and push all `fix` changes together in one round
 5. **Close out resolved comments** — for each comment that is now fully addressed (a `fix`
    that you applied and pushed, OR a `reject` you replied to with a reason), hide it as
@@ -329,10 +346,11 @@ feature; unclear intent; needs business context not in the diff; multiple valid 
 Examples: "Why not use X instead of Y?", "This feels over-engineered",
 "Can we also handle Z?", "I'm not sure this is the right approach".
 
-For these: do not guess, reply, or hide. Post a one-line reply stating the point is deferred
-(via the comment-type-appropriate reply endpoint above), record the comment (body + author +
-file context) for the closeout summary comment, and continue. Never notify the user and wait
-— the pipeline never pauses for user input.
+Do not guess a resolution or hide the comment. Record its context. Use the
+comment-type-appropriate reply when that communication is authorized. Ask the
+user for a decision when it affects correctness, scope, authorization, or policy,
+and continue work that does not depend on it. Optional suggestions may be deferred
+under repository policy or an explicit user decision; document the basis.
 
 ## Lifecycle
 
@@ -345,8 +363,8 @@ file context) for the closeout summary comment, and continue. Never notify the u
     1. Every `[ci]` check is terminal AND passing.
     2. Every review comment received so far has been reflected on (triaged, replied to,
        or fixed) AND every fully-resolved one is hidden + its thread resolved. The only
-       comments left visible on the PR are unresolved `escalate` items, each recorded for
-       the closeout summary comment.
+       comments left visible are optional items explicitly deferred by the user or
+       repository policy. Material escalations have been resolved.
     3. The closeout summary and PR body are complete; the monitor is stopped while the
        workflow waits for the user's explicit merge confirmation.
   - **Hard cap (overrides the above)**: the ~2-hour max wall-clock is reached. Surface the
@@ -354,5 +372,6 @@ file context) for the closeout summary comment, and continue. Never notify the u
     stop — do NOT keep polling just because CI is still red or comments remain. The cap
     exists so a stuck PR (red CI the skill correctly won't auto-fix) cannot hold the watch
     open forever.
-- Monitoring runs automatically. Once closeout is ready, stop monitoring and wait only
-  for the user's explicit merge confirmation; never auto-merge.
+- Once closeout is ready, stop monitoring, present the concrete result and any
+  optional cleanup targets, and request only missing explicit merge authorization.
+  Mark awaiting-confirmation state so the user can reply; never auto-merge.

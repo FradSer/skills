@@ -1,127 +1,53 @@
 ---
 name: tropes
-description: Detects and eliminates AI writing tropes that make text sound artificial or formulaic. Use as an explicit review/quality pass when asked to check writing style, eliminate AI cliches, audit documentation tone, or refine drafts. Do not trigger automatically for ordinary code generation or initial document creation. Supports four-tier JSON preferences (global/project x shared/local office.json) read via load-preferences.sh.
+description: Review a supplied draft for repetitive, formulaic, or AI-associated writing patterns and suggest or apply context-aware edits when the user asks for a style review, trope removal, or documentation-tone refinement. Preserve facts, meaning, author voice, quotations, code, and requested format; do not trigger for ordinary code generation or an initial document draft.
 ---
 
-# AI Writing Tropes Detection
+# AI writing trope review
 
-Scan generated text for common AI writing patterns that make content sound artificial or formulaic. This skill provides a systematic workflow for identifying and eliminating tropes.
+Review the text or file the user places in scope for patterns that make prose sound formulaic, artificial, overly casual, or needlessly ornate. The target is clear writing in the author's intended voice, not a fixed “human” style. A single occurrence may be deliberate; judge repetition, clustering, context, audience, and the user's preferences.
 
-Source: [tropes.fyi](https://tropes.fyi) by [ossama.is](https://ossama.is) Original gist: [ossa-ma/f3baa9d2](https://gist.github.com/ossa-ma/f3baa9d25154c33095e22272c631f5a1) — the raw 33-trope list this skill's `references/` are structured from and extended.
+## Route the request
 
-## Core Principle
+- For an audit or critique, report findings and examples without changing the source.
+- For “rewrite”, “remove”, or an explicitly requested edit, apply only supported changes and preserve factual claims, citations, examples, terminology, code, quoted speech, and the requested language and output format.
+- Do not mechanically replace every flagged word or pattern. Explain material changes when a rewrite could alter emphasis, register, attribution, or meaning. Ask when the user's desired tone is unclear.
+- Do not treat a trope catalogue as a ban list. Code blocks, commands, titles, required terminology, cited quotations, and intentional rhetorical devices are excluded or reviewed separately unless the user asks otherwise.
 
-**Write like a human expert: varied, precise, and professional.**
+## Progressive scan
 
-The goal is to find the "middle ground" between overly colloquial or casual writing and the obscure, formulaic style typical of AI generation. A single pattern used once is usually fine; the problem occurs when multiple tropes cluster together or when the same trope repeats throughout the text.
+Read only the category references relevant to the text. Use the seven categories as a routing guide:
 
-## When to Check
+1. [word-choice.md](references/word-choice.md): ornate vocabulary, filler adverbs, and pompous constructions.
+2. [sentence-structure.md](references/sentence-structure.md): repetitive openings, negative parallelism, and rhetorical questions.
+3. [paragraph-structure.md](references/paragraph-structure.md): fragments, listicle disguises, and pacing.
+4. [tone.md](references/tone.md): false suspense, unexplained authority, and pedagogical or promotional voice.
+5. [formatting.md](references/formatting.md): em dashes, bold-first bullets, and decorative Unicode.
+6. [composition.md](references/composition.md): duplicated summaries, dead metaphors, and repeated ideas.
+7. [professional-balance.md](references/professional-balance.md): both colloquial “humanisms” and obscure AI-isms.
 
-Scan for tropes when:
-- Generating any text content (documentation, comments, messages)
-- Reviewing writing before committing or publishing
-- Editing AI-generated drafts
-- Responding to user questions or creating explanations
+Start with a light read for repetitions and clusters. Use stricter thresholds only when the user requests a strict lint or a preference sets them. A useful finding names the location, pattern, reason it is a problem in this context, and a minimally invasive option; it does not claim that a phrase is always wrong.
 
-## Detection Workflow
+## Preferences
 
-### 0. Load User Preferences
-
-CRITICAL: User preferences live in `office.*.json` files, merged by `load-preferences.sh`.
-
-Run the loader script to get the merged preferences as a single JSON object:
+User preferences are optional. If the user asks to use or inspect them, or if the target project contains one, run:
 
 ```bash
 bash <skill-dir>/scripts/load-preferences.sh
 ```
 
-The script reads up to four files in precedence order (highest first): `.agents/office.local.json` (project, personal) > `.agents/office.json` (project, shared) > `~/.agents/office.local.json` (global, personal) > `~/.agents/office.json` (global, shared). It deep-merges them (scalars replaced by higher layer, lists concatenated and deduped, pattern_caps deduped by `id`, dead_metaphors.entries by `word`), and prints the merged JSON to stdout. If jq is missing or all files are absent, it fails open to `{}` and default rules apply.
+Read [preferences-schema.md](references/preferences-schema.md) for the four-tier `office.*.json` format and merge semantics. If no preferences exist, use the default category guidance without creating a file. Preference files are local configuration, not evidence about the draft. `skip_categories`, language-specific terms, thresholds, tone, dead-metaphor caps, pattern caps, rhetorical bans, and principles may narrow or extend the review; preserve intentional exceptions such as quoted speech where configured.
 
-Apply the merged preferences as overrides/supplements to the default detection below:
-- `banned_words` / `banned_phrases` / `zh.*` / `en.*` — additive to default trope words
-- `preferred_terms` — suggested replacements during revision
-- `skip_categories` — disables the named category entirely (enum: `word-choice`, `sentence-structure`, `paragraph-structure`, `tone`, `formatting`, `composition`, `professional-balance`)
-- `sensitivity` — threshold override (`strict` flags single occurrences; `relaxed` only 3+)
-- `tone` — baseline shift for professional-balance
-- `formatting.max_em_dashes` / `formatting.allow_bold_first_bullets` — formatting thresholds
-- `dead_metaphors` — enforce per-word caps (default 1; `quote_exception` skips quoted speech); suggest `replacement`
-- `pattern_caps` — enforce per-pattern caps (`reversal_sentence`, `parallelism_triple`, `arrow_flow`, `numbered_bold_sections`), honoring `forbidden_in` / `scope` / `exception`
-- `rhetorical_bans` — ban rhetorical patterns by stable ID (`self_qa`, `self_eval_summary`, `parallel_antithesis_subheading`, `process_meta_narration`)
-- `principles` — judgmental free-text rules applied as additional checks
+If the user asks to save a new preference, show a diff preview with the target file, field, and merged value before writing. Write only after confirmation to the requested global/project and shared/local path. Never silently modify preference files.
 
-If both files are absent, after the detection run, offer to create the global file with default values.
+## Revision and verification
 
-See `references/preferences-schema.md` for the full field reference and merge rules.
+For each approved change, prefer a local rewrite that keeps the original fact and attribution. Re-read the revised passage in context, then check that:
 
-### 1. Pattern Scan
+- facts, numbers, links, citations, names, and speaker attribution are unchanged unless the user requested a content edit;
+- the author's point of view, level of formality, rhythm, and intentional repetition remain appropriate;
+- required headings, list structure, code, and output format remain valid;
+- the proposed replacement does not introduce a new trope or stronger claim;
+- any remaining flagged pattern is either intentional, required, or clearly reported as unresolved.
 
-Read through the text and identify:
-- Repeated sentence structures or openings
-- Formulaic transitions ("It's worth noting", "Here's the thing")
-- Ornate vocabulary where simple words work better
-- Rhetorical patterns that feel artificial
-- Overly colloquial or "chatty" fragments that lack professional weight
-
-### 2. Cluster Check
-
-Look for multiple tropes appearing together:
-- 3+ patterns in a single paragraph = high risk
-- Same pattern used 2+ times in a piece = needs revision
-- Em-dashes appearing 5+ times = formatting issue
-
-### 3. Revision Strategy
-
-For each identified trope:
-- **Word choice**: Replace with simpler, more direct language, or precise technical terms (avoid "magic adverbs").
-- **Sentence structure**: Vary openings and lengths naturally, grouping related thoughts into coherent paragraphs.
-- **Transitions**: Use logic-driven connectors (e.g., "Consequently," "Conversely") instead of filler phrases.
-- **Formatting**: Reduce em-dashes, remove bold-first bullets.
-
-### 4. Verification
-
-After revision:
-- Re-scan for remaining patterns
-- Check that text sounds natural when read aloud
-- Ensure specificity (concrete details vs vague attributions)
-- Confirm the tone is professional yet accessible ("Expert Clarity")
-
-### 5. Preference Sync (Optional)
-
-After the detection run, offer to save preferences to one of the four files (default `~/.agents/office.local.json`):
-- `~/.agents/office.local.json` — global personal defaults
-- `~/.agents/office.json` — global shared baseline
-- `.agents/office.local.json` — project personal (gitignore this)
-- `.agents/office.json` — project shared (commit this for the team)
-
-When the user wants a rule shared with a team, suggest a `.json` (shared) file; for personal preferences, a `.local.json` file. Then:
-- Newly flagged words → `banned_words` / `banned_phrases` / `zh.banned_words` / `en.banned_words`
-- Repeated correction patterns → `preferred_terms`
-- New dead metaphors → `dead_metaphors.entries` (with `word`, `replacement`, `cap`)
-- New sentence-pattern caps → `pattern_caps` (with `id`, `max`/`max_nodes`, optional `forbidden_in`/`scope`/`exception`)
-- Rhetorical pattern bans → `rhetorical_bans` (stable ID)
-- Judgmental rules → `principles`
-- Sensitivity adjustments → `sensitivity`
-
-Default target is the global file unless the user specifies project-level. Do not auto-write. Present a diff preview: which file, which field, and what the merged JSON will look like. Let the user confirm before writing.
-
-## Pattern Categories
-
-The complete trope catalog is organized into seven categories. Load specific references as needed:
-
-1. **Word Choice** - `references/word-choice.md` Ornate vocabulary, magic adverbs, pompous constructions
-
-2. **Sentence Structure** - `references/sentence-structure.md` Negative parallelism, rhetorical questions, formulaic patterns
-
-3. **Paragraph Structure** - `references/paragraph-structure.md` Short fragments, listicle disguises
-
-4. **Tone** - `references/tone.md` False suspense, pedagogical voice, vague attributions
-
-5. **Formatting** - `references/formatting.md` Em-dash overuse, bold-first bullets, unicode decoration
-
-6. **Composition** - `references/composition.md` Fractal summaries, dead metaphors, content duplication
-
-7. **Professional Balance** - `references/professional-balance.md` Avoiding both overly colloquial "humanisms" and obscure AI-isms.
-
-Plus one supporting schema (not a trope category):
-
-- **User Preferences** - `references/preferences-schema.md` Four-tier JSON config: project/global x shared/local `.agents/office*.json`, read and merged by `load-preferences.sh`. Custom banned words/phrases, dead metaphors, pattern caps, sensitivity, tone, skip categories.
+Report the reviewed scope, categories applied, changes made or proposed, and any exclusions or uncertainty. Do not describe a style pass as factual, legal, or editorial approval.

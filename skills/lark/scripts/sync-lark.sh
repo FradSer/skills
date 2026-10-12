@@ -28,9 +28,10 @@ ${GREEN}用法:${NC}
 ${GREEN}选项:${NC}
     -h, --help          显示此帮助信息
     -c, --check         检查本地 router 索引与当前 lark-cli 是否一致
-    -f, --force         强制刷新,跳过确认
+    -f, --force         强制刷新索引,跳过确认 (不删除本地目录)
 
 ${GREEN}说明:${NC}
+    需要 lark-cli 与 uv；通过 uv run --no-project --with pyyaml python 执行索引生成器。
     上游 lark-cli 使用嵌入式 binary 管理 sub-skills (lark-cli skills read <name>)。
     本脚本调用 'lark-cli skills list' 重新生成 SKILL.md 路由表并更新 SYNC.md 元数据。
 
@@ -64,7 +65,7 @@ update_sync_md_field() {
 
 check_requirements() {
     local missing=()
-    for tool in lark-cli python3; do
+    for tool in lark-cli uv; do
         if ! command -v "$tool" &>/dev/null; then
             missing+=("$tool")
         fi
@@ -74,12 +75,6 @@ check_requirements() {
         log_error "缺少必要工具: ${missing[*]}"
         exit 1
     fi
-}
-
-cleanup_obsolete_subdirs() {
-    # 确保没有遗留的本地子 skill 目录
-    find "$TARGET_DIR" -maxdepth 1 -mindepth 1 -type d -name "lark-*" -exec rm -rf {} + 2>/dev/null || true
-    rm -rf "$TARGET_DIR/.backup" 2>/dev/null || true
 }
 
 main() {
@@ -117,7 +112,7 @@ main() {
 
     if [ "$check_only" = true ]; then
         log_info "检查 router 索引与当前 lark-cli 一致性..."
-        if python3 "$GEN_INDEX_SCRIPT" --from-cli --router "$ROUTER_MD" --hoist lark-shared --check; then
+        if uv run --no-project --with pyyaml python "$GEN_INDEX_SCRIPT" --from-cli --router "$ROUTER_MD" --hoist lark-shared --check; then
             log_success "Router 索引与已安装 lark-cli 一致"
             exit 0
         else
@@ -127,15 +122,13 @@ main() {
     fi
 
     log_info "正在从 lark-cli skills list 刷新 SKILL.md 路由索引..."
-    python3 "$GEN_INDEX_SCRIPT" --from-cli --router "$ROUTER_MD" --hoist lark-shared
-
-    cleanup_obsolete_subdirs
+    uv run --no-project --with pyyaml python "$GEN_INDEX_SCRIPT" --from-cli --router "$ROUTER_MD" --hoist lark-shared
 
     if [ -f "$SYNC_MD" ]; then
         local today lark_ver
         today=$(date +%Y-%m-%d)
         lark_ver=$(lark-cli --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "unknown")
-        update_sync_md_field "$SYNC_MD" "Last sync" "$today"
+        update_sync_md_field "$SYNC_MD" "Last checked" "$today"
         update_sync_md_field "$SYNC_MD" "lark-cli version" "$lark_ver"
         log_info "已更新 SYNC.md (date=$today, lark-cli=$lark_ver)"
     fi
