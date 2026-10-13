@@ -6,12 +6,12 @@
 
 面向多种 agent 运行环境的技能集合，包含专项工作流与领域知识。
 
-以下发布目录包含 16 个技能；仓库内部的
+以下发布目录包含 17 个技能；仓库内部的
 [skill-creator](.agents/skills/skill-creator/SKILL.md) 用于编写和验证技能。
 
 ## Codex 中的触发方式
 
-`commit`、`lark` 和 `swiftui` 允许根据任务自动匹配，其他技能需要明确点名，例如
+`commit`、`design-engineering`、`lark` 和 `swiftui` 允许根据任务自动匹配，其他技能需要明确点名，例如
 `$create-pr`。在 Codex CLI 和 IDE 中使用 `$` 或 `/skills` 选择技能，在桌面应用中使用 `@`。
 
 每个技能通过 `agents/openai.yaml` 声明触发策略；安装或建立软链接时应保留这个目录。
@@ -63,6 +63,15 @@ npx skills add https://github.com/FradSer/skills --skill create-pr
 **安装命令：**
 ```bash
 npx skills add https://github.com/FradSer/skills --skill create-prd
+```
+
+### [design-engineering](skills/design-engineering/)
+
+以统一的视觉品味、有目的性的动效、无障碍与可用性来设计、实现、打磨和审查产品界面；保留上游的界面质量与设计工程工作流作为参考资料。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill design-engineering
 ```
 
 ### [gitflow](skills/gitflow/)
@@ -178,7 +187,7 @@ npx skills add https://github.com/FradSer/skills --skill update-readme
 安装检查需按对应测试的说明显式开启。
 
 用户授权独立模型测试后，可使用 [Codex 任务评估器](tools/skill_eval/README.md)。
-它通过全新 CLI 会话调用全部 17 个源 skill，执行 22 个本地用例，保留原始调用与产物证据；
+它通过全新 CLI 会话调用全部 18 个源 skill，执行 23 个本地用例，保留原始调用与产物证据；
 外部服务使用 fixture。这些用例验证显式任务行为，不代表隐式触发准确率或真实账号集成已通过。
 
 使用简洁的触发描述，仅在任务需要时加载参考资料。修订技能时保留已有触发策略。

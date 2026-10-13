@@ -6,12 +6,12 @@
 
 A collection of agent skills: specialized workflows and domain knowledge that can be used across agent runtimes.
 
-The distributable catalog below contains 16 skills. The repository's internal
+The distributable catalog below contains 17 skills. The repository's internal
 [skill-creator](.agents/skills/skill-creator/SKILL.md) supports authoring and validation.
 
 ## Invocation in Codex
 
-`commit`, `lark`, and `swiftui` allow automatic matching to a task. The other
+`commit`, `design-engineering`, `lark`, and `swiftui` allow automatic matching to a task. The other
 skills require an explicit mention, such as `$create-pr`. Select a skill with
 `$` or `/skills` in Codex CLI and the IDE, or with `@` in the desktop app.
 
@@ -65,6 +65,15 @@ Creates or revises PRDs while preserving supplied requirements and formats. Supp
 **Installation:**
 ```bash
 npx skills add https://github.com/FradSer/skills --skill create-prd
+```
+
+### [design-engineering](skills/design-engineering/)
+
+Designs, builds, polishes, and reviews product interfaces with coherent visual taste, purposeful motion, accessibility, and usability. Retains the upstream interface-quality and design-engineering workflows as references.
+
+**Installation:**
+```bash
+npx skills add https://github.com/FradSer/skills --skill design-engineering
 ```
 
 ### [gitflow](skills/gitflow/)
@@ -181,7 +190,7 @@ issues or PRs, push to hosted remotes, or validate live accounts and devices. In
 checks require an explicit opt-in documented in the corresponding test.
 
 For authorized independent model testing, use the [Codex task runner](tools/skill_eval/README.md).
-It invokes all 17 source skills in fresh CLI sessions across 22 local cases,
+It invokes all 18 source skills in fresh CLI sessions across 23 local cases,
 retains raw invocation and output evidence, and keeps external services in fixtures.
 These cases check explicit task behavior; they do not establish implicit trigger
 accuracy or live account integration.
