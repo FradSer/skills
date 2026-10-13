@@ -53,15 +53,38 @@ STANDALONE_SECTION_MARKER = "## Review Output Format"
 
 # Cross-skill path: ../lark-foo/SKILL.md, ../../lark-foo/SKILL.md (#anchor ok)
 CROSS_SKILL_RE = re.compile(
-    r"(?P<prefix>\.\./)+"
+    r"(?P<prefix>(?:\.\./)+)"
     r"(?P<dir>[a-z0-9]+(?:-[a-z0-9]+)*)"
-    r"/SKILL\.md(?P<anchor>#[^\s)\]`\"]*)?"
+    r"/(?:SKILL|(?P=dir))\.md(?P<anchor>#[^\s)\]`\"]*)?"
 )
 
 # Parent entry from a nested file: ../SKILL.md or ./SKILL.md
 PARENT_SKILL_RE = re.compile(
     r"(?P<prefix>\.\./|\./)SKILL\.md(?P<anchor>#[^\s)\]`\"]*)?"
 )
+RELATIVE_SKILL_RE = re.compile(
+    r"(?<![\w./:-])(?P<path>(?:(?:\.\.?|[\w-]+)/)+SKILL\.md)"
+    r"(?P<anchor>#[^\s)\]`\"]*)?"
+)
+
+
+def normalize_markdown(text: str) -> str:
+    """Normalize insignificant whitespace while retaining Markdown hard breaks."""
+    lines = []
+    fence: tuple[str, int] | None = None
+    for line in text.splitlines():
+        stripped = line.rstrip()
+        marker = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line)
+        if marker:
+            run, suffix = marker.groups()
+            if fence is None:
+                fence = (run[0], len(run))
+            elif run[0] == fence[0] and len(run) >= fence[1] and not suffix.strip():
+                fence = None
+        if stripped and not fence and not marker and line.endswith("  ") and not stripped.startswith("|"):
+            stripped += "\\"
+        lines.append(stripped)
+    return "\n".join(lines).rstrip() + "\n"
 
 
 class Denester:
@@ -87,6 +110,11 @@ class Denester:
         first = parts[0]
         if first in LOCAL_FILES or first == ".backup":
             return None
+        for directory in (path.parent, *path.parent.parents):
+            if directory == self.tree:
+                break
+            if (directory / f"{directory.name}.md").is_file():
+                return directory.relative_to(self.tree)
         return Path(first)
 
     def parent_entry(self, owner: Path, path: Path) -> str:
@@ -95,9 +123,22 @@ class Denester:
         return os.path.relpath(str(entry), str(path.resolve().parent))
 
     def rewrite_text(self, text: str, owner: Path | None, path: Path) -> str:
+        def relative_entry(m: re.Match[str]) -> str:
+            original = (path.parent / m.group("path")).resolve()
+            if not original.is_relative_to(self.tree):
+                return m.group(0)
+            entry = original.with_name(f"{original.parent.name}.md")
+            if entry.is_file():
+                return os.path.relpath(entry, path.parent) + (m.group("anchor") or "")
+            return m.group(0)
+
+        text = RELATIVE_SKILL_RE.sub(relative_entry, text)
         def cross(m: re.Match[str]) -> str:
             d = m.group("dir")
             anchor = m.group("anchor") or ""
+            entry = self.tree / d / f"{d}.md"
+            if entry.is_file():
+                return f"{os.path.relpath(entry, path.parent)}{anchor}"
             return f"{m.group('prefix')}{d}/{d}.md{anchor}"
 
         text = CROSS_SKILL_RE.sub(cross, text)
@@ -111,23 +152,18 @@ class Denester:
             # Do not rewrite bare prose "SKILL.md" — docs that describe the
             # upstream Agent Skills filename on purpose keep it.
 
-        return text
+        return normalize_markdown(text)
 
     def rename_nested(self) -> list[str]:
         """Rename each <dirname>/SKILL.md → <dirname>/<dirname>.md."""
         renamed: list[str] = []
-        for sub in sorted(self.tree.iterdir()):
-            if not sub.is_dir() or sub.name in LOCAL_FILES or sub.name == ".backup":
-                continue
-            src = sub / "SKILL.md"
-            dst = sub / f"{sub.name}.md"
-            if not src.is_file():
-                continue
+        for src in self.nested_skill_mds():
+            dst = src.with_name(f"{src.parent.name}.md")
             if dst.exists():
                 print(f"warn: {dst} already exists, keeping SKILL.md untouched", file=sys.stderr)
                 continue
             src.rename(dst)
-            renamed.append(sub.name)
+            renamed.append(str(src.parent.relative_to(self.tree)))
         return renamed
 
     def rewrite_links(self) -> int:
@@ -152,11 +188,9 @@ class Denester:
     def nested_skill_mds(self) -> list[Path]:
         """Nested SKILL.md files that would be renamed."""
         found: list[Path] = []
-        for sub in sorted(self.tree.iterdir()):
-            if not sub.is_dir() or sub.name in LOCAL_FILES or sub.name == ".backup":
-                continue
-            src = sub / "SKILL.md"
-            if src.is_file():
+        for src in sorted(self.tree.rglob("SKILL.md")):
+            relative = src.relative_to(self.tree)
+            if src.parent != self.tree and ".backup" not in relative.parts and relative.parts[0] not in LOCAL_FILES:
                 found.append(src)
         return found
 
@@ -219,16 +253,27 @@ class RefPacker:
         return {sub.name: f"references/{domain}/overview.md" for sub, domain, _ in plan}
 
     @staticmethod
-    def rewrite_refs(text: str, mapping: dict[str, str]) -> str:
+    def rewrite_refs(text: str, mapping: dict[str, str], path: Path | None = None,
+                     router_dir: Path | None = None) -> str:
         """Rewrite name-based (`` `better-x` ``) and path-based (../x/SKILL.md)
         cross-references to references-pack paths, and drop the article before
         a rewritten path ("the `references/…`" → "`references/…`")."""
         for name, target in mapping.items():
             text = text.replace(f"`{name}` skill", f"`{target}`")
-            text = text.replace(f"`{name}`", f"`{target}`")
+            # Generic workflow names can also be literal program identifiers.
+            if name.startswith("better-"):
+                text = text.replace(f"`{name}`", f"`{target}`")
+            if path is not None and router_dir is not None:
+                pattern = rf"\]\((?:\.\./)+{re.escape(name)}/SKILL\.md(?P<anchor>#[^\s)]*)?\)"
+                text = re.sub(pattern, lambda match: f"]({os.path.relpath(router_dir / target, path.parent)}{match.group('anchor') or ''})", text)
             text = re.sub(rf"\.\./{re.escape(name)}/SKILL\.md", target, text)
+        if path is not None and router_dir is not None and path.is_relative_to(router_dir / "references"):
+            domain = path.relative_to(router_dir / "references").parts[0]
+            entry = router_dir / "references" / domain / "overview.md"
+            text = re.sub(r"\]\((?:\.\./|\./)*SKILL\.md(?P<anchor>#[^\s)]*)?\)",
+                          lambda match: f"]({os.path.relpath(entry, path.parent)}{match.group('anchor') or ''})", text)
         text = text.replace("the `references/", "`references/")
-        return text
+        return normalize_markdown(text)
 
     def pack_skill_files(self) -> list[Path]:
         """SKILL.md files inside packs (converted to overview.md on apply).
@@ -252,10 +297,8 @@ class RefPacker:
 
     @staticmethod
     def pack_skill_text(text: str) -> str:
-        """Ref-pack conversion of a pack SKILL.md: strip skill frontmatter and
-        cut the standalone Review Output Format section (refs are never
-        invoked standalone; the router owns the output format)."""
-        return cut_standalone_section(strip_frontmatter(text))
+        """Strip discovery metadata while retaining each routed mode's full format."""
+        return strip_frontmatter(text)
 
     def apply(self) -> tuple[list[str], int]:
         """Move sub-skills into references/ packs, convert SKILL.md →
@@ -287,7 +330,7 @@ class RefPacker:
         for path in sorted(self.tree.rglob("*.md")):
             if ".backup" in path.parts or self.is_local_root(path, self.tree):
                 continue
-            updated = self.rewrite_refs(path.read_text(encoding="utf-8"), mapping)
+            updated = self.rewrite_refs(path.read_text(encoding="utf-8"), mapping, path, self.router_dir)
             if updated != path.read_text(encoding="utf-8"):
                 path.write_text(updated, encoding="utf-8")
                 rewritten += 1
@@ -307,7 +350,7 @@ class RefPacker:
         for path in sorted(self.tree.rglob("*.md")):
             if ".backup" in path.parts or self.is_local_root(path, self.tree):
                 continue
-            if self.rewrite_refs(path.read_text(encoding="utf-8"), mapping) != path.read_text(encoding="utf-8"):
+            if self.rewrite_refs(path.read_text(encoding="utf-8"), mapping, path, self.router_dir) != path.read_text(encoding="utf-8"):
                 print(f"ref-pack rewrite: {path.relative_to(self.tree)}")
                 ok = False
         return ok

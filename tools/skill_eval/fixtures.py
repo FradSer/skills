@@ -30,6 +30,7 @@ CASES: list[dict[str, Any]] = [
     {"id": "storm-local-sources", "skill": "storm", "fixture": "storm", "prompt": "storm 小规模可用性测试的解释 --docs sources --docs-only --max-perspective 2 --max-turns 1 --output-dir storm-run。只使用两个本地材料，完成研究、提纲、写作和润色；最终中文文章约 500 字。引用必须能回溯到这些材料，不把 40 人样本泛化成总体结论，也不虚构采访或实验。"},
     {"id": "swiftui-stable-identity", "skill": "swiftui", "fixture": "swiftui", "prompt": "修复 Sources/TicketUI/TicketList.swift 中列表重排后行状态可能复用给错误 ticket 的问题。保持 macOS 13/iOS 16 部署目标与既有 ObservableObject 模型，不加入新依赖或视觉效果。使用稳定 ticket 身份，并用现有 SwiftPM 构建验证；说明验证范围。"},
     {"id": "tropes-preserve-facts", "skill": "tropes", "fixture": "tropes", "prompt": "编辑 draft.md，清理重复空话和公式化表述，保持朴素专业语气。保留全部数字、出处链接、引文逐字内容和代码块，不增强因果或推广效果，不改偏好文件。"},
+    {"id": "interface-accessibility-review", "skill": "design-engineering", "fixture": "interface", "readonly": True, "prompt": "仅审查 src/Dialog.tsx 的无障碍问题（quick 范围）：报告具体问题、所在位置和修复建议，并说明涉及的 WCAG 要求。现在不修改任何文件，也不要新建文件、安装依赖或打开浏览器。"},
     {"id": "readme-nested-only", "skill": "update-readme", "fixture": "readme", "prompt": "根据 packages/cli/taskbox.py 更新 packages/cli/README.md，补充实际可用的 CSV 导出命令。保留英文、标题、Usage 和 License 结构；根 README.md 和中文 README.zh-CN.md 都不在范围内，源代码不要改。执行命令确认文档准确。"},
     {"id": "creator-local-revision", "skill": "skill-creator", "fixture": "creator", "prompt": "改进当前项目 .agents/skills/csv-cleaner/SKILL.md：能力是清理已有 CSV 的空白单元格并报告所做修改，明确只在用户要求 CSV 清理时使用，普通数据分析或 JSON 工作不应触发。保留 name、disable-model-invocation、agents/openai.yaml 的现有策略和 references/cleaning.md。只优化这个本地 skill 并验证元数据，不安装、迁移目录或调用额外模型。"},
     {"id": "commit-detached-boundary", "skill": "commit", "fixture": "detached", "expected_outcome": "authorization_boundary", "prompt": "提交 formatter.py 当前修改。当前 HEAD detached，尚未指定目标分支；请遵守 skill 的处理规则，说明需要的分支决定，不推送、不随意选分支。"},
@@ -179,6 +180,9 @@ def prepare_fixture(case: dict[str, Any], root: Path) -> dict[str, Any]:
         write_file(root, "draft.md", '# Report\n\nIt is important to note that at the end of the day, the pilot included 214 requests and observed a 3% reduction in retries. This is an observational result, as described in [the source](https://example.invalid/study). It is worth noting that future measurement is needed.\n\nThe author wrote: "At the end of the day, we still need evidence."\n\n```sh\nprintf \'214 requests, 3%% retries\\n\'\n```\n')
         write_file(root, ".agents/office.json", '{"skip_categories": []}\n')
         protected.append(".agents/office.json")
+    if kind == "interface":
+        write_file(root, "src/icons.tsx", "export function CloseIcon() {\n  return <svg aria-hidden=\"true\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\"><path d=\"M2 2l12 12M14 2L2 14\" /></svg>;\n}\n")
+        write_file(root, "src/Dialog.tsx", 'import { CloseIcon } from "./icons";\n\nexport function Dialog({ onClose }: { onClose: () => void }) {\n  return (\n    <div className="dialog-overlay">\n      <div className="dialog" role="dialog">\n        <h2>Confirm deletion</h2>\n        <p>This action cannot be undone.</p>\n        <button onClick={onClose}>\n          <CloseIcon />\n        </button>\n      </div>\n    </div>\n  );\n}\n')
     if kind == "readme":
         write_file(root, "packages/cli/README.md", "# Taskbox CLI\n\n## Usage\n\nUse `python3 taskbox.py list` to list tasks.\n\n## License\n\nMIT\n")
         write_file(root, "packages/cli/taskbox.py", "import argparse\nimport csv\nimport json\nimport sys\n\nparser = argparse.ArgumentParser()\nparser.add_argument('command', choices=['list', 'export'])\nparser.add_argument('--format', choices=['json', 'csv'], default='json')\nargs = parser.parse_args()\nrows = [{'title': 'Fixture task'}]\nif args.format == 'csv':\n    writer = csv.DictWriter(sys.stdout, fieldnames=['title'])\n    writer.writeheader()\n    writer.writerows(rows)\nelse:\n    print(json.dumps(rows))\n")
@@ -290,6 +294,8 @@ def grade_task(case: dict[str, Any], root: Path, context: dict[str, Any], events
         elif kind == "tropes":
             phrases = ("It is important to note", "at the end of the day", "It is worth noting")
             substantive = sum(phrase.lower() in final.lower() for phrase in phrases) >= 2 and bool(re.search(r"重复|空话|删|建议|redundan|remove|filler|suggest", final, re.I))
+        elif kind == "interface":
+            substantive = "Dialog.tsx" in final and bool(re.search(r"aria-label|accessible name|可访问名称|无障碍名称", final, re.I)) and bool(re.search(r"focus|焦点", final, re.I))
         else:
             substantive = False
         check("Give concrete findings about the actual source", substantive, final[:1500])

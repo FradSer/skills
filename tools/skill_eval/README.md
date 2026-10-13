@@ -4,7 +4,7 @@ Run a repository skill in a fresh `codex exec` process with its own Git fixture 
 source snapshot. This is an explicit invocation check. It does not measure implicit
 triggering, compare old and new quality, or validate real service accounts.
 
-The runner covers all 17 source skills with 22 selected tasks, including read-only
+The runner covers all 18 source skills with 23 selected tasks, including read-only
 requests, detached HEAD, unavailable scheduling, missing Lark authorization, and
 an offline browser challenge. GitHub and Lark commands are local fixtures; pushes
 target a local bare repository. SwiftUI verification builds a small Swift package.
