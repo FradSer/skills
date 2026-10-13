@@ -14,6 +14,7 @@ EXPECTED_SKILLS = {
     "create-issues",
     "create-pr",
     "create-prd",
+    "design-engineering",
     "gitflow",
     "lark",
     "loop",
@@ -101,6 +102,7 @@ class SkillsStructureTests(unittest.TestCase):
         }
         model_callable_skills = {
             "commit",
+            "design-engineering",
             "lark",
             "loop",
             "swiftui",
@@ -136,7 +138,7 @@ class SkillsStructureTests(unittest.TestCase):
         self.assertTrue((gitflow_dir / "scripts" / "finish-branch.sh").is_file())
 
     def test_codex_workflow_invocation_policies(self) -> None:
-        implicit_skills = {"commit", "lark", "swiftui"}
+        implicit_skills = {"commit", "design-engineering", "lark", "swiftui"}
         for skill_name in EXPECTED_SKILLS:
             with self.subTest(skill=skill_name):
                 path = SKILLS / skill_name / "agents" / "openai.yaml"

@@ -15,6 +15,7 @@ TRIGGERS = {
     "create-issues": ("create an issue", "file a bug"),
     "create-pr": ("pull request",),
     "create-prd": ("product requirements document", "PRD"),
+    "design-engineering": ("product interfaces", "UI implementation"),
     "gitflow": ("gitflow start feature", "gitflow finish release", "create-pr"),
     "lark": ("lark-cli",),
     "loop": ("/loop",),
