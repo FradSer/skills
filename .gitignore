@@ -195,3 +195,6 @@ dist
 
 # Independent Codex evaluation workspaces and retained transcripts
 .skill-evals/
+
+# Interfaces sync backups
+.backup/
