@@ -35,9 +35,10 @@ applies their reference contract instead of forcing a holistic report. Upstream
 standalone command names are reference routing hints.
 
 Emil workflows are retained under `references/emil/<name>/overview.md` with
-their supporting resources, MIT license and the performance cheatsheet. Only
-discovery frontmatter and agents metadata are removed; SKILL.md links become
-overview.md links.
+their supporting resources, MIT license and the performance cheatsheet. Discovery
+frontmatter, standalone greeting sections (`## Initial Response`), and agents
+metadata are removed; internal `SKILL.md` links become `overview.md` links, and
+cross-pack references point to `references/emil/<name>/overview.md`.
 
 `tools/skill-sync/denest.py` rewrites cross-pack paths and names. Generated trees
 are rebuilt so removed upstream references disappear. A malformed candidate

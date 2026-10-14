@@ -38,6 +38,22 @@ Choose the requested mode before acting. Specialized modes apply only when the u
 | **Toast notifications** | [Sonner](references/emil/ask-sonner/overview.md) | Headless / styling escalation ladder | Clean toast integration & troubleshooting |
 | **Modern Swift implementation** | [Swift](references/emil/write-swift/overview.md) | Swift 6.3/6.4, value types, concurrency | Idiomatic Swift architecture & views |
 
+## Composite Execution Chains
+
+Do not treat reference packs as isolated silos. Real design engineering tasks compose references into coherent multi-step pipelines:
+
+1. **Component Construction**:
+   [Library Selection](references/emil/pick-ui-library/overview.md) (pick accessible primitive) → [Layout](references/layout/overview.md) & [Typography](references/typography/overview.md) (token mapping) → [Animate](references/emil/animate/overview.md) / [Apple Design](references/emil/apple-design/overview.md) (press feedback & fluid curves) → [Accessibility](references/accessibility/overview.md) & [Mobile Native](references/emil/mobile-native/overview.md) (WCAG & touch platform hygiene) → [Break UI](references/emil/break-ui/overview.md) (stress-test with realistic worst-case data).
+
+2. **Motion Polish & Craft**:
+   [Opportunities](references/emil/find-animation-opportunities/overview.md) (filter candidates through frequency/purpose gate) → [Animate](references/emil/animate/overview.md) / [Animate Expo](references/emil/animate-expo/overview.md) (implement with `--ease-out`, no `scale(0)`, GPU-only) → [Performance cheatsheet](references/emil/performance-cheatsheet.md) (ensure zero layout thrash) → [Review Animations](references/emil/review-animations/overview.md) (verify against 10 craft standards).
+
+3. **Design Exploration**:
+   [Variants](references/variant/overview.md) & [Prototype](references/emil/prototype/overview.md) (choose 1 divergence axis: density, structure, voice, personality; build 3–5 working candidates behind the floating pill picker) → ensure every variant clears the accessibility floor → user chooses winner for production integration.
+
+4. **Codebase-Wide Motion Health**:
+   [Improve Animations](references/emil/improve-animations/overview.md) (run 8-category read-only audit) → prioritize findings by leverage → generate self-contained execution plans under `plans/` → hand off without mutating source unprompted.
+
 ## Unified Craft & Engineering Rules
 
 Where Jakub's quality domains and Emil's craft lenses meet, apply these reconciled invariants:
