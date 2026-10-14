@@ -95,16 +95,17 @@ Before writing any motion or evaluating existing motion, answer in order:
    - For interruptible UI (toasts, toggles, gestures), use CSS transitions or springs. Keyframes restart from zero when interrupted.
    - Never update parent CSS variables to drive child transforms (causes recalculation storms). Set `transform` on the animated element directly.
 6. **Accessibility & touch gating**:
-   - Honor `prefers-reduced-motion`: replace movement, scale, and parallax with a short opacity crossfade. Reduced motion means gentler feedback, not zero feedback.
+   - Honor `prefers-reduced-motion`: replace movement, scale, and parallax with a short opacity crossfade. Reduced motion means gentler feedback, not zero feedback. For touch gestures (like sheets/drawers), retain direct finger tracking for control while eliminating autonomous post-release bounce or travel.
    - Gate hover styling behind `@media (hover: hover) and (pointer: fine)` so touch taps do not latch sticky hover states. Use `:active` for tactile feedback on touch.
+   - On touch platforms, ensure interactive targets meet the 44×44pt (iOS) / 48×48dp (Android) touch target standard (WCAG AA baseline 24×24px).
 
 ### 2. Prototyping & Variant Exploration
 
 When building alternative directions for a piece of UI, combine Jakub's structural axes with Emil's craft divergence:
 - **Axis of divergence**: Pick one primary axis before coding (Structure, Density, Emphasis, Type scale, Voice, Personality, or Interaction model). State the axis and defend each direction.
-- **Unified floor**: Every variant must clear all accessibility and escalation triggers before being placed in the picker. Keyboard navigation, contrast, and focus indicators are non-negotiable.
-- **Isolated harness**: Build on the real hosting page or an isolated route (`/prototypes/<slug>`). Use a single URL search parameter `?__variant=<name>` so every candidate is shareable.
-- **Harness chrome**: Use the floating dark pill picker from [picker reference](references/variant/picker.md) and [Emil's picker](references/emil/prototype/PICKER.md). Keyboard shortcuts (`1–N`, arrows, `R` to replay animation, `H` to hide) must only handle events when focus is in the picker or not trapped in form inputs.
+- **Unified floor**: Every variant must clear all accessibility and escalation triggers before being placed in the picker (minimum contrast: 4.5:1 normal text, 3:1 large/UI; visible focus; keyboard equivalents). Keyboard navigation, contrast, and focus indicators are non-negotiable.
+- **Isolated harness**: Build on the real hosting page or an isolated route (`/prototypes/<slug>`); never mutate production code during exploration. Use a single URL search parameter `?__variant=<name>` as the reload-persistent and shareable source of truth.
+- **Harness chrome**: Use the floating dark pill picker from [picker reference](references/variant/picker.md) and [Emil's picker](references/emil/prototype/PICKER.md). Switching is instant without animating the variant change. Keyboard shortcuts (`1–N`, arrows, `R` to replay animation, `H` to hide) must only handle events when focus is in the picker or not trapped in form inputs.
 
 ### 3. Adversarial Stress Testing (Break UI)
 
@@ -152,7 +153,7 @@ Use one shared severity scale:
 - Content or controls clipped, overlapping, or unreachable at 320px width or 200% zoom.
 - Contrast pair failing required WCAG AA ratio.
 - State or meaning carried by color alone or by motion alone.
-- Destructive action without confirmation, undo, or distinct treatment.
+- Destructive action without confirmation, undo, or distinct treatment (safeguards such as typing an identifier must be proportional to irreversible data-loss risk, not mandated for routine actions).
 - Truncated content with no way to access the full value.
 - `transition: all` or animating layout properties (`width`, `height`, `margin`, `padding`, `top`, `left`).
 - `transform: scale(0)` or pure-fade entrance on UI elements.
