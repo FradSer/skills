@@ -368,7 +368,7 @@ def grade_task(case: dict[str, Any], root: Path, context: dict[str, Any], events
         for args in browser_calls:
             position = 0
             while position < len(args) and args[position].startswith("-"):
-                position += 2 if args[position] in {"--session", "--executable-path"} else 1
+                position += 2 if args[position] in {"--session", "--executable-path", "--cdp"} else 1
             operations.append(args[position:])
         opens = [args for args in operations if args[:1] == ["open"]]
         challenge = next((index for index, args in enumerate(operations) if args[:2] == ["get", "title"] or args[:1] == ["eval"]), None)
