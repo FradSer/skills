@@ -2,7 +2,7 @@
 
 Ready-to-build implementations for the cases that come up most. Start from the recipe, then adapt — don't rebuild from scratch.
 
-Curves are the `--ease-out`, `--ease-in-out`, and `--ease-drawer` tokens defined in SKILL.md.
+Curves are the `--ease-out`, `--ease-in-out`, and `--ease-drawer` tokens defined in overview.md.
 
 ---
 

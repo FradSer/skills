@@ -86,7 +86,7 @@ function rubberband(overshoot, dimension, constant = 0.55) {
 
 ## Press feedback
 
-Every pressable in the app. This passes the frequency gate only because it's near-imperceptible: 120ms and a 3% scale is the ceiling for something touched this often — anything longer or larger belongs to rarer moments, per step 1 in SKILL.md. No gesture, no shared value — a CSS transition is the whole implementation.
+Every pressable in the app. This passes the frequency gate only because it's near-imperceptible: 120ms and a 3% scale is the ceiling for something touched this often — anything longer or larger belongs to rarer moments, per step 1 in overview.md. No gesture, no shared value — a CSS transition is the whole implementation.
 
 ```jsx
 import Animated from 'react-native-reanimated';
