@@ -2,18 +2,63 @@
 
 MISSAV_CHROME="${MISSAV_CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
 MISSAV_SESSION="${MISSAV_SESSION:-missav-$(date +%s)}"
+MISSAV_USE_USER_CHROME="${MISSAV_USE_USER_CHROME:-1}"
+MISSAV_CDP_PORT="${MISSAV_CDP_PORT:-9222}"
 MISSAV_ACCESS_BLOCKED=0
 MISSAV_ACCESS_BLOCKED_MESSAGE="Automated access stopped after a Cloudflare challenge. Authorized API or site-owner access is required."
-export MISSAV_CHROME MISSAV_SESSION MISSAV_ACCESS_BLOCKED MISSAV_ACCESS_BLOCKED_MESSAGE
+export MISSAV_CHROME MISSAV_SESSION MISSAV_USE_USER_CHROME MISSAV_CDP_PORT MISSAV_ACCESS_BLOCKED MISSAV_ACCESS_BLOCKED_MESSAGE
 
 MISSAV_ACCESS_BLOCKED_EXIT=42
 
+missav_is_cdp_mode() {
+  if [[ "${MISSAV_USE_USER_CHROME:-1}" -eq 1 ]]; then
+    return 0
+  fi
+  if [[ -n "${MISSAV_CDP_PORT:-}" && "${MISSAV_USE_USER_CHROME:-1}" -ne 0 ]]; then
+    return 0
+  fi
+  return 1
+}
+
+missav_cdp_port() {
+  echo "${MISSAV_CDP_PORT:-9222}"
+}
+
+missav_ensure_user_chrome() {
+  local port
+  port="$(missav_cdp_port)"
+  if lsof -i ":$port" >/dev/null 2>&1; then
+    return 0
+  fi
+  if [[ -x "$MISSAV_CHROME" || -f "$MISSAV_CHROME" ]]; then
+    local profile_dir="${MISSAV_PROFILE_DIR:-$HOME/.missav/chrome-profile}"
+    mkdir -p "$profile_dir"
+    "$MISSAV_CHROME" \
+      --user-data-dir="$profile_dir" \
+      --remote-debugging-port="$port" \
+      --no-first-run \
+      --no-default-browser-check >/dev/null 2>&1 &
+    local i
+    for ((i = 0; i < 15; i++)); do
+      if lsof -i ":$port" >/dev/null 2>&1; then
+        return 0
+      fi
+      sleep 0.2
+    done
+  fi
+  return 0
+}
+
 _missav_ab_base() {
   local -a args=()
-  if [[ -f "$MISSAV_CHROME" ]]; then
-    args+=(--executable-path "$MISSAV_CHROME")
+  if missav_is_cdp_mode; then
+    args+=(--cdp "$(missav_cdp_port)")
+  else
+    if [[ -f "$MISSAV_CHROME" ]]; then
+      args+=(--executable-path "$MISSAV_CHROME")
+    fi
+    args+=(--headed --session "$MISSAV_SESSION")
   fi
-  args+=(--headed --session "$MISSAV_SESSION")
   agent-browser "${args[@]}" "$@"
 }
 
@@ -23,12 +68,19 @@ missav_ab() {
 
 # Kill global daemon AND session-scoped state. Call once at task start.
 missav_browser_start() {
+  if missav_is_cdp_mode; then
+    missav_ensure_user_chrome
+    return 0
+  fi
   agent-browser --session "$MISSAV_SESSION" close 2>/dev/null || true
   agent-browser close 2>/dev/null || true
-  sleep 2
+  sleep "${MISSAV_START_SLEEP:-2}"
 }
 
 missav_browser_close() {
+  if missav_is_cdp_mode; then
+    return 0
+  fi
   agent-browser --session "$MISSAV_SESSION" close 2>/dev/null || true
 }
 
@@ -59,11 +111,11 @@ missav_is_bad_url() {
   echo "$url" | grep -qE '/pop(\?|$)|tsyndicate|bit\.ly' && return 0
   if [[ "$kind" == "detail" ]]; then
     echo "$url" | grep -qE '/search/|/actresses/|/genres/|/tags/' && return 0
-    echo "$url" | grep -qE 'missav\.(ws|com)/cn/[a-z0-9][a-z0-9-]*[a-z0-9](/|$|\?)' && return 1
+    echo "$url" | grep -qE 'missav\.(ws|com|ai)/([a-z0-9]+/)?cn/[a-z0-9][a-z0-9-]*[a-z0-9](/|$|\?)' && return 1
     return 0
   fi
   # listing/search pages: allow /search/ but reject ad popups
-  echo "$url" | grep -qE 'missav\.(ws|com)/' && return 1
+  echo "$url" | grep -qE 'missav\.(ws|com|ai)/' && return 1
   return 0
 }
 
@@ -93,9 +145,8 @@ missav_stop_if_challenged() {
 missav_handle_age_gate() {
   missav_ab find text "我已满 18 岁" click 2>/dev/null \
     || missav_ab find text "I am 18" click 2>/dev/null \
-    || missav_ab find text "Enter" click 2>/dev/null \
     || true
-  missav_wait_page 3000
+  missav_wait_page 1000
 }
 
 missav_scroll_load() {

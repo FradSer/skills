@@ -17,7 +17,7 @@
   const slug = location.pathname.split("/").filter(Boolean).pop() || "";
   const cloudflare = /just a moment|请稍候/i.test(document.title);
   const isPopRedirect = /\/pop(\?|$)/i.test(href) || /tsyndicate|bit\.ly/i.test(href);
-  const isVideoPage = /missav\.(ws|com)\/cn\/[a-z0-9-]+$/i.test(href.replace(/\/$/, ""));
+  const isVideoPage = /missav\.(ws|com|ai)\/([a-z0-9]+\/)?cn\/[a-z0-9-]+$/i.test(href.replace(/\/$/, ""));
 
   if (cloudflare || isPopRedirect || !isVideoPage) {
     return JSON.stringify(
@@ -56,7 +56,8 @@
       (el) => (el.textContent || "").trim().length > 80
     );
 
-  const description = descEl ? descEl.textContent.replace(/\s+/g, " ").trim() : "";
+  let description = descEl ? descEl.textContent.replace(/\s+/g, " ").trim() : "";
+  description = description.replace(/\s*(展开|收起|更多|show more|read more)\s*$/i, "").trim();
 
   const title =
     document.querySelector("h1")?.textContent.trim() ||
@@ -71,12 +72,12 @@
       ? `${slugMatch[1].toUpperCase()}-${slugMatch[2]}`
       : "";
 
-  const tags = [...document.querySelectorAll('a[href*="/cn/genres/"], a[href*="/cn/tags/"]')]
+  const tags = [...document.querySelectorAll('a[href*="/genres/"], a[href*="/tags/"]')]
     .map((a) => a.textContent.trim())
     .filter(Boolean);
 
   const performers = [
-    ...document.querySelectorAll('a[href*="/cn/actresses/"], a[href*="/cn/actors/"]'),
+    ...document.querySelectorAll('a[href*="/actresses/"], a[href*="/actors/"]'),
   ]
     .map((a) => a.textContent.trim())
     .filter(Boolean);

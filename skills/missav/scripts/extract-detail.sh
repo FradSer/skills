@@ -10,6 +10,9 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --session) SESSION="$2"; shift 2 ;;
     --output)  OUTPUT="$2"; shift 2 ;;
+    --cdp)     export MISSAV_CDP_PORT="$2"; export MISSAV_USE_USER_CHROME=1; shift 2 ;;
+    --user-chrome) export MISSAV_USE_USER_CHROME=1; shift ;;
+    --no-user-chrome|--isolated) export MISSAV_USE_USER_CHROME=0; shift ;;
     *) echo "Unknown arg: $1" >&2; exit 1 ;;
   esac
 done

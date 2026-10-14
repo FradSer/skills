@@ -96,8 +96,16 @@ function cmdFeedback(type, opts) {
     dir: opts.dir,
     minMinutes: opts.minMinutes != null ? Number(opts.minMinutes) : null,
     maxMinutes: opts.maxMinutes != null ? Number(opts.maxMinutes) : null,
-    extraLikes: opts.likes ? parseList(opts.likes) : null,
-    extraDislikes: opts.dislikes ? parseList(opts.dislikes) : null,
+    extraLikes: opts.likes
+      ? parseList(opts.likes)
+      : opts.genres
+        ? parseList(opts.genres)
+        : null,
+    extraDislikes: opts.dislikes
+      ? parseList(opts.dislikes)
+      : opts["dislike-genres"]
+        ? parseList(opts["dislike-genres"])
+        : null,
   });
   const signals = extractSignalsFromItem(item);
   console.log(
@@ -145,9 +153,9 @@ Store layout:
 function main() {
   const { positional, opts } = parseArgs(process.argv);
   const cmd = positional[0];
-  if (!cmd) {
+  if (!cmd || cmd === "--help" || cmd === "-h" || opts.help) {
     usage();
-    process.exit(1);
+    process.exit(cmd === "--help" || cmd === "-h" || opts.help ? 0 : 1);
   }
   switch (cmd) {
     case "init":

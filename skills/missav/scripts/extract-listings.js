@@ -39,7 +39,14 @@
   titleLinks.forEach((a) => {
     const href = a.href;
     if (!isVideoHref(href)) return;
-    const slug = a.getAttribute("alt") || "";
+    let slug = a.getAttribute("alt") || "";
+    if (!slug) {
+      try {
+        const u = new URL(href);
+        const parts = u.pathname.split("/").filter(Boolean);
+        slug = parts[parts.length - 1] || "";
+      } catch (_) {}
+    }
     const title = a.textContent.trim();
     if (!title) return;
 

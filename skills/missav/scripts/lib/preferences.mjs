@@ -184,6 +184,13 @@ function keywordsFromSlug(slug) {
     .map((part) => part.toLowerCase());
 }
 
+function codeFromSlug(slug) {
+  const m = String(slug || "").match(/^([a-z]{2,10})-(\d{2,5})/i);
+  return m ? `${m[1].toUpperCase()}-${m[2]}` : "";
+}
+
+const CODE_RE = /\b([A-Z]{2,10}-\d{2,5})\b/i;
+
 function performersFromTitle(title) {
   if (!title) return [];
   const out = [];
@@ -204,13 +211,26 @@ function performersFromTitle(title) {
 }
 
 function extractSignalsFromItem(item) {
-  const code = item.code ? item.code.toUpperCase() : "";
+  let code = item.code ? item.code.toUpperCase() : "";
+  if (!code && item.title) {
+    const m = item.title.match(CODE_RE);
+    if (m) code = m[1].toUpperCase();
+  }
+  if (!code && item.slug) {
+    code = codeFromSlug(item.slug);
+  }
   const label = labelFromCode(code);
   const descGenres = item.description ? genresFromDescription(item.description) : [];
+  const performers = mergeList(
+    item.performers || [],
+    item.actresses || [],
+    item.actors || [],
+    performersFromTitle(item.title || "")
+  );
   return {
     code: code || null,
     labels: label ? [label] : [],
-    performers: performersFromTitle(item.title || ""),
+    performers,
     genres: mergeList(item.genres || [], item.tags || [], descGenres),
     keywords: keywordsFromSlug(item.slug || ""),
     href: item.href || null,
@@ -234,6 +254,14 @@ function addDislikes(prefs, signals) {
   if (signals.genres?.length) prefs.dislikes.genres = mergeList(prefs.dislikes.genres, signals.genres);
   if (signals.keywords?.length) prefs.dislikes.keywords = mergeList(prefs.dislikes.keywords, signals.keywords);
   if (signals.href) prefs.dislikes.hrefs = mergeList(prefs.dislikes.hrefs, [signals.href]);
+  return prefs;
+}
+
+function removeFromLikes(prefs, signals) {
+  const dropCode = signals.code ? signals.code.toLowerCase() : null;
+  if (dropCode) {
+    prefs.likes.codes = prefs.likes.codes.filter((v) => v.toLowerCase() !== dropCode);
+  }
   return prefs;
 }
 
@@ -276,6 +304,7 @@ function applyFeedback(prefs, feedback) {
     case "dislike":
     case "never_again":
       addDislikes(next, signals);
+      removeFromLikes(next, signals);
       next.stats.dislikedCount += 1;
       break;
     case "too_short":

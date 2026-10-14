@@ -12,6 +12,9 @@ export MISSAV_SESSION="$SESSION"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --prefs) PREFS="$2"; shift 2 ;;
+    --cdp) export MISSAV_CDP_PORT="$2"; export MISSAV_USE_USER_CHROME=1; shift 2 ;;
+    --user-chrome) export MISSAV_USE_USER_CHROME=1; shift ;;
+    --no-user-chrome|--isolated) export MISSAV_USE_USER_CHROME=0; shift ;;
     *) echo "Unknown arg: $1" >&2; exit 1 ;;
   esac
 done
@@ -33,21 +36,33 @@ QUERY_FILE="$WORK_DIR/queries"
 PREFS_FILE="$PREFS" python3 -c "
 import json
 import os
-import sys
 p = json.load(open(os.environ['PREFS_FILE']))
 q = []
 for g in p.get('likes', {}).get('genres', []):
     q.append(g)
 for l in p.get('likes', {}).get('labels', []):
     q.append(l.lower())
+for pf in p.get('likes', {}).get('performers', []):
+    q.append(pf)
 dk = p.get('search', {}).get('defaultKeyword')
 if dk and dk not in q:
     q.append(dk)
 if not q:
     q = ['sm']
-for item in dict.fromkeys(str(value).strip() for value in q if str(value).strip()):
-    print(item)
+seen = set()
+for item in q:
+    value = str(item).strip()
+    if value and value.lower() not in seen:
+        seen.add(value.lower())
+        print(value)
 " > "$QUERY_FILE"
+
+DEFAULT_FILTER="$(PREFS_FILE="$PREFS" python3 -c "
+import json
+import os
+p = json.load(open(os.environ['PREFS_FILE']))
+print(p.get('search', {}).get('defaultFilter') or '')
+")"
 
 # shellcheck source=lib/browser-env.sh
 source "$SCRIPT_DIR/lib/browser-env.sh"
@@ -60,23 +75,33 @@ QUERY_INDEX=0
 while IFS= read -r q; do
   QUERY_INDEX=$((QUERY_INDEX + 1))
   [[ "$MISSAV_ACCESS_BLOCKED" -eq 1 ]] && break
-  URL="$(node "$SCRIPT_DIR/build-search-url.mjs" search "$q")"
+  if [[ -n "$DEFAULT_FILTER" ]]; then
+    URL="$(node "$SCRIPT_DIR/build-search-url.mjs" search "$q" --filter "$DEFAULT_FILTER")"
+  else
+    URL="$(node "$SCRIPT_DIR/build-search-url.mjs" search "$q")"
+  fi
   echo "=== Query $QUERY_INDEX ===" >&2
   if "$SCRIPT_DIR/browse-page.sh" "$URL" --session "$SESSION" --continue; then
     TMP="$WORK_DIR/listings-$QUERY_INDEX.json"
     if "$SCRIPT_DIR/extract-listings.sh" --session "$SESSION" --output "$TMP"; then
-      python3 <<PY
-import json
-merged = json.load(open("$MERGED"))
-add = json.load(open("$TMP"))
+      MERGED="$MERGED" TMP="$TMP" python3 <<PY
+import json, os
+merged = json.load(open(os.environ["MERGED"]))
+add = json.load(open(os.environ["TMP"]))
 by = {x["href"]: x for x in merged}
 for x in add:
     if x.get("href"):
         by[x["href"]] = x
-json.dump(list(by.values()), open("$MERGED", "w"), ensure_ascii=False, indent=2)
+json.dump(list(by.values()), open(os.environ["MERGED"], "w"), ensure_ascii=False, indent=2)
 print(f"merged total: {len(by)}")
 PY
     else
+      EXTRACT_STATUS=$?
+      if [[ "$EXTRACT_STATUS" -eq "$MISSAV_ACCESS_BLOCKED_EXIT" ]]; then
+        echo "STOP: $MISSAV_ACCESS_BLOCKED_MESSAGE" >&2
+        MISSAV_ACCESS_BLOCKED=1
+        break
+      fi
       echo "WARN: no listings for query $QUERY_INDEX" >&2
     fi
   else

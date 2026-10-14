@@ -24,13 +24,20 @@ function parseArgs(argv) {
 function buildUrl(mode, query, filter) {
   const base = "https://missav.ws";
   if (mode === "search") {
-    const segment = encodeURIComponent(query).replace(/%20/g, "+");
+    const cleanQuery = (query || "").trim();
+    if (!cleanQuery) {
+      throw new Error("Search query must not be empty.");
+    }
+    const segment = encodeURIComponent(cleanQuery).replace(/%20/g, "+");
     let url = `${base}/cn/search/${segment}`;
     if (filter) url += `?filters=${encodeURIComponent(filter)}`;
     return url;
   }
   if (mode === "category") {
-    const slug = query.replace(/^\/+|\/+$/g, "");
+    const slug = (query || "").trim().replace(/^\/+|\/+$/g, "");
+    if (!slug) {
+      throw new Error("Category slug must not be empty.");
+    }
     return `${base}/${slug}${slug.endsWith("/cn") ? "" : "/cn"}`;
   }
   throw new Error(`Unknown mode: ${mode}. Use "search" or "category".`);

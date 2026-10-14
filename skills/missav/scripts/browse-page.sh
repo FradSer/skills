@@ -15,6 +15,9 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --session) MISSAV_SESSION="$2"; export MISSAV_SESSION; shift 2 ;;
     --continue) CONTINUE=1; shift ;;
+    --cdp) export MISSAV_CDP_PORT="$2"; export MISSAV_USE_USER_CHROME=1; shift 2 ;;
+    --user-chrome) export MISSAV_USE_USER_CHROME=1; shift ;;
+    --no-user-chrome|--isolated) export MISSAV_USE_USER_CHROME=0; shift ;;
     *) echo "Unknown arg: $1" >&2; exit 1 ;;
   esac
 done
@@ -33,4 +36,7 @@ else
 fi
 
 missav_scroll_load 4
+if ! missav_stop_if_challenged; then
+  exit "$MISSAV_ACCESS_BLOCKED_EXIT"
+fi
 missav_page_title

@@ -39,6 +39,8 @@ See [references/preferences-schema.md](references/preferences-schema.md).
 
 Use **`run-recommend.sh`** for the full tested pipeline, or run steps manually.
 
+By default, the workflow connects directly to your real Google Chrome via CDP (port `9222`), preserving all your login sessions, cookies, proxy, and Cloudflare verification tokens. If Chrome is not running with port `9222`, it automatically launches real Chrome with remote debugging. To run in an isolated sandbox instead, pass `--isolated` (or set `MISSAV_USE_USER_CHROME=0`).
+
 The workflow is fail-closed: a Cloudflare challenge detected by title or body returns exit code `42`, stops all later searches/detail requests, and never presents a partial recommendation as a successful run. Public search results and community-maintained clients are not a site-authorized API; do not replace this behavior with fingerprint changes, proxy rotation, challenge solving, or unofficial bypasses.
 
 ```bash
@@ -50,7 +52,10 @@ workflow. A custom path is never initialized implicitly; this avoids creating
 or mutating `~/.missav` by accident. Preference values are sensitive user
 signals, so progress output uses query numbers rather than echoing them.
 
-This script: loads prefs → searches each liked **genre + label** → merges listings → ranks → enriches **top scored** detail pages → re-ranks with descriptions.
+Use `--cdp PORT`, `--user-chrome`, or `--isolated` to select the browser
+connection mode. The default mode attaches to your real Chrome on port `9222`.
+
+This script: loads prefs → searches each liked **genre + label + performer** → merges listings → ranks → enriches **top scored** detail pages → re-ranks with descriptions.
 
 ### Manual steps
 

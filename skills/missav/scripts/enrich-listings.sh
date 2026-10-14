@@ -21,6 +21,9 @@ while [[ $# -gt 0 ]]; do
     --output)  OUTPUT="$2"; shift 2 ;;
     --top)     TOP="$2"; shift 2 ;;
     --session) SESSION="$2"; shift 2 ;;
+    --cdp)     export MISSAV_CDP_PORT="$2"; export MISSAV_USE_USER_CHROME=1; shift 2 ;;
+    --user-chrome) export MISSAV_USE_USER_CHROME=1; shift ;;
+    --no-user-chrome|--isolated) export MISSAV_USE_USER_CHROME=0; shift ;;
     *) echo "Unknown arg: $1" >&2; exit 1 ;;
   esac
 done
@@ -40,7 +43,13 @@ source "$SCRIPT_DIR/lib/browser-env.sh"
 # Only reset browser when no session was provided.
 [[ -n "$SESSION" ]] || missav_browser_start
 
-python3 <<PY > /tmp/missav-enrich-urls.txt
+ENRICH_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/missav-enrich.XXXXXX")"
+trap 'rm -rf "$ENRICH_TMP_DIR"' EXIT
+URLS_FILE="$ENRICH_TMP_DIR/urls.txt"
+DETAILS_FILE="$ENRICH_TMP_DIR/details.jsonl"
+: > "$DETAILS_FILE"
+
+python3 <<PY > "$URLS_FILE"
 import json
 
 def load_items(path):
@@ -64,7 +73,6 @@ for item in items:
         break
 PY
 
-: > /tmp/missav-enrich-details.jsonl
 OK=0
 FAIL=0
 
@@ -82,27 +90,34 @@ while IFS= read -r href; do
   fi
   missav_ab find text "展开" click 2>/dev/null || missav_ab find text "更多" click 2>/dev/null || true
   missav_wait_page 1500
-  TMP="/tmp/missav-detail-$$.json"
+  TMP="$ENRICH_TMP_DIR/detail-$$.json"
   if _missav_ab_base eval --stdin < "$SCRIPT_DIR/extract-detail.js" | node "$SCRIPT_DIR/normalize-eval-output.mjs" --object "$TMP"; then
+    if [[ -f "$TMP" ]] && python3 -c "import json, sys; d=json.load(open('$TMP')); sys.exit(0 if d.get('blockReason') == 'cloudflare' else 1)"; then
+      missav_mark_access_blocked || true
+      break
+    fi
     if python3 -c "import json; d=json.load(open('$TMP')); exit(0 if d.get('description') and not d.get('blocked') else 1)"; then
-      python3 -c "import json; print(json.dumps(json.load(open('$TMP')), ensure_ascii=False))" >> /tmp/missav-enrich-details.jsonl
+      python3 -c "import json; print(json.dumps(json.load(open('$TMP')), ensure_ascii=False))" >> "$DETAILS_FILE"
       OK=$((OK + 1))
       continue
     fi
   fi
+  if ! missav_stop_if_challenged; then
+    break
+  fi
   echo "SKIP: no description for $href" >&2
   FAIL=$((FAIL + 1))
-done < /tmp/missav-enrich-urls.txt
+done < "$URLS_FILE"
 
 missav_browser_close
 
-INPUT="$INPUT" OUTPUT="$OUTPUT" python3 <<'PY'
+INPUT="$INPUT" OUTPUT="$OUTPUT" DETAILS_FILE="$DETAILS_FILE" python3 <<'PY'
 import json, os
 from pathlib import Path
 
 listings = json.load(open(os.environ["INPUT"]))
 details = []
-for line in Path("/tmp/missav-enrich-details.jsonl").read_text().splitlines():
+for line in Path(os.environ["DETAILS_FILE"]).read_text().splitlines():
     if not line.strip():
         continue
     d = json.loads(line)

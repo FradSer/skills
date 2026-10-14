@@ -105,8 +105,14 @@ function matchesSearchTerm(text, term) {
 function scoreItem(item, opts) {
   let score = 0;
   const reasons = [];
-  const haystack = `${item.title} ${item.slug} ${item.code} ${item.description || ""} ${(item.tags || []).join(" ")}`.toLowerCase();
-  const searchableText = [item.title, item.description, ...(item.tags || [])]
+  const searchableText = [
+    item.title,
+    item.slug,
+    item.description,
+    ...(item.tags || []),
+    ...(item.genres || []),
+    ...(item.performers || []),
+  ]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
@@ -199,8 +205,26 @@ function scoreItem(item, opts) {
     }
   }
 
-  if (item.description && opts.prefsRaw) {
-    const analysis = analyzeDescription(item.description, opts.prefsRaw);
+  const prefsForAnalysis = {
+    likes: {
+      genres: opts.genres,
+      keywords: opts.keywords,
+      performers: opts.performers,
+      labels: opts.labels,
+      codes: opts.codes,
+    },
+    dislikes: opts.dislikes || {},
+  };
+
+  const hasDescPreferences =
+    opts.prefsRaw != null ||
+    opts.genres.length > 0 ||
+    opts.keywords.length > 0 ||
+    Boolean(opts.dislikes?.genres?.length) ||
+    Boolean(opts.dislikes?.keywords?.length);
+
+  if (item.description && hasDescPreferences) {
+    const analysis = analyzeDescription(item.description, prefsForAnalysis);
     score += analysis.fitScore;
     for (const r of analysis.reasons) reasons.push(`desc:${r}`);
     if (analysis.matchedDislikes.length) score += w.dislikePenalty * analysis.matchedDislikes.length;
