@@ -1,8 +1,8 @@
 # Lark CLI Skills Sync
 
 **Upstream**: [larksuite/cli](https://github.com/larksuite/cli)
-**Last checked**: 2026-10-03
-**lark-cli version**: 1.0.87
+**Last checked**: 2026-10-14
+**lark-cli version**: 1.0.97
 **Synced commit**: b6d0473
 
 ## Architecture
