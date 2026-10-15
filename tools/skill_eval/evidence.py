@@ -46,6 +46,20 @@ def successful_commands(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [event["item"] for event in events if event.get("type") == "item.completed" and event.get("item", {}).get("type") == "command_execution" and event["item"].get("exit_code") == 0]
 
 
+# A chain exits with its LAST command's status, so a chained command's exit code is not
+# evidence about an earlier one. These markers are the direct evidence that the named tool
+# call failed: a rejected push publishes nothing, and a denied service call performs nothing.
+TOOL_FAILURE = re.compile(
+    r"! \[(?:remote )?rejected\]|failed to push some refs|HTTP (?:4\d\d|5\d\d)"
+    r"|(?:^|\s)(?:error|fatal): |not authorized|GraphQL: ",
+    re.M,
+)
+
+
+def command_items(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [event["item"] for event in events if event.get("type") == "item.completed" and event.get("item", {}).get("type") == "command_execution"]
+
+
 def trusted_argvs(command: str, tool: str, executable: Path | None = None, allowed_sources: tuple[str, ...] = (), allowed_path_prefix: Path | None = None) -> list[list[str]]:
     if re.search(r"\balias\s+|\bfunction\s+|\b" + re.escape(tool) + r"\s*\(\s*\)", command):
         return []
@@ -75,7 +89,9 @@ def trusted_argvs(command: str, tool: str, executable: Path | None = None, allow
 
 def operation_receipts(events: list[dict[str, Any]], tool: str, *operation: str, executable: Path | None = None) -> list[str]:
     receipts = []
-    for item in successful_commands(events):
+    for item in command_items(events):
+        if TOOL_FAILURE.search(item.get("aggregated_output", "")):
+            continue
         for argv in trusted_argvs(item.get("command", ""), tool, executable):
             if argv[1:1 + len(operation)] == list(operation) and not any(value in {"--help", "-h"} for value in argv):
                 receipts.append(str(item.get("id", "unknown")))
@@ -85,7 +101,9 @@ def operation_receipts(events: list[dict[str, Any]], tool: str, *operation: str,
 def git_push_receipts(events: list[dict[str, Any]]) -> list[str]:
     receipts = []
     executable = shutil.which("git")
-    for item in successful_commands(events):
+    for item in command_items(events):
+        if TOOL_FAILURE.search(item.get("aggregated_output", "")):
+            continue
         for argv in trusted_argvs(item.get("command", ""), "git", Path(executable) if executable else None):
             index = 1
             while index < len(argv) and argv[index].startswith("-"):

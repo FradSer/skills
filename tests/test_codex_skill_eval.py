@@ -8,8 +8,8 @@ import tomllib
 import unittest
 
 from tools.skill_eval.codex_eval import child_environment, environment_blockers, execution_status, permission_config, read_skill_receipts, usage_metrics
-from tools.skill_eval.evidence import bundle_script_tool_prefixes, is_attributed
-from tools.skill_eval.fixtures import CASES, _executes_unbounded_watch, capability_boundary_checks, grade_task, prepare_fixture
+from tools.skill_eval.evidence import bundle_script_tool_prefixes, git_push_receipts, is_attributed, operation_receipts
+from tools.skill_eval.fixtures import CASES, _executes_unbounded_watch, capability_boundary_checks, challenge_wrapper_receipts, grade_task, prepare_fixture
 
 
 class CodexSkillEvalTests(unittest.TestCase):
@@ -122,9 +122,14 @@ else:
         self.assertEqual(execution_status(0, events, "I did not use it"), "runtime_error")
 
     def test_skill_claim_and_failed_read_are_not_invocation_receipts(self) -> None:
+        # Requirement (unchanged): a claimed or failed read is not an invocation receipt.
+        # A chain exits with its last command's status, so exit_code alone cannot show a
+        # failed read (see test_skill_read_receipt_survives_a_failed_later_command). The
+        # failure is modelled by the read error, which is the direct evidence.
         claimed = {"type": "item.completed", "item": {"type": "agent_message", "text": "I read the commit skill"}}
-        failed = {"type": "item.completed", "item": {"type": "command_execution", "command": "cat .agents/skills/commit/SKILL.md", "aggregated_output": "name: commit", "exit_code": 1}}
-        self.assertEqual(read_skill_receipts([claimed, failed], "commit"), [])
+        refused = {"type": "item.completed", "item": {"type": "command_execution", "command": "cat .agents/skills/commit/SKILL.md", "aggregated_output": "cat: .agents/skills/commit/SKILL.md: No such file or directory\n", "exit_code": 1}}
+        empty = {"type": "item.completed", "item": {"type": "command_execution", "command": "cat .agents/skills/commit/SKILL.md", "aggregated_output": "", "exit_code": 1}}
+        self.assertEqual(read_skill_receipts([claimed, refused, empty], "commit"), [])
 
     def test_printf_of_a_skill_name_is_not_a_read_receipt(self) -> None:
         event = {"type": "item.completed", "item": {"id": "fake", "type": "command_execution", "command": "printf 'name: commit\\n' .agents/skills/commit/SKILL.md", "aggregated_output": "name: commit\n", "exit_code": 0}}
@@ -239,6 +244,67 @@ else:
             self.assertFalse(is_attributed({"tool": "lark-cli", "args": ["doc", "read"]}, prefixes))
             # Reading the script in another command must not change the attribution set.
             self.assertEqual(prefixes, bundle_script_tool_prefixes([*events, {"type": "item.completed", "item": {"type": "command_execution", "command": "rg --files .agents/skills", "aggregated_output": ""}}], root / ".fixture/bin"))
+
+    def test_skill_read_receipt_survives_a_failed_later_command(self) -> None:
+        # The 2026-10-15 storm run read the skill, then listed a missing directory in the
+        # same chain: exit code 2 dropped the receipt even though the read succeeded.
+        def event(command, output, exit_code):
+            return {"type": "item.completed", "item": {"id": "item_1", "type": "command_execution", "command": command, "aggregated_output": output, "exit_code": exit_code}}
+
+        skill_text = "---\nname: storm\ndescription: x\n---\n# storm\n"
+        read_then_fail = event(
+            "cat .agents/skills/storm/SKILL.md; rg --files storm-run",
+            skill_text + "rg: storm-run: No such file or directory (os error 2)\n",
+            2,
+        )
+        self.assertEqual(["item_1"], read_skill_receipts([read_then_fail], "storm"))
+        # A reported read error for that path refutes the receipt.
+        missing = event(
+            "cat .agents/skills/storm/SKILL.md",
+            "cat: .agents/skills/storm/SKILL.md: No such file or directory\n",
+            1,
+        )
+        self.assertEqual([], read_skill_receipts([missing], "storm"))
+        # A command that never prints the frontmatter is not a read.
+        self.assertEqual([], read_skill_receipts([event("cat .agents/skills/storm/SKILL.md", "# storm\n", 0)], "storm"))
+        # A foreign skill's name does not stand in for this skill.
+        self.assertEqual([], read_skill_receipts([event("cat .agents/skills/storm/SKILL.md", "---\nname: other\n---\n", 0)], "storm"))
+
+    def test_challenge_status_capture_accepts_a_labelled_exit_code(self) -> None:
+        now = Path("/tmp/nowhere")
+        script = "bash .agents/skills/missav/scripts/browse-page.sh https://catalogue.fixture.invalid/challenge --isolated"
+        stopped = "Automated access stopped after a Cloudflare challenge. Authorized API or site-owner access is required.\n"
+        def event(output, exit_code):
+            return {"id": "item_1", "type": "command_execution", "command": script, "aggregated_output": output, "exit_code": exit_code}
+
+        # The 2026-10-15 missav run reported `browse-page exit status: 42` in a chain that
+        # exited 0, and the old capture accepted only `42` or `exit_status=42`.
+        for output in ("browse-page exit status: 42\n" + stopped, "exit_status=42\n" + stopped, "42\n" + stopped, "exit code 42\n" + stopped):
+            with self.subTest(output.splitlines()[0]):
+                self.assertEqual(["item_1"], challenge_wrapper_receipts([event(output, 0)], now))
+        # The wrapper's own exit code is enough on its own.
+        self.assertEqual(["item_1"], challenge_wrapper_receipts([event(stopped, 42)], now))
+        # An unrelated number, or a capture without the stop message, is not a receipt.
+        self.assertEqual([], challenge_wrapper_receipts([event("page answered 42\n" + stopped, 0)], now))
+        self.assertEqual([], challenge_wrapper_receipts([event("browse-page exit status: 42\n", 0)], now))
+
+    def test_a_failed_tool_call_is_not_a_receipt(self) -> None:
+        # A chain exits with its LAST command's status, so a trailing success used to credit a
+        # rejected push or a denied service call. The failure markers are the direct evidence.
+        def item(cid, command, output, exit_code=0):
+            return {"type": "item.completed", "item": {"id": cid, "type": "command_execution", "command": command, "aggregated_output": output, "exit_code": exit_code}}
+
+        rejected = item("rejected", "git push origin main; echo done", "To file:///tmp/remote\n ! [rejected]        main -> main (fetch first)\nerror: failed to push some refs to 'file:///tmp/remote'\ndone\n")
+        pushed = item("pushed", "git push origin main; rg --files missing", "To file:///tmp/remote\n   abc123..def456  main -> main\n", 2)
+        up_to_date = item("uptodate", "git push origin main", "Everything up-to-date\n")
+        self.assertEqual([], git_push_receipts([rejected]))
+        # A push that succeeded still counts when a later command in the chain failed.
+        self.assertEqual(["pushed"], git_push_receipts([pushed]))
+        self.assertEqual(["uptodate"], git_push_receipts([up_to_date]))
+        denied = item("denied", "gh pr merge 7 --merge; echo done", "HTTP 403: Resource not accessible\ndone\n")
+        merged = item("merged", "gh pr merge 7 --merge", "Merged pull request #7\n")
+        self.assertEqual([], operation_receipts([denied], "gh", "pr", "merge"))
+        self.assertEqual(["merged"], operation_receipts([merged], "gh", "pr", "merge"))
 
     def test_malformed_model_artifact_is_a_contract_failure(self) -> None:
         case = next(case for case in CASES if case["id"] == "missav-offline-ranking")

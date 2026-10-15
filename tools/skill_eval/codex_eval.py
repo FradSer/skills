@@ -32,15 +32,24 @@ def read_skill_receipts(events: list[dict[str, Any]], skill: str) -> list[str]:
     receipts = []
     local_path = f".agents/skills/{skill}/SKILL.md"
     name = re.compile(rf"^name:\s*['\"]?{re.escape(skill)}['\"]?\s*$", re.M)
+    # A chain exits with its LAST command's status, so the exit code cannot show whether
+    # the read itself worked. The frontmatter name in the tool output is the direct
+    # evidence, and a reported read error for that path refutes it.
+    read_error = re.compile(
+        rf"(?:No such file|Permission denied|Is a directory)[^\n]*{re.escape(local_path)}"
+        rf"|{re.escape(local_path)}[^\n]*(?:No such file|Permission denied|Is a directory)"
+    )
     for event in events:
         item = event.get("item", {})
         if event.get("type") != "item.completed" or item.get("type") != "command_execution":
             continue
-        if item.get("exit_code") != 0 or local_path not in item.get("command", ""):
+        if local_path not in item.get("command", ""):
             continue
         reads = [argv for reader in ("cat", "sed", "head", "tail") for argv in trusted_argvs(item.get("command", ""), reader, Path(shutil.which(reader)) if shutil.which(reader) else None) if any(value.endswith(local_path) for value in argv[1:])]
-        if reads and name.search(item.get("aggregated_output", "")):
-            receipts.append(str(item.get("id", "unknown")))
+        output = item.get("aggregated_output", "")
+        if not reads or not name.search(output) or read_error.search(output):
+            continue
+        receipts.append(str(item.get("id", "unknown")))
     return receipts
 
 

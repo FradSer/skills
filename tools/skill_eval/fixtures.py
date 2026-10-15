@@ -182,7 +182,9 @@ def challenge_wrapper_receipts(commands: list[dict[str, Any]], root: Path) -> li
     receipts = []
     for item in commands:
         output = item.get("aggregated_output", "")
-        captured = re.search(r"(?m)^(?:exit_status=|exit_code=)?42$", output)
+        # A captured status may carry a label: `browse-page exit status: 42`. Require a
+        # status word (or a bare number) so an unrelated `42` in the output cannot pass.
+        captured = re.search(r"(?m)^(?:[^\n]{0,60}?(?:exit|status)[^\n]{0,20}?)?\b42\b\s*$", output)
         # A successful negative test may capture the wrapper status before cleanup.
         if item.get("exit_code") != 42 and not (captured and "Automated access stopped after a Cloudflare challenge" in output):
             continue
