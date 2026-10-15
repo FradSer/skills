@@ -20,6 +20,8 @@ SKILL_DIR=/absolute/path/to/skills/review-pr
 LOOP="$SKILL_DIR/scripts/review-loop.sh"
 ARM="$SKILL_DIR/scripts/arm-closeout.sh"
 CLEAR="$SKILL_DIR/scripts/clear-closeout.sh"
+GUARD="$SKILL_DIR/scripts/watch-guard.sh"
+RELEASE="$SKILL_DIR/scripts/clear-watch.sh"
 ```
 
 The create-pr fallback uses equivalent references under `references/` and
@@ -65,6 +67,26 @@ files, edit anything, or start other agents.
 Arm one poll child per cycle. Read its answer, triage every `events` entry, apply the
 verified fixes, then arm the next poll child with the updated `ACK` list. Do not leave a
 child running after a stop condition holds.
+
+### Stall guard
+
+A watch can outlive its wake source: a turn that ends with nothing armed leaves the comment
+queue unobserved. The state file records `interval` and `last_poll_epoch`, so this stall is
+detectable. Before you end a turn while the watch stays open, confirm the next poll is armed.
+On stop-hook hosts, wire the guard into that hook the same way as `closeout-stop.sh`. On any
+host, run one check:
+
+```bash
+bash "$GUARD" --check   # exit 1 names a watch that has not polled for three intervals
+```
+
+Do not treat a fresh poll as a stop signal: a watch that is armed but idle is normal, and a
+stale watch needs the next poll, not a hidden comment queue. Release a watch that ended on
+purpose — merged, closed, stopped by the user, or past the deadline — with:
+
+```bash
+bash "$RELEASE" "$PR"
+```
 
 A host monitor with a terminal-result contract surfaces only
 the matched result line, never the poll's preceding stdout; do not run the infinite

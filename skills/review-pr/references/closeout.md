@@ -343,7 +343,8 @@ land docs after the code PR merges so the author can grep the real value.
 5. After confirmation, rearm with `arm-closeout.sh "$PR"`, recheck the head and gate, merge once, verify it, and complete
    only the authorized cleanup. Clear state when complete, after decline and stop-watching,
    or after merge failure. A new head or a new comment invalidates the approval: redo the
-   gate before merging.
+   gate before merging. Release the watch with `clear-watch.sh "$PR"` when the watch ended
+   on purpose — merged, closed, stopped by the user, or past the deadline.
 
 Resume from observed state. A summary comment proves the summary was posted, not that the
 merge or cleanup occurred. A MERGED badge proves a merge event; stacked PRs still need

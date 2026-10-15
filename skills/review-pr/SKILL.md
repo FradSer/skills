@@ -31,7 +31,9 @@ poll. Pass ACK IDs only after triage; unacknowledged events replay from
 the persisted state. Keep the watch armed while the PR is open. A settled gate — terminal
 passing CI and a handled comment queue — is NOT a stop signal: reviewers may comment later.
 Stop when the PR merges or closes, when the user stops watching, or when the documented
-deadline is reached. Resolve
+deadline is reached. Before you end a turn while the watch stays open, confirm the next poll
+is armed — `scripts/watch-guard.sh --check` reports a watch that has not polled for three
+intervals. Resolve
 material scope, correctness, and authorization escalations before declaring merge readiness.
 
 When the gate holds, read [closeout.md](references/closeout.md), arm the closeout state,

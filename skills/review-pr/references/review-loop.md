@@ -374,6 +374,10 @@ under repository policy or an explicit user decision; document the basis.
 - Preparing closeout does not stop the watch. Present the summary and request merge
   confirmation, but keep polling until a stop condition holds. New commits or new comments
   invalidate the approved result: triage, fix, and ask again.
+- Confirm the next poll is armed before you end a turn while the watch stays open. Run
+  `scripts/watch-guard.sh --check`: it reports a watch that has not polled for three
+  intervals, which means the loop lost its wake source. Release a watch that ended on
+  purpose with `scripts/clear-watch.sh <PR>`.
 - Stop the wake source when ANY holds:
   - The PR is merged or closed.
   - The user says to stop watching, or declines both the merge and further watching.

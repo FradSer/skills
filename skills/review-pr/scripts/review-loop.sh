@@ -166,9 +166,10 @@ persist_state() {
   if ! jq -n \
     --arg pr "$PR" --arg repo "$REPO" --arg head_sha "$head_sha" \
     --arg since "$since" --argjson deadline_epoch "$deadline_epoch" \
+    --argjson interval "$INTERVAL" --argjson last_poll_epoch "$(date +%s)" \
     --argjson emitted_comments "$seen_json" --argjson acknowledged_comments "$ack_json" \
     --argjson last_ci "$ci_json" --argjson pending_comments "$pending_json" \
-    '{version:2,pr:$pr,repo:$repo,head_sha:$head_sha,since:$since,deadline_epoch:$deadline_epoch,emitted_comments:$emitted_comments,acknowledged_comments:$acknowledged_comments,pending_comments:$pending_comments,last_ci:$last_ci}' \
+    '{version:2,pr:$pr,repo:$repo,head_sha:$head_sha,since:$since,deadline_epoch:$deadline_epoch,interval:$interval,last_poll_epoch:$last_poll_epoch,emitted_comments:$emitted_comments,acknowledged_comments:$acknowledged_comments,pending_comments:$pending_comments,last_ci:$last_ci}' \
     > "$tmp"; then
     rm -f "$tmp"
     return 1

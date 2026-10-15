@@ -5,6 +5,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 
 
@@ -20,6 +21,16 @@ REVIEW_BUNDLE_SYNC = ROOT / "tools/skill-sync/sync-review-pr-refs.py"
 PR_HANDOFFS = tuple(
     ROOT / "skills" / skill / "references" / "pr-creation-handoff.md"
     for skill in ("review-pr", "create-pr", "create-issues", "resolve-issues")
+)
+
+# The review-pr bundle's scripts, shared with the create-pr fallback mirror.
+REVIEW_SCRIPT_NAMES = (
+    "review-loop.sh",
+    "arm-closeout.sh",
+    "clear-closeout.sh",
+    "closeout-stop.sh",
+    "watch-guard.sh",
+    "clear-watch.sh",
 )
 
 HANDLED_NODE = "IC_kwHandledHandled"
@@ -320,7 +331,7 @@ class ReviewLoopWatchTests(unittest.TestCase):
         self.assertTrue((REVIEW_REFERENCES / "runbook.md").exists())
         self.assertTrue((REVIEW_REFERENCES / "review-loop.md").exists())
         self.assertTrue((REVIEW_REFERENCES / "closeout.md").exists())
-        for name in ("review-loop.sh", "arm-closeout.sh", "clear-closeout.sh", "closeout-stop.sh"):
+        for name in REVIEW_SCRIPT_NAMES:
             script = REVIEW_SCRIPTS / name
             self.assertTrue(script.exists())
             self.assertTrue(script.stat().st_mode & 0o111)
@@ -345,7 +356,7 @@ class ReviewLoopWatchTests(unittest.TestCase):
             target_scripts.mkdir(parents=True)
             for name in ("runbook.md", "review-loop.md", "closeout.md"):
                 (source_references / name).write_text(name, encoding="utf-8")
-            for name in ("review-loop.sh", "arm-closeout.sh", "clear-closeout.sh", "closeout-stop.sh"):
+            for name in REVIEW_SCRIPT_NAMES:
                 (source_scripts / name).write_text(name, encoding="utf-8")
             (target_references / "keep.md").write_text("keep", encoding="utf-8")
             (target_references / "review-loop.sh").write_text("legacy", encoding="utf-8")
@@ -360,8 +371,117 @@ class ReviewLoopWatchTests(unittest.TestCase):
             self.assertFalse((target_references / "review-loop.sh").exists())
             for name in ("runbook.md", "review-loop.md", "closeout.md"):
                 self.assertEqual((target_references / name).read_text(encoding="utf-8"), name)
-            for name in ("review-loop.sh", "arm-closeout.sh", "clear-closeout.sh", "closeout-stop.sh"):
+            for name in REVIEW_SCRIPT_NAMES:
                 self.assertEqual((target_scripts / name).read_text(encoding="utf-8"), name)
+
+    def test_watch_state_records_the_poll_interval_and_last_poll_time(self) -> None:
+        # The stall guard can only detect a lost wake source when the loop state carries
+        # the interval and the last poll time. This ties the real poll output to the guard.
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            subprocess.run(["git", "init", "-q", str(root)], check=True, capture_output=True)
+            state_file = root / ".git/review-pr-watch-122.json"
+            before = int(time.time())
+            result = run_watch(extra_env={"STATE_FILE": str(state_file), "INTERVAL": "90"})
+            self.assertEqual(result.returncode, 0, result.stderr)
+            state = json.loads(state_file.read_text(encoding="utf-8"))
+            self.assertEqual(state["interval"], 90)
+            self.assertGreaterEqual(state["last_poll_epoch"], before)
+            guard = ["bash", str(REVIEW_SCRIPTS / "watch-guard.sh"), "--check"]
+            self.assertEqual(0, subprocess.run(guard, cwd=root, capture_output=True, text=True).returncode)
+            state["last_poll_epoch"] = before - 600
+            state_file.write_text(json.dumps(state), encoding="utf-8")
+            stale = subprocess.run(guard, cwd=root, capture_output=True, text=True)
+            self.assertEqual(1, stale.returncode, stale.stdout + stale.stderr)
+            self.assertIn("WATCH-STALE PR #122", stale.stdout)
+
+    def test_stall_guard_reports_a_watch_that_lost_its_wake_source(self) -> None:
+        now = int(time.time())
+        cases = (
+            ("a fresh poll is not a stall", {"interval": 300, "last_poll_epoch": now - 200, "deadline_epoch": now + 3600}, 0, False),
+            ("an idle turn is not a stall", {"interval": 60, "last_poll_epoch": now - 120, "deadline_epoch": now + 3600}, 0, False),
+            ("three missed intervals are a stall", {"interval": 300, "last_poll_epoch": now - 1200, "deadline_epoch": now + 3600}, 1, True),
+            ("the first interval threshold is 180s", {"interval": 30, "last_poll_epoch": now - 200, "deadline_epoch": now + 3600}, 1, True),
+            ("an expired deadline ends the watch", {"interval": 300, "last_poll_epoch": now - 1200, "deadline_epoch": now - 10}, 0, False),
+        )
+        for label, state, expected_code, mentions_pr in cases:
+            with self.subTest(label), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                subprocess.run(["git", "init", "-q", str(root)], check=True, capture_output=True)
+                (root / ".git/review-pr-watch-7.json").write_text(
+                    json.dumps({"version": 2, "pr": "7", "repo": "octo/repo", **state}),
+                    encoding="utf-8",
+                )
+                result = subprocess.run(["bash", str(REVIEW_SCRIPTS / "watch-guard.sh"), "--check"], cwd=root, capture_output=True, text=True)
+                self.assertEqual(expected_code, result.returncode, result.stdout + result.stderr)
+                if mentions_pr:
+                    self.assertIn("WATCH-STALE PR #7", result.stdout)
+                else:
+                    self.assertEqual("", result.stdout)
+
+    def test_stall_guard_fails_open_and_yields_to_the_user(self) -> None:
+        now = int(time.time())
+        guard = str(REVIEW_SCRIPTS / "watch-guard.sh")
+        stale = {"version": 2, "pr": "7", "repo": "octo/repo", "interval": 300, "last_poll_epoch": now - 1200, "deadline_epoch": now + 3600}
+        unreadable_states = (
+            ("a foreign state file", {"version": 2, "pr": "not-a-number"}),
+            ("a state without a poll time", {"version": 2, "pr": "7", "deadline_epoch": now + 3600}),
+            ("a state without an interval", {"version": 2, "pr": "7", "last_poll_epoch": now - 1200, "deadline_epoch": now + 3600}),
+        )
+        for label, state in unreadable_states:
+            with self.subTest(label), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                subprocess.run(["git", "init", "-q", str(root)], check=True, capture_output=True)
+                (root / ".git/review-pr-watch-7.json").write_text(json.dumps(state), encoding="utf-8")
+                self.assertEqual(0, subprocess.run(["bash", guard, "--check"], cwd=root, capture_output=True, text=True).returncode)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", str(root)], check=True, capture_output=True)
+            (root / ".git/review-pr-watch-7.json").write_text(json.dumps(stale), encoding="utf-8")
+            # A presented approval question yields so the human can answer.
+            (root / ".git/review-pr-closeout.json").write_text(json.dumps({"pr": "7", "awaiting_confirmation": True}), encoding="utf-8")
+            self.assertEqual(0, subprocess.run(["bash", guard, "--check"], cwd=root, capture_output=True, text=True).returncode)
+            (root / ".git/review-pr-closeout.json").unlink()
+            # A subagent stop, and a turn already continuing from a block, both pass.
+            for payload in ({"stop_hook_active": False, "agent_id": "sub-1"}, {"stop_hook_active": True}):
+                result = subprocess.run(["bash", guard], cwd=root, input=json.dumps(payload), capture_output=True, text=True)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual("", result.stdout)
+            # The main turn gets one reminder that names the PR and the release path.
+            result = subprocess.run(["bash", guard], cwd=root, input=json.dumps({"stop_hook_active": False}), capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stderr)
+            context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+            self.assertIn("stale watch", context)
+            self.assertIn("PR #7", context)
+            self.assertIn("clear-watch.sh", context)
+
+    def test_clear_watch_releases_only_its_own_pr(self) -> None:
+        script = REVIEW_SCRIPTS / "clear-watch.sh"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", str(root)], check=True, capture_output=True)
+            for pr in ("7", "8"):
+                (root / f".git/review-pr-watch-{pr}.json").write_text(json.dumps({"version": 2, "pr": pr}), encoding="utf-8")
+            result = subprocess.run(["bash", str(script), "7"], cwd=root, capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertFalse((root / ".git/review-pr-watch-7.json").exists())
+            self.assertTrue((root / ".git/review-pr-watch-8.json").exists())
+            # A non-numeric PR is refused; an absent state is a no-op.
+            self.assertEqual(2, subprocess.run(["bash", str(script), "seven"], cwd=root, capture_output=True, text=True).returncode)
+            self.assertEqual(0, subprocess.run(["bash", str(script), "9"], cwd=root, capture_output=True, text=True).returncode)
+
+    def test_review_pr_documents_the_stall_guard_and_release_path(self) -> None:
+        skill = " ".join(REVIEW_PR_SKILL.read_text(encoding="utf-8").split())
+        self.assertIn("watch-guard.sh --check", skill)
+        references = REVIEW_PR_SKILL.parent / "references"
+        runbook = " ".join((references / "runbook.md").read_text(encoding="utf-8").split())
+        self.assertIn("watch-guard.sh", runbook)
+        self.assertIn("clear-watch.sh", runbook)
+        self.assertIn("Do not treat a fresh poll as a stop signal", runbook)
+        loop = " ".join((references / "review-loop.md").read_text(encoding="utf-8").split())
+        self.assertIn("watch-guard.sh --check", loop)
+        closeout = " ".join((references / "closeout.md").read_text(encoding="utf-8").split())
+        self.assertIn("clear-watch.sh", closeout)
 
     def test_watch_persists_cursor_and_unacknowledged_events_for_replay(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

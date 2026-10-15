@@ -43,6 +43,24 @@ Feature: Watch PR events without losing them to output filtering
     Then it keeps the wake source armed
     And it clears state only after the user also declines further watching
 
+  Scenario: A watch that lost its wake source is reported
+    Given a review watch is armed and has not polled for three intervals
+    And the watch deadline has not passed
+    When the turn-end guard checks the watch state
+    Then it names the PR and the release path
+    And it asks for the next poll rather than a silent comment queue
+
+  Scenario: A fresh or finished watch never blocks a turn
+    Given the watch polled within one interval, or its deadline passed, or a user decision is pending
+    When the turn-end guard checks the watch state
+    Then it passes without output
+    And a subagent stop and a continuing turn also pass
+
+  Scenario: Releasing a finished watch removes only its own state
+    Given watch state exists for PR 7 and PR 8
+    When the watch for PR 7 is released
+    Then only the PR 7 state is removed
+
   Scenario: review-pr cleans a linked worktree and its PR branch after a confirmed merge
     Given a confirmed PR merge completed from a linked worktree on branch "feature/watch"
     When post-merge cleanup runs

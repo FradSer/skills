@@ -32,6 +32,8 @@ SCRIPT_FILES = (
     "arm-closeout.sh",
     "clear-closeout.sh",
     "closeout-stop.sh",
+    "watch-guard.sh",
+    "clear-watch.sh",
 )
 
 
