@@ -80,7 +80,9 @@ closeout actually exists**:
   ran).
 - **Complex or ambiguous situations — spawn an independent subagent with clean context.**
   e.g. reconstructing whether the ceremony ran earlier in the session, or whether the gate
-  (CI green, every comment triaged) still holds after events that landed after arming.
+  (CI green, every comment triaged) still holds after events that landed after arming. When
+  the host cannot spawn a worker, re-read the state file and the `gh pr view` output
+  yourself, and state that the check shared the main context.
 
 A verified-stale state means the enforcement already did its job: clear it
 (`clear-closeout.sh "$PR"`) and end the turn — do not re-run the ceremony or the merge. A
@@ -224,7 +226,7 @@ the linked comment holds the full comment-by-comment audit trail, and neither re
 
 ## Confirmation and merge
 
-Run the ceremony first so the PR record is ready for review. Stop monitoring and present
+Run the ceremony first so the PR record is ready for review. Keep the watch armed, present
 the summary URL, verified CI/review state, any accepted limitations, merge strategy, and
 the exact optional cleanup targets. Request explicit user confirmation after preparation.
 Reuse an existing authorization for this same reviewed merge; do not ask again.
@@ -336,10 +338,12 @@ land docs after the code PR merges so the author can grep the real value.
 2. Arm closeout, finish verified-comment handling, and prepare the summary/title/body.
 3. Find the existing `<!-- review-pr:summary -->` marker before posting another summary;
    update that record and recover its URL after an interruption.
-4. Present the concrete result, stop monitoring, and request only missing merge/cleanup
+4. Present the concrete result, keep the watch armed, and request only missing merge/cleanup
    authorization. Mark awaiting-confirmation state and yield for the decision.
 5. After confirmation, rearm with `arm-closeout.sh "$PR"`, recheck the head and gate, merge once, verify it, and complete
-   only the authorized cleanup. Clear state when complete or after decline/merge failure.
+   only the authorized cleanup. Clear state when complete, after decline and stop-watching,
+   or after merge failure. A new head or a new comment invalidates the approval: redo the
+   gate before merging.
 
 Resume from observed state. A summary comment proves the summary was posted, not that the
 merge or cleanup occurred. A MERGED badge proves a merge event; stacked PRs still need

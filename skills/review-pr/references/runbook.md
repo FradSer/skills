@@ -33,16 +33,40 @@ scripts under `scripts/`.
 4. Handle `[ci]`, `[comment]`, `[error]`, `[status]`, and `[watch]` events.
 5. Pass acknowledged node IDs as `ACK` on the next poll. Never treat emitted
    events as acknowledged.
-6. Schedule the next one-shot poll until the stop conditions hold.
+6. Re-arm the next one-shot poll through the same facility after each processed
+   batch, until a stop condition holds.
 7. Arm closeout, run the ceremony in `closeout.md`, then clear closeout state.
 
-## Monitor contract
+## Continuation contract
 
-In Pi, run each review-loop poll with `monitor_start`. Elsewhere, use an available
-cancellable background tool or execute a single bounded `--once` poll and return its
-complete output. Use only an actual host continuation/wait facility for later polls;
-if none exists, report that ongoing monitoring could not be established. Never use
-a manual foreground loop or claim a nonexistent tool ran. Monitors with a terminal-result contract surface only
+Discover how this host wakes the agent with a poll result before the first poll. Use the
+first facility the host exposes, in this order:
+
+1. A facility that returns a bounded command's output in a later turn. In Pi, start one
+   asynchronous subagent per poll with `tools: ["bash"]`; its answer arrives in a later
+   turn and resumes this session.
+2. A cancellable host monitor that surfaces one terminal result line for a matched
+   sentinel.
+3. A bounded `--once` poll that this turn waits for, when (1) and (2) are absent. State in
+   the report that the watch needs another turn.
+
+Never name a tool the host may not have, never use a manual foreground loop, and never
+claim a tool ran. If the host exposes no facility, report that ongoing monitoring could
+not be established and stop after one bounded poll.
+
+Give a poll child these instructions, and pass `ACK` with the node IDs you triaged:
+
+```
+Run exactly one command and print its complete stdout verbatim. Then stop. Do not read
+files, edit anything, or start other agents.
+<the bounded poll command below>
+```
+
+Arm one poll child per cycle. Read its answer, triage every `events` entry, apply the
+verified fixes, then arm the next poll child with the updated `ACK` list. Do not leave a
+child running after a stop condition holds.
+
+A host monitor with a terminal-result contract surfaces only
 the matched result line, never the poll's preceding stdout; do not run the infinite
 loop mode under one. Capture one-shot output and embed every emitted event line INSIDE
 the sentinel payload:
@@ -66,20 +90,24 @@ success matcher=__REVIEW_POLL__ (?<json>\{.*\})
 failure matcher=__REVIEW_POLL_FAILED__ (?<json>\{.*\})
 ```
 
-After processing the result, schedule another bounded poll using the host facility
-no faster than INTERVAL. In Pi, invoke a new `monitor_start` poll. Do not use a
-foreground `while` loop. The monitor command uses the wrapper above, with
+After you process a result, arm another bounded poll through the same facility, no faster
+than INTERVAL. Repeat: poll, triage, fix, acknowledge, arm the next poll. Do not use a
+foreground `while` loop. A host monitor uses the wrapper above as its command, with
 `result_pattern='__REVIEW_POLL__ (?<json>\\{.*\\})'` and
 `failure_pattern='__REVIEW_POLL_FAILED__ (?<json>\\{.*\\})'`; parse every entry in
-its returned `events` array before scheduling the next poll.
+its returned `events` array before arming the next poll.
 
 ## Stop and closeout
 
-Stop only when CI is terminal and passing and all comments have been
-triaged and material escalations resolved under the closeout gate. An empty poll is not a stop signal.
-The default deadline is 7200 seconds. A merged or closed PR stops immediately.
+Keep the watch armed while the PR stays open. Stop only when the PR merges or closes, when
+the user stops watching, or when the default 7200-second deadline expires. A terminal
+passing CI and a handled comment queue show a settled gate, not a finished review; an empty
+poll is not a stop signal. Resolve material escalations before you declare the gate ready.
 
-When the gate holds, stop the active monitor, then:
+The ~2-hour cap bounds a stuck PR. When the cap expires, surface whether CI is still red or
+comments remain, then stop.
+
+When the gate holds, prepare closeout and keep polling:
 
 ```bash
 bash "$ARM" "$PR"
@@ -88,9 +116,10 @@ bash "$ARM" "$PR"
 Run the ordered summary-comment and body-rewrite ceremony from `closeout.md`.
 Present its result and request any missing explicit user confirmation. Mark awaiting
 confirmation with `arm-closeout.sh "$PR" --awaiting-confirmation` and yield. Merge
-only after confirmation; clear state after merge and authorized cleanup, an
-unrecoverable merge failure, or a user
-who declines to merge:
+only after confirmation. New commits or new comments invalidate the approved result:
+triage, fix, and request the missing authorization again. Clear state after merge and
+authorized cleanup, after an unrecoverable merge failure, or when the user declines both
+the merge and further watching:
 
 ```bash
 bash "$CLEAR" "$PR"

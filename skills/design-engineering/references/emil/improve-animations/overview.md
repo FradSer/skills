@@ -48,7 +48,7 @@ Audit against the eight categories in [AUDIT.md](AUDIT.md):
 7. Cohesion & tokens
 8. Missed opportunities
 
-For anything beyond a small repo, fan out read-only subagents — one per category (or per app area for large monorepos). Each subagent prompt must include: the absolute path to AUDIT.md and its section heading, the recon facts (stack, motion libraries, token conventions, frequency map), an instruction to return findings only (file:line + evidence, no fixes), and Hard Rule 4 verbatim.
+For anything beyond a small repo, fan out read-only subagents — one per category (or per app area for large monorepos). Each subagent prompt must include: the absolute path to AUDIT.md and its section heading, the recon facts (stack, motion libraries, token conventions, frequency map), an instruction to return findings only (file:line + evidence, no fixes), and Hard Rule 4 verbatim. If the runtime cannot spawn workers, audit the categories sequentially in-context with the same per-category prompt.
 
 Depth follows effort level (default `standard`):
 
@@ -89,7 +89,7 @@ Finish by creating or updating `plans/README.md`: recommended execution order, d
 | `quick` / `deep` | Adjust audit effort (see table); composes with a focus |
 | a category focus (`performance`, `accessibility`, `easing`…) | Recon + audit that category only |
 | `plan <description>` | Skip the audit; recon just enough to specify, then write a single plan for the described improvement |
-| `execute <plan>` | Dispatch an executor subagent to implement the plan in an isolated worktree, then review its diff with `references/emil/review-animations/overview.md` bar and render a verdict |
+| `execute <plan>` | Dispatch an executor subagent to implement the plan in an isolated worktree, then review its diff with `references/emil/review-animations/overview.md` bar and render a verdict (if the runtime cannot spawn workers, execute the plan in-context instead) |
 | `reconcile` | Re-check `plans/` against the current code: mark done plans DONE, refresh stale file:line references, retire fixed findings |
 
 ## Tone

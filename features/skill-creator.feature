@@ -68,3 +68,21 @@ Feature: Reliable internal skill tooling
     Given a valid run and a malformed run directory
     When benchmark results are aggregated
     Then the valid run is retained and the malformed directory is reported and skipped
+
+  Scenario: A skill that needs a host capability states how it proceeds without it
+    Given a skill depends on a host continuation, monitor, subagent, hook, or scheduler facility
+    When the skill is authored or revised
+    Then it names the capability only after a discovery step
+    And it states what the skill does when the host lacks the capability
+    And it names no tool that the host may not have
+
+  Scenario: A worker-spawn step falls back to sequential in-context work
+    Given a skill instructs the agent to spawn or fan out subagents
+    When the runtime cannot spawn workers
+    Then the same work units run sequentially in-context with the same unit prompt
+
+  Scenario: A settled watch is not a finished review
+    Given a skill watches an external review queue
+    When CI passes and every comment received so far is handled
+    Then it keeps the wake source armed while the target stays open
+    And it stops only on a terminal outcome, a user stop, or the deadline

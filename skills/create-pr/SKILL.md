@@ -38,8 +38,8 @@ parsing the URL:
 - For the full workflow: Start the standalone `review-pr` workflow exactly once with the normalized PR number.
   Use the host's
   sibling-skill dispatch when available; otherwise use this skill's bundled references
-  and scripts as the implementation fallback. In Pi, invoke `monitor_start` for every
-  fallback poll with the sentinel contract in [runbook.md](references/runbook.md), never a
+  and scripts as the implementation fallback. Arm every fallback poll through the host
+  continuation facility required by [runbook.md](references/runbook.md), never a
   foreground loop or a fake slash command. Do not report completion until `review-pr` owns
   the PR.
 

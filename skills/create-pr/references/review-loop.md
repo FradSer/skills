@@ -5,7 +5,7 @@
 Find the relevant section by heading:
 
 - Poll interval by PR size
-- Start one Monitor for CI and Comments
+- Arm one Wake Source per Poll
 - Excluding already-triaged comments on restart
 - You do not have to adopt review comments
 - Baseline review agent
@@ -13,10 +13,13 @@ Find the relevant section by heading:
 - Lifecycle
 
 A single bash script (`scripts/review-loop.sh`) drives the watch: it emits one tagged
-stdout line per new event for BOTH CI checks and PR comments. In Pi, start each one-shot poll
-with `monitor_start`, which returns its terminal result to the next turn. Elsewhere,
-use an available cancellable background tool or a bounded `--once` execution and
-the host's actual continuation facility; do not invent a monitor tool. The
+stdout line per new event for BOTH CI checks and PR comments. Discover how this host
+returns a poll result to a later turn before the first poll. In Pi, start one asynchronous
+subagent per poll: its answer arrives in a later turn and wakes this session. Anywhere
+else, use the host's real continuation facility, a cancellable host monitor, or a bounded
+`--once` poll that this turn waits for. Do not invent a monitor tool or name a tool the
+host may not have. If the host exposes no such facility, report that ongoing monitoring
+could not be established and stop after one bounded poll. The
 script is a plain executable emitting lines on stdout. Do not block on a manual `while
 true` loop.
 
@@ -38,10 +41,11 @@ to the PR's size and pass it as `INTERVAL` (in seconds) to the script below.
 
 Read size via `gh pr view <PR> --repo <REPO> --json additions,deletions` and pick the row.
 
-## Start one Monitor for CI and Comments
+## Arm one Wake Source per Poll
 
-Use one Pi `monitor_start` invocation per poll when that tool is available;
-other hosts use the bounded execution contract in [runbook.md](runbook.md). The script below emits:
+Arm one wake source per poll through the facility you found. Use the bounded execution
+contract in [runbook.md](runbook.md) when the host monitor surfaces only a terminal result
+line. The script below emits:
 
 - `[ci] <name>: <bucket>` once per check reaching a terminal bucket (pass/fail/cancel/skipping)
 - `[comment] issue node=<id> id=<n> @<user>: <body>` for new issue-level comments
@@ -60,7 +64,7 @@ Run it — it reads `PR`, `REPO`, and `INTERVAL` from env
 (or `--pr`/`--repo`/`--interval` flags) and emits the tagged lines above.
 
 ```bash
-# `monitor_start` command for one poll. Its result_pattern is
+# Bounded poll wrapper for a host monitor. Its result_pattern is
 # __REVIEW_POLL__ (?<json>\{.*\}) and failure_pattern is
 # __REVIEW_POLL_FAILED__ (?<json>\{.*\}).
 # Capture stdout and embed every event line inside the sentinel JSON: such monitors
@@ -76,9 +80,12 @@ fi
 
 ```
 
-Pass the wrapper above as `monitor_start.command`, parse every `events` entry from the
-returned JSON, then invoke the next one-shot monitor only while the PR needs watching.
-Stop scheduling monitors when the PR is settled — never leave a monitor running.
+Pass the wrapper above to a host monitor that matches a terminal result line. Parse every
+`events` entry from the
+returned JSON, then arm the next one-shot poll only while the PR needs watching.
+When the host exposes no such monitor, run the same wrapper as one bounded poll in this
+turn and triage its `events` before arming the next poll.
+Stop arming polls when a stop condition holds (see Lifecycle) — never leave a wake source running.
 
 ## Excluding already-triaged comments on restart
 
@@ -118,13 +125,14 @@ Behavior notes:
   diagnostics and retain the cursor/CI state. A successful process exit alone does
   not establish a successful API poll or merge readiness. Interval is at least 60s.
 
-Start one `monitor_start` `--once` poll with the unique terminal sentinel. After
-processing that result, start the next poll in a new `monitor_start` invocation.
+Arm one `--once` poll per cycle with the unique terminal sentinel. After
+you process a result, re-arm the next poll in a new invocation.
 The script persists its cursor, emitted and acknowledged comment IDs, latest CI buckets,
 head SHA, and deadline at the Git worktree path `review-pr-watch-<PR>.json` (override with
 `STATE_FILE`); this path is safe for normal and linked worktrees. A restart resumes that
-state instead of replaying the PR history. Stop scheduling polls when the PR is settled or
-the deadline is reached — never leave a monitor running after stop.
+state instead of replaying the PR history. Stop arming polls when the PR merges or closes,
+when the user stops watching, or when the deadline is reached — never leave a wake source
+running after stop.
 
 ## You do not have to adopt review comments
 
@@ -143,7 +151,9 @@ temporarily empty. Other agents may post more comments later.
 The skill's Phase 1 baseline review runs in an independent agent — the main context
 authored the PR (or is otherwise biased) and should not judge it directly. The baseline
 agent uses the same skeptical standard as the triage agent: it flags what is wrong or
-unsafe, not every stylistic nit.
+unsafe, not every stylistic nit. Start it when the host can spawn a worker; when the host
+cannot, run the same review as a separate pass that re-reads `gh pr diff` without the
+authoring narrative and state in the report that the review shared the main context.
 
 ```bash
 gh pr diff <PR> --repo <REPO>
@@ -173,7 +183,7 @@ rejected like any other comment.
 
 ## Reacting to Events
 
-Each line is data to triage. Handle a completed poll before scheduling the next
+Each line is data to triage. Handle a completed poll before arming the next
 one-shot poll. A new head resets CI buckets; later polls observe the new results.
 Publish fixes only within the user's authorized PR workflow.
 
@@ -198,7 +208,7 @@ infrastructure (`timeout`, `OOM`, `runner unavailable`).
 
 ### `[comment]` batch — spawn independent triage agent
 
-**CRITICAL: Never evaluate comments in the main conversation.** The main loop authored the PR and is biased — it will either defensively reject criticism or over-correct to please reviewers. Both failure modes are harmful. Instead, spawn an **independent review-triage agent** with a clean context.
+**CRITICAL: Never evaluate comments in the main conversation.** The main loop authored the PR and is biased — it will either defensively reject criticism or over-correct to please reviewers. Both failure modes are harmful. Instead, spawn an **independent review-triage agent** with a clean context; when the host cannot spawn a worker, run the same skeptical pass as a separate step, re-read the diff from `gh pr diff` for each verdict, and state in the report that the triage shared the main context.
 
 **Why independent evaluation:**
 - The PR author context rationalizes ("this is intentional") or capitulates ("the reviewer must be right")
@@ -354,24 +364,24 @@ under repository policy or an explicit user decision; document the basis.
 
 ## Lifecycle
 
-- The monitor runs across turns; you keep working and react as lines arrive.
-- A pushed fix triggers a fresh CI run that the same monitor re-emits — no need to relaunch it.
-- A temporarily empty comment queue is NOT a stop signal — other agents may post more
-  comments later. Keep the monitor running.
-- Stop the monitor when EITHER holds:
-  - **Normal stop (all three must hold)**:
-    1. Every `[ci]` check is terminal AND passing.
-    2. Every review comment received so far has been reflected on (triaged, replied to,
-       or fixed) AND every fully-resolved one is hidden + its thread resolved. The only
-       comments left visible are optional items explicitly deferred by the user or
-       repository policy. Material escalations have been resolved.
-    3. The closeout summary and PR body are complete; the monitor is stopped while the
-       workflow waits for the user's explicit merge confirmation.
-  - **Hard cap (overrides the above)**: the ~2-hour max wall-clock is reached. Surface the
-    unsettled state in the conversation first (state which of #1/#2 is still open), then
-    stop — do NOT keep polling just because CI is still red or comments remain. The cap
-    exists so a stuck PR (red CI the skill correctly won't auto-fix) cannot hold the watch
-    open forever.
-- Once closeout is ready, stop monitoring, present the concrete result and any
+- The wake source runs across turns; you keep working and react as lines arrive.
+- A pushed fix triggers a fresh CI run that later polls re-emit — no need to relaunch anything.
+- Re-arm the next poll after every processed batch. This is the loop: poll, triage, fix,
+  acknowledge, arm the next poll. Keep it armed while the PR stays open.
+- A settled gate is NOT a stop signal. Passing CI and a handled comment queue mean the PR is
+  settled, not finished: other agents and reviewers may comment later. Keep the wake source
+  armed and report only what changed.
+- Preparing closeout does not stop the watch. Present the summary and request merge
+  confirmation, but keep polling until a stop condition holds. New commits or new comments
+  invalidate the approved result: triage, fix, and ask again.
+- Stop the wake source when ANY holds:
+  - The PR is merged or closed.
+  - The user says to stop watching, or declines both the merge and further watching.
+  - **Hard cap**: the ~2-hour max wall-clock is reached. Surface the
+    unsettled state in the conversation first (state whether CI is still red or comments
+    remain), then stop — do NOT keep polling just because CI is still red or comments remain.
+    The cap exists so a stuck PR (red CI the skill correctly won't auto-fix) cannot hold the
+    watch open forever.
+- Once closeout is ready, keep the watch armed, present the concrete result and any
   optional cleanup targets, and request only missing explicit merge authorization.
   Mark awaiting-confirmation state so the user can reply; never auto-merge.

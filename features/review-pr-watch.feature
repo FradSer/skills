@@ -1,11 +1,21 @@
 Feature: Watch PR events without losing them to output filtering
 
-  Scenario: review-pr starts monitoring via Pi's monitor tool
+  Scenario: review-pr arms one poll per cycle through the host wake facility
     Given review-pr has completed its baseline review for an open PR
+    And the host returns a bounded command's output in a later turn
     When the workflow enters its persistent monitoring phase
-    Then it invokes Pi's monitor_start tool for one review-loop poll
-    And it carries every poll event in the monitor result sentinel
+    Then it arms one review-loop poll through that facility
+    And it carries every poll event in the poll result
+    And it re-arms the next poll after triaging each batch
+    And it names no tool the host may not have
     And it does not use a manual foreground loop
+
+  Scenario: review-pr reports a host without a continuation facility
+    Given the host exposes no way to return a poll result to a later turn
+    When the workflow enters its persistent monitoring phase
+    Then it reports that ongoing monitoring could not be established
+    And it stops after one bounded poll
+    And it does not invent a monitor tool
 
   Scenario: review-pr asks before merging a settled PR
     Given CI is passing and every review comment has been triaged for an open PR
@@ -13,6 +23,25 @@ Feature: Watch PR events without losing them to output filtering
     Then it presents the review summary and asks the user to confirm the merge
     And its closeout hook and every handoff reference preserve that confirmation gate
     And it merges only after the user explicitly confirms
+
+  Scenario: A settled gate keeps the watch armed
+    Given CI is terminal and passing and every comment received so far is triaged
+    And the PR is still open and unmerged
+    When the workflow prepares closeout
+    Then it keeps the wake source armed
+    And it reports only what changed on later polls
+    And it does not treat the settled gate as a stop signal
+
+  Scenario: Stop the watch only on a terminal outcome
+    Given the workflow is watching an open PR
+    When the PR merges, the user stops the watch, or the deadline expires
+    Then it stops the wake source
+
+  Scenario: A declined merge keeps waiting for review
+    Given the user declines the merge while the PR stays open
+    When the workflow continues the watch
+    Then it keeps the wake source armed
+    And it clears state only after the user also declines further watching
 
   Scenario: review-pr cleans a linked worktree and its PR branch after a confirmed merge
     Given a confirmed PR merge completed from a linked worktree on branch "feature/watch"

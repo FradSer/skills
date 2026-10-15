@@ -104,16 +104,67 @@ def run_watch(extra_args=(), extra_env=None, review_text=REVIEW_TEXT, continuous
 
 
 class ReviewLoopWatchTests(unittest.TestCase):
-    def test_review_pr_requires_pi_monitor_start_for_each_poll(self) -> None:
+    def test_review_pr_discovers_a_host_continuation_facility_per_poll(self) -> None:
         skill = " ".join(REVIEW_PR_SKILL.read_text(encoding="utf-8").split())
-        self.assertIn("monitor_start", skill)
+        self.assertIn("Discover the host's continuation facility before the first poll", skill)
+        self.assertIn("re-arm it after every processed batch", skill)
         self.assertIn("do not run a foreground `while` loop", skill.lower())
+        self.assertIn("ongoing monitoring could not be established", skill)
         for name in ("runbook.md", "review-loop.md"):
-            document = (REVIEW_PR_SKILL.parent / "references" / name).read_text(
-                encoding="utf-8"
+            document = " ".join(
+                (REVIEW_PR_SKILL.parent / "references" / name)
+                .read_text(encoding="utf-8")
+                .split()
             )
-            self.assertIn("monitor_start", document)
             self.assertIn("__REVIEW_POLL__", document)
+            self.assertIn("continuation", document.lower())
+            self.assertIn("ongoing monitoring could not be established", document)
+            self.assertNotIn("monitor_start", document)
+        runbook = " ".join(
+            (REVIEW_PR_SKILL.parent / "references" / "runbook.md")
+            .read_text(encoding="utf-8")
+            .split()
+        )
+        self.assertIn("foreground `while` loop", runbook)
+        reference = " ".join(
+            (REVIEW_PR_SKILL.parent / "references" / "review-loop.md")
+            .read_text(encoding="utf-8")
+            .split()
+        )
+        self.assertIn("manual `while true` loop", reference)
+
+    def test_review_pr_names_no_unverified_host_tool(self) -> None:
+        # The watch named `monitor_start`, which no host exposed. The agent therefore
+        # reported that monitoring could not be established and stopped after one poll.
+        documents = (
+            REVIEW_PR_SKILL,
+            REVIEW_PR_SKILL.parent / "references" / "runbook.md",
+            REVIEW_PR_SKILL.parent / "references" / "review-loop.md",
+            CREATE_PR_SKILL,
+            REVIEW_HANDOFF_REFERENCE,
+        )
+        for path in documents:
+            self.assertNotIn("monitor_start", path.read_text(encoding="utf-8"), path)
+
+    def test_a_settled_gate_keeps_the_watch_armed(self) -> None:
+        # Passing CI plus a handled queue is "settled", not "finished". Stopping there is
+        # why a reviewer comment that arrived later was never seen.
+        skill = " ".join(REVIEW_PR_SKILL.read_text(encoding="utf-8").split())
+        self.assertIn("Keep the watch armed while the PR is open", skill)
+        self.assertIn("is NOT a stop signal", skill)
+        self.assertIn("when the PR merges or closes", skill)
+        self.assertIn("keep the watch armed, and present the result", skill)
+        references = REVIEW_PR_SKILL.parent / "references"
+        loop = " ".join((references / "review-loop.md").read_text(encoding="utf-8").split())
+        self.assertIn("Preparing closeout does not stop the watch", loop)
+        self.assertIn("The PR is merged or closed", loop)
+        self.assertIn("This is the loop: poll, triage, fix, acknowledge, arm the next poll", loop)
+        runbook = " ".join((references / "runbook.md").read_text(encoding="utf-8").split())
+        self.assertIn("Keep the watch armed while the PR stays open", runbook)
+        self.assertIn("When the gate holds, prepare closeout and keep polling", runbook)
+        closeout = " ".join((references / "closeout.md").read_text(encoding="utf-8").split())
+        self.assertIn("Keep the watch armed", closeout)
+        self.assertNotIn("Stop monitoring", closeout)
 
     def test_review_pr_requires_explicit_confirmation_before_merge(self) -> None:
         skill = REVIEW_PR_SKILL.read_text(encoding="utf-8")
@@ -224,7 +275,7 @@ class ReviewLoopWatchTests(unittest.TestCase):
         skill = " ".join(CREATE_PR_SKILL.read_text(encoding="utf-8").split())
         self.assertIn("Start the standalone `review-pr` workflow exactly once", skill)
         self.assertIn("references/review-pr-handoff.md", skill)
-        self.assertIn("monitor_start", skill)
+        self.assertIn("host continuation facility", skill)
         self.assertIn("Do not call `review-pr` twice", skill)
 
     def test_exclude_flag_suppresses_handled_node(self) -> None:
@@ -254,7 +305,7 @@ class ReviewLoopWatchTests(unittest.TestCase):
         self.assertIn("fallback under `references/` and `scripts/`", reference)
         self.assertIn("Start standalone `review-pr` exactly once", reference)
         self.assertIn("`review-pr` owns", reference)
-        self.assertIn("monitor_start", reference)
+        self.assertIn("host continuation facility", reference)
 
     def test_review_pr_operational_references_are_conventionally_organized(self) -> None:
         result = subprocess.run(
@@ -332,6 +383,38 @@ class ReviewLoopWatchTests(unittest.TestCase):
             second = run_watch(extra_env={"STATE_FILE": str(state_file)})
             self.assertEqual(second.returncode, 0, second.stderr)
             self.assertIn(ISSUE_COMMENT_TEXT, second.stdout)
+            self.assertIn(REVIEW_TEXT, second.stdout)
+
+    def test_a_later_poll_emits_only_newly_arrived_comments(self) -> None:
+        # Given a triaged and acknowledged batch 1, when a reviewer posts batch 2,
+        # then the next poll emits the new comment and suppresses the acknowledged one.
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_path = Path(temporary_directory)
+            fixtures = temporary_path / "fixtures"
+            fixtures.mkdir()
+            state_file = temporary_path / "watch-state.json"
+            (fixtures / "metadata.json").write_text(
+                '{"createdAt":"2026-08-15T07:34:26Z","headRefOid":"head-sha","state":"OPEN","mergedAt":null}\n',
+                encoding="utf-8",
+            )
+            (fixtures / "checks.json").write_text("[]\n", encoding="utf-8")
+            (fixtures / "pull_comments.txt").write_text("", encoding="utf-8")
+            (fixtures / "reviews.txt").write_text("", encoding="utf-8")
+            (fixtures / "issue_comments.txt").write_text(
+                f"{HANDLED_NODE}\t{ISSUE_COMMENT_TEXT}\n", encoding="utf-8"
+            )
+            shared = {"FIXTURE_DIR": str(fixtures), "STATE_FILE": str(state_file)}
+
+            first = run_watch(extra_env=shared)
+            self.assertEqual(first.returncode, 0, first.stderr)
+            self.assertIn(ISSUE_COMMENT_TEXT, first.stdout)
+
+            (fixtures / "reviews.txt").write_text(
+                f"{NEW_REVIEW_NODE}\t{REVIEW_TEXT}\n", encoding="utf-8"
+            )
+            second = run_watch(extra_args=("--ack", HANDLED_NODE), extra_env=shared)
+            self.assertEqual(second.returncode, 0, second.stderr)
+            self.assertNotIn(ISSUE_COMMENT_TEXT, second.stdout)
             self.assertIn(REVIEW_TEXT, second.stdout)
 
     def test_changed_head_resets_persisted_ci_buckets(self) -> None:

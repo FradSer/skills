@@ -19,17 +19,23 @@ only the relevant sections of [review-loop.md](references/review-loop.md) for ba
 review, interval sizing, event triage, or stop conditions. Run an independent baseline
 review and use clean-context triage for comment batches. Apply only verified fixes;
 inspect CI logs before changing code and stop for auth, secret, flaky, or infrastructure
-failures. A monitor result is not proof that there were no events.
+failures. A poll result is not proof that there were no events.
 
-In Pi, start every one-shot poll with `monitor_start`; other hosts use the actual bounded
-execution/continuation facility described in the runbook. Do NOT run a foreground `while`
-loop or invent an unavailable tool. Pass ACK IDs only after triage; unacknowledged events replay from
-the persisted state. Stop when CI is terminal/passing and every comment is triaged, or
-when the documented deadline is reached. An empty poll is not a stop signal. Resolve
+Discover the host's continuation facility before the first poll, then arm one wake source per
+cycle and re-arm it after every processed batch. The facility must return a poll's output to a
+later turn, or hold one bounded poll while this turn waits. In Pi, an asynchronous subagent
+whose answer arrives in a later turn is such a facility. Use only a facility the host exposes.
+Do NOT run a foreground `while` loop or name a tool the host may not have. If the host exposes
+no facility, report that ongoing monitoring could not be established and stop after one bounded
+poll. Pass ACK IDs only after triage; unacknowledged events replay from
+the persisted state. Keep the watch armed while the PR is open. A settled gate — terminal
+passing CI and a handled comment queue — is NOT a stop signal: reviewers may comment later.
+Stop when the PR merges or closes, when the user stops watching, or when the documented
+deadline is reached. Resolve
 material scope, correctness, and authorization escalations before declaring merge readiness.
 
 When the gate holds, read [closeout.md](references/closeout.md), arm the closeout state,
-post/update the summary and PR body, stop monitoring, and present the result. Mark the
+post/update the summary and PR body, keep the watch armed, and present the result. Mark the
 awaiting-confirmation state so the turn can yield for the decision. Request
 explicit user confirmation before merging; do not merge until that confirmation arrives.
 If the user has already explicitly authorized this exact merge after the same closeout,
@@ -38,7 +44,7 @@ only the authorized worktree/branch synchronization and cleanup before reporting
 
 ## References
 
-- [Runbook](references/runbook.md) — monitor contract and fallback dispatch
+- [Runbook](references/runbook.md) — continuation contract and fallback dispatch
 - [Review loop](references/review-loop.md) — script, triage, and stop rules
 - [Closeout](references/closeout.md) — summary, confirmation, merge, and cleanup
 - [PR handoff](references/pr-creation-handoff.md) — the caller contract and merge gate for this PR
