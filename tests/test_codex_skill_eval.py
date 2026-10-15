@@ -9,7 +9,7 @@ import unittest
 
 from tools.skill_eval.codex_eval import child_environment, environment_blockers, execution_status, permission_config, read_skill_receipts, usage_metrics
 from tools.skill_eval.evidence import bundle_script_tool_prefixes, git_push_receipts, is_attributed, operation_receipts
-from tools.skill_eval.fixtures import CASES, _executes_unbounded_watch, capability_boundary_checks, challenge_wrapper_receipts, grade_task, prepare_fixture
+from tools.skill_eval.fixtures import CASES, TEST_FAILURE, TEST_SUCCESS, _executes_unbounded_watch, capability_boundary_checks, challenge_wrapper_receipts, grade_task, prepare_fixture
 
 
 class CodexSkillEvalTests(unittest.TestCase):
@@ -305,6 +305,38 @@ else:
         merged = item("merged", "gh pr merge 7 --merge", "Merged pull request #7\n")
         self.assertEqual([], operation_receipts([denied], "gh", "pr", "merge"))
         self.assertEqual(["merged"], operation_receipts([merged], "gh", "pr", "merge"))
+
+    def test_a_denial_is_a_blocker_even_when_the_chain_exited_zero(self) -> None:
+        # A chain exits with its last command's status, so a denial followed by a successful
+        # command used to hide: the case was then judged as an agent failure.
+        event = {"type": "item.completed", "item": {"id": "item_1", "type": "command_execution", "exit_code": 0, "aggregated_output": "fatal: Unable to create '/fixture/.git/index.lock': Operation not permitted\ndone\n"}}
+        self.assertEqual([{"item_id": "item_1", "evidence": event["item"]["aggregated_output"][:1000]}], environment_blockers([event]))
+
+    def test_red_before_green_reads_the_test_output_not_the_chain_status(self) -> None:
+        # `pytest -q; echo status=$?` hides a failing run behind exit 0, and a trailing
+        # failure hides a passing one.
+        def item(cid, command, output, exit_code):
+            return {"id": cid, "type": "command_execution", "command": command, "aggregated_output": output, "exit_code": exit_code}
+
+        suite = "python3 -m unittest discover -s tests -v"
+        attempts = [
+            item("red", suite + "; echo status=$?", "FAILED (failures=1)\nstatus=1\n", 0),
+            item("green", suite, "OK\n", 0),
+        ]
+
+        def observed(items):
+            red = [i for i, value in enumerate(items) if TEST_FAILURE.search(value["aggregated_output"])]
+            green = [i for i, value in enumerate(items) if TEST_SUCCESS.search(value["aggregated_output"]) and not TEST_FAILURE.search(value["aggregated_output"])]
+            return any(failure < success for failure in red for success in green), (red, green)
+
+        self.assertEqual((True, ([0], [1])), observed(attempts))
+        # A chain that never ran a failing suite has no RED to observe.
+        self.assertEqual((False, ([], [0])), observed([item("green", suite, "OK\n", 0)]))
+        # A passing run still counts as GREEN when a later command in the chain failed.
+        mixed = [item("mixed", "python3 -m unittest discover -s tests; rg missing", "OK\nrg: missing: No such file or directory\n", 2)]
+        self.assertEqual((False, ([], [0])), observed(mixed))
+        # pytest reports a failure in lowercase; both forms count as RED.
+        self.assertEqual((True, ([0], [1])), observed([item("red", "pytest -q; echo done", "1 failed, 0 passed in 0.04s\ndone\n", 0), item("green", "pytest -q", "2 passed in 0.03s\n", 0)]))
 
     def test_malformed_model_artifact_is_a_contract_failure(self) -> None:
         case = next(case for case in CASES if case["id"] == "missav-offline-ranking")

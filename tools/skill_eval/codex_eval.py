@@ -100,7 +100,9 @@ def environment_blockers(events: list[dict[str, Any]], case: dict[str, Any] | No
     for event in events:
         item = event.get("item", {})
         output = item.get("aggregated_output", "")
-        if event.get("type") != "item.completed" or item.get("type") != "command_execution" or item.get("exit_code") in (0, None):
+        # The denial text is the direct evidence. A chain exits with its last command's
+        # status, so a denial followed by a successful command would hide behind exit 0.
+        if event.get("type") != "item.completed" or item.get("type") != "command_execution":
             continue
         if any(re.search(path + r"[^\n]*?(?:Operation not permitted|Permission denied|Read-only file system)", output, re.I) for path in patterns):
             blockers.append({"item_id": str(item.get("id", "unknown")), "evidence": output[:1000]})

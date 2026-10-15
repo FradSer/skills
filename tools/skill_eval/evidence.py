@@ -42,10 +42,6 @@ def command_argvs(command: str) -> list[list[str]]:
     return result
 
 
-def successful_commands(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [event["item"] for event in events if event.get("type") == "item.completed" and event.get("item", {}).get("type") == "command_execution" and event["item"].get("exit_code") == 0]
-
-
 # A chain exits with its LAST command's status, so a chained command's exit code is not
 # evidence about an earlier one. These markers are the direct evidence that the named tool
 # call failed: a rejected push publishes nothing, and a denied service call performs nothing.
