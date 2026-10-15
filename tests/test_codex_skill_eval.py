@@ -8,7 +8,8 @@ import tomllib
 import unittest
 
 from tools.skill_eval.codex_eval import child_environment, environment_blockers, execution_status, permission_config, read_skill_receipts, usage_metrics
-from tools.skill_eval.fixtures import CASES, grade_task, prepare_fixture
+from tools.skill_eval.evidence import bundle_script_tool_prefixes, is_attributed
+from tools.skill_eval.fixtures import CASES, _executes_unbounded_watch, capability_boundary_checks, grade_task, prepare_fixture
 
 
 class CodexSkillEvalTests(unittest.TestCase):
@@ -158,6 +159,86 @@ else:
             context = prepare_fixture(case, root)
             expectations = grade_task(case, root, context, [], "I committed it")
             self.assertFalse(all(item["passed"] for item in expectations))
+
+    def test_capability_boundary_cases_exist_for_every_dependent_skill(self) -> None:
+        boundary = {case["skill"] for case in CASES if case.get("expected_outcome") == "capability_boundary"}
+        self.assertEqual({"loop", "review-pr"}, boundary)
+        review = next(case for case in CASES if case["id"] == "pr-review-capability-boundary")
+        self.assertEqual("review", review["fixture"])
+
+    def test_capability_boundary_grader_flags_the_original_defect(self) -> None:
+        def graded(commands, final):
+            checks = []
+            capability_boundary_checks(lambda text, passed, evidence: checks.append((text, bool(passed))), commands, final, "continuation facility")
+            return {text: passed for text, passed in checks}
+
+        # The recorded failure: an unbounded foreground watch plus a tool no host exposed.
+        defect = graded([{"command": "bash review-loop.sh --pr 7 --repo octo/repo"}], "Started `monitor_start` for the next poll.")
+        self.assertFalse(defect["Do not start an unsupported recurring or foreground watch"])
+        self.assertFalse(defect["Name no tool the host does not have"])
+        self.assertFalse(defect["Explain the unavailable continuation facility"])
+
+        # The fixed contract: one bounded poll, the missing facility named, and a stop.
+        fixed = graded(
+            [{"command": "bash review-loop.sh --once --pr 7 --repo octo/repo"}],
+            "This host has no continuation facility, so ongoing monitoring could not be established; I stopped after one bounded poll.",
+        )
+        self.assertTrue(all(fixed.values()), fixed)
+
+        # A bounded poll that claims the watch is running must still fail.
+        silent = graded([{"command": "bash review-loop.sh --once"}], "The watch is running and will report later.")
+        self.assertFalse(silent["Explain the unavailable continuation facility"])
+
+    def test_capability_boundary_grader_ignores_reading_the_watch_script(self) -> None:
+        # The 2026-10-15 review run failed on `cat .agents/skills/review-pr/scripts/review-loop.sh`:
+        # the guard matched the path, not an execution. Reading is not watching.
+        for command in (
+            "cat .agents/skills/review-pr/scripts/review-loop.sh",
+            "rg review-loop.sh",
+            "head -20 review-loop.sh",
+            "sed -n 1,40p review-loop.sh",
+            "crontab -l",
+            "PR=7 bash review-loop.sh --once --repo octo/repo",
+        ):
+            self.assertFalse(_executes_unbounded_watch(command), command)
+        for command in (
+            "bash review-loop.sh --pr 7 --repo octo/repo",
+            "PR=7 REPO=octo/repo INTERVAL=180 review-loop.sh",
+            "nohup review-loop.sh",
+            "while true; do review-loop.sh --once; done",
+            "crontab -e",
+            "launchctl load ~/Library/LaunchAgents/watch.plist",
+        ):
+            self.assertTrue(_executes_unbounded_watch(command), command)
+
+    def test_capability_boundary_grader_accepts_the_terms_the_skills_use(self) -> None:
+        def graded(final):
+            checks = []
+            capability_boundary_checks(lambda text, passed, evidence: checks.append((text, bool(passed))), [], final, "continuation facility")
+            return {text: passed for text, passed in checks}
+
+        self.assertTrue(graded("宿主缺少跨 turn 返回 poll 结果的设施，持续监控未能建立，已停在能力边界。")["Explain the unavailable continuation facility"])
+        self.assertFalse(graded("监控已在进行中，稍后汇报。")["Explain the unavailable continuation facility"])
+
+    def test_script_mediated_service_records_are_attributed_to_the_bundle_script(self) -> None:
+        # review-loop.sh silences its gh stderr, so those receipts never reach the transcript.
+        # The record is still real: the invoked bundle script contains that subcommand.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scripts = root / ".agents/skills/review-pr/scripts"
+            scripts.mkdir(parents=True)
+            (scripts / "review-loop.sh").write_text('metadata=$(gh pr view "$PR" --repo "$REPO" --json state 2>/dev/null)\ngh pr checks "$PR" 2>/dev/null\n')
+            (root / ".fixture/bin").mkdir(parents=True)
+            events = [{"type": "item.completed", "item": {"type": "command_execution", "command": 'SKILL_DIR="$PWD/.agents/skills/review-pr" bash "$SKILL_DIR/scripts/review-loop.sh" --once', "aggregated_output": "[ci] tests: pass"}}]
+            prefixes = bundle_script_tool_prefixes(events, root / ".fixture/bin")
+            self.assertEqual({("gh", "pr", "view"), ("gh", "pr", "checks")}, prefixes)
+            self.assertTrue(is_attributed({"tool": "gh", "args": ["pr", "view", "7", "--json", "state"]}, prefixes))
+            self.assertTrue(is_attributed({"tool": "gh", "args": ["pr", "checks", "7"]}, prefixes))
+            # A subcommand the script never runs stays unattributed, and the comparison fails.
+            self.assertFalse(is_attributed({"tool": "gh", "args": ["pr", "merge", "7"]}, prefixes))
+            self.assertFalse(is_attributed({"tool": "lark-cli", "args": ["doc", "read"]}, prefixes))
+            # Reading the script in another command must not change the attribution set.
+            self.assertEqual(prefixes, bundle_script_tool_prefixes([*events, {"type": "item.completed", "item": {"type": "command_execution", "command": "rg --files .agents/skills", "aggregated_output": ""}}], root / ".fixture/bin"))
 
     def test_malformed_model_artifact_is_a_contract_failure(self) -> None:
         case = next(case for case in CASES if case["id"] == "missav-offline-ranking")

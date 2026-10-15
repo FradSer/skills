@@ -95,6 +95,41 @@ def git_push_receipts(events: list[dict[str, Any]]) -> list[str]:
     return receipts
 
 
+def bundle_script_tool_prefixes(events: list[dict[str, Any]], bin_directory: Path | None) -> set[tuple[str, ...]]:
+    """Tool invocations that a trusted skill script in the transcript can make itself.
+
+    A skill may run its own bundle script (for example `review-loop.sh`), and that script calls
+    `gh`. Those records are real, but the parent command holds no `gh` argv to match against.
+    Read the invoked script from the read-only skill bundle and accept the tool subcommands it
+    contains. An invented receipt is still caught: the fixture-written file and the transcript
+    must agree exactly, so extra receipts fail the comparison.
+    """
+    if bin_directory is None:
+        return set()
+    root = bin_directory.parent.parent
+    prefixes: set[tuple[str, ...]] = set()
+    invoked = re.compile(r"[^\s;|&()'\"]*?([A-Za-z0-9._-]+)\.sh\b")
+    for event in events:
+        item = event.get("item", {})
+        if event.get("type") != "item.completed" or item.get("type") != "command_execution":
+            continue
+        for name in invoked.findall(item.get("command", "")):
+            for candidate in root.glob(f".agents/skills/*/scripts/**/{name}.sh"):
+                text = candidate.read_text(encoding="utf-8", errors="ignore")
+                for tool, subcommands in re.findall(rf"(\bgh|\blark-cli)\s+([a-z][a-z-]*(?:\s+[a-z][a-z-]*)?)", text):
+                    prefixes.add((tool.strip(), *subcommands.split()))
+    return prefixes
+
+
+def is_attributed(record: dict[str, Any], prefixes: set[tuple[str, ...]]) -> bool:
+    """True when a trusted bundle script in the transcript contains this record's subcommand."""
+    args = record.get("args", [])
+    return any(
+        record.get("tool") == prefix[0].strip() and isinstance(args, list) and args[: len(prefix) - 1] == list(prefix[1:])
+        for prefix in prefixes
+    )
+
+
 def service_receipts(events: list[dict[str, Any]], bin_directory: Path | None = None) -> list[dict[str, Any]]:
     receipts = []
     for event in events:

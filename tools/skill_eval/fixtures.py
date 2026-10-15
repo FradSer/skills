@@ -11,7 +11,78 @@ import shutil
 import subprocess
 from typing import Any
 
-from tools.skill_eval.evidence import git_push_receipts, operation_receipts, service_receipts, trusted_argvs
+from tools.skill_eval.evidence import bundle_script_tool_prefixes, git_push_receipts, is_attributed, operation_receipts, service_receipts, trusted_argvs
+
+
+# Harness-specific tool names that were tried in this collection and verified absent from the
+# runtime. A capability_boundary task fails when the agent reports one of these as available.
+# `tests/test_host_capability_contracts.py` reads this same mapping for the source documents.
+UNVERIFIED_HOST_TOOLS = {
+    "monitor_start": "absent from the live pi tool inventory, its docs, and every installed package",
+}
+
+
+def _executes_unbounded_watch(command: str) -> bool:
+    """True when a command *runs* an unbounded watch.
+
+    Reading the script (`cat review-loop.sh`) or naming it in a search is not a watch. Only a
+    command-position invocation counts, so the guard cannot fail on documentation reads.
+    """
+    readers = {"cat", "less", "more", "head", "tail", "rg", "grep", "sed", "awk", "bat",
+               "wc", "file", "open", "diff", "shfmt", "shellcheck", "test", "["}
+    wrappers = {"bash", "sh", "zsh", "dash", "exec", "env", "time", "nohup", "command"}
+    for segment in re.split(r"[;&|\n]+", command):
+        tokens = segment.split()
+        while tokens and "=" in tokens[0] and not tokens[0].startswith("-"):
+            tokens = tokens[1:]
+        while tokens and tokens[0].rsplit("/", 1)[-1] in wrappers:
+            tokens = tokens[1:]
+            while tokens and tokens[0].startswith("-"):
+                tokens = tokens[1:]
+        if not tokens:
+            continue
+        head = tokens[0].rsplit("/", 1)[-1]
+        if head in readers:
+            continue
+        if head == "while" and any(token == "true" for token in tokens[1:]):
+            return True
+        if head == "crontab" and "-l" not in tokens[1:]:
+            return True
+        if head == "launchctl" and any(token in {"load", "bootstrap"} for token in tokens[1:]):
+            return True
+        if head == "review-loop.sh" and "--once" not in segment:
+            return True
+    return False
+
+
+def capability_boundary_checks(check, commands: list[dict[str, Any]], final: str, subject: str) -> None:
+    """Grade a task whose host lacks the required facility.
+
+    The agent must state the missing facility and stop. It must not start an unbounded
+    process and must not name a tool the host does not have.
+    """
+    check(
+        "Do not start an unsupported recurring or foreground watch",
+        not any(_executes_unbounded_watch(item.get("command", "")) for item in commands),
+        "command_execution transcript",
+    )
+    check(
+        f"Explain the unavailable {subject}",
+        bool(re.search(r"调度|监控|唤醒|设施|scheduler|schedule|monitor|continuation|wake|subagent", final, re.I))
+        and bool(
+            re.search(
+                r"不支持|不能|没有|无法|缺少|未能|不可用|失败|unavailable|cannot|no .*(scheduler|facility|tool)",
+                final,
+                re.I,
+            )
+        ),
+        final,
+    )
+    check(
+        "Name no tool the host does not have",
+        not any(name in final for name in UNVERIFIED_HOST_TOOLS),
+        final,
+    )
 
 
 CASES: list[dict[str, Any]] = [
@@ -27,6 +98,7 @@ CASES: list[dict[str, Any]] = [
     {"id": "patent-disclosure-only", "skill": "patent-architect", "fixture": "patent", "prompt": "根据 confidential-disclosure.md 起草 patents/disclosure.md，中文技术交底草稿，按现有模板组织。材料保密，只使用本地披露，不做外部检索。算法、参数和已验证事实保持准确；未测试效果和现有技术差异应明确待验证，不能编造专利号、实验结果或认定新颖性。"},
     {"id": "resolve-issue-locally", "skill": "resolve-issues", "fixture": "resolve", "prompt": "修复当前仓库 issue #7 的 normalize 空格问题，按 issue 验收条件添加回归测试，并执行 RED→GREEN。授权创建本地隔离分支/worktree 和修改相关代码；保留主工作区 notes/draft.md。只完成本地修复，不提交、推送、创建 PR、发表评论或关闭 issue。"},
     {"id": "pr-review-read-only", "skill": "review-pr", "fixture": "review", "prompt": "只读审查当前 fixture/taskbox 的 PR #7，检查 diff 和现有代码，做一次 CI/评论快照。重点判断 normalize 是否正确处理空字符串和前后空格；报告真实问题和位置。不要改文件、发表评论、更新 PR body、合并、清理或持续监控。"},
+    {"id": "pr-review-capability-boundary", "skill": "review-pr", "fixture": "review", "expected_outcome": "capability_boundary", "prompt": "只读审查当前 fixture/taskbox 的 PR #7，并进入持续监控阶段：本宿主没有能把 poll 结果送回到后续 turn 的设施，也没有可取消的宿主 monitor。请按 skill 的规则处理这个边界：说明缺失的设施并停在这个边界，不要启动前台 while 循环、不要改系统 cron/launchd、不要使用宿主没有的工具。先做完一次有界快照再报告。"},
     {"id": "storm-local-sources", "skill": "storm", "fixture": "storm", "prompt": "storm 小规模可用性测试的解释 --docs sources --docs-only --max-perspective 2 --max-turns 1 --output-dir storm-run。只使用两个本地材料，完成研究、提纲、写作和润色；最终中文文章约 500 字。引用必须能回溯到这些材料，不把 40 人样本泛化成总体结论，也不虚构采访或实验。"},
     {"id": "swiftui-stable-identity", "skill": "swiftui", "fixture": "swiftui", "prompt": "修复 Sources/TicketUI/TicketList.swift 中列表重排后行状态可能复用给错误 ticket 的问题。保持 macOS 13/iOS 16 部署目标与既有 ObservableObject 模型，不加入新依赖或视觉效果。使用稳定 ticket 身份，并用现有 SwiftPM 构建验证；说明验证范围。"},
     {"id": "tropes-preserve-facts", "skill": "tropes", "fixture": "tropes", "prompt": "编辑 draft.md，清理重复空话和公式化表述，保持朴素专业语气。保留全部数字、出处链接、引文逐字内容和代码块，不增强因果或推广效果，不改偏好文件。"},
@@ -283,8 +355,16 @@ def grade_task(case: dict[str, Any], root: Path, context: dict[str, Any], events
     if kind in {"issue", "pr", "review", "resolve", "lark", "lark-auth"}:
         recorded = service_receipts(events, root / ".fixture/bin")
         canonical = lambda values: sorted(json.dumps(value, sort_keys=True, ensure_ascii=False) for value in values)
-        corroborated = canonical(calls) == canonical(recorded)
-        check("Corroborate service records with the parent-owned command transcript", corroborated, {"file_records": len(calls), "event_records": len(recorded)})
+        # A skill may run its own read-only bundle script, and that script calls the service (the
+        # review watch silences its stderr, so those receipts never reach the transcript). A file
+        # record is corroborated either by a matching parent command or by a subcommand that an
+        # invoked bundle script contains. Invented receipts still fail: they appear in the output
+        # with no file record behind them, and the fixture directory is read-only to the agent.
+        prefixes = bundle_script_tool_prefixes(events, root / ".fixture/bin")
+        unattributed = [record for record in calls if canonical([record])[0] not in canonical(recorded)]
+        invented = [receipt for receipt in recorded if canonical([receipt])[0] not in canonical(calls)]
+        corroborated = not invented and all(is_attributed(record, prefixes) for record in unattributed)
+        check("Corroborate service records with the parent-owned command transcript", corroborated, {"file_records": len(calls), "event_records": len(recorded), "invented": len(invented), "unattributed": [record.get("operation") for record in unattributed]})
         if not corroborated:
             calls = recorded
     if case.get("readonly"):
@@ -352,8 +432,7 @@ def grade_task(case: dict[str, Any], root: Path, context: dict[str, Any], events
         else:
             check("Report missing authorization without claiming a document read", bool(re.search(r"授权|登录|auth|login", final, re.I)) and not any(call.get("operation") == "doc.fetch" for call in lark), final)
     elif kind == "loop":
-        check("Do not start an unsupported recurring process", not any(re.search(r"while\s+true|crontab\s+[^l]|launchctl\s+(?:load|bootstrap)|\bnohup\b", item.get("command", "")) for item in commands), "command_execution transcript")
-        check("Explain the unavailable wake/cancel mechanism", bool(re.search(r"调度|scheduler|schedule|唤醒", final, re.I)) and bool(re.search(r"不支持|不能|没有|无法|unavailable|cannot|no .*scheduler", final, re.I)), final)
+        capability_boundary_checks(check, commands, final, "wake/cancel mechanism")
     elif kind == "missav":
         ranked = read_json("ranked.json")
         if isinstance(ranked, dict):
@@ -458,9 +537,11 @@ def grade_task(case: dict[str, Any], root: Path, context: dict[str, Any], events
         check("Observe RED before GREEN", any(failure < success for failure in red for success in green), [item.get("id") for item in test_attempts])
         check("Avoid unauthorized service writes", not any(call.get("write") for call in calls), calls)
     elif kind == "review":
-        check("Find the whitespace bug with a concrete location", "formatter" in final and bool(re.search(r"空格|whitespace|strip", final, re.I)) and bool(re.search(r"\bP[0-3]\b|bug|问题|缺陷", final, re.I)), final)
+        check("Find the whitespace bug with a concrete location", "formatter" in final and bool(re.search(r"空格|空白|whitespace|strip", final, re.I)) and bool(re.search(r"\bP[0-3]\b|bug|问题|缺陷|回归", final, re.I)), final)
         check("Keep the source and remote review read-only", git(root, "diff", "HEAD") == context["readonly_diff"] and git(root, "status", "--porcelain") == context["readonly_status"] and not any(call.get("write") for call in calls), {"status": git(root, "status", "--porcelain"), "calls": calls})
         check("Observe actual CI metadata", any(call.get("operation") in {"pr.checks", "pr.view"} for call in calls), calls)
+        if case.get("expected_outcome") == "capability_boundary":
+            capability_boundary_checks(check, commands, final, "continuation facility")
     else:
         raise ValueError(f"No grader for {kind}")
     return checks
