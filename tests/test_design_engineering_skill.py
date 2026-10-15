@@ -52,6 +52,8 @@ class DesignEngineeringSkillTests(unittest.TestCase):
             "references/emil/find-animation-opportunities/overview.md",
             "references/emil/animation-vocabulary/overview.md",
             "references/emil/performance-cheatsheet.md",
+            "references/emil/animation-performance/overview.md",
+            "references/technical-drawing/overview.md",
             "references/emil/prototype/overview.md",
             "references/emil/break-ui/overview.md",
             "references/emil/mobile-native/overview.md",

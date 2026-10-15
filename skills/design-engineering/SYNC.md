@@ -3,10 +3,10 @@
 **Upstream**: [jakubkrehel/skills](https://github.com/jakubkrehel/skills) `skills/` (main branch)
 **Upstream branch**: `main`
 **Upstream path**: `skills/`
-**Last sync**: 2026-10-14
-**Synced commit**: d574cc8
+**Last sync**: 2026-10-15
+**Synced commit**: 4c66b1f
 **Design engineering upstream**: [emilkowalski/skills](https://github.com/emilkowalski/skills) `skills/` (main)
-**Emil synced commit**: e8a175de22ae1e49370fc144c1f3bb9aeedf988d
+**Emil synced commit**: 2d228630ba1446365f614a108cb8252f1feda202
 
 ## Provenance
 

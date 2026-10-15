@@ -37,16 +37,18 @@ Choose the requested mode before acting. Specialized modes apply only when the u
 | **Select UI dependencies** | [Library Selection](references/emil/pick-ui-library/overview.md) | Curated modern libraries (Base UI, Sonner, cmdk) | Opinionated dependency recommendation |
 | **Toast notifications** | [Sonner](references/emil/ask-sonner/overview.md) | Headless / styling escalation ladder | Clean toast integration & troubleshooting |
 | **Modern Swift implementation** | [Swift](references/emil/write-swift/overview.md) | Swift 6.3/6.4, value types, concurrency | Idiomatic Swift architecture & views |
+| **Animation performance & frame budgets** | [Animation Performance](references/emil/animation-performance/overview.md) | [Performance cheatsheet](references/emil/performance-cheatsheet.md), [UI performance](references/ui/performance.md) | Diagnostic cause + GPU/composite fix |
+| **Technical drawing & linework** | [Technical drawing](references/technical-drawing/overview.md) | Geometry, orthographic views, viewer | Exact vector drawings & viewer bundle |
 
 ## Composite Execution Chains
 
 Do not treat reference packs as isolated silos. Real design engineering tasks compose references into coherent multi-step pipelines:
 
 1. **Component Construction**:
-   [Library Selection](references/emil/pick-ui-library/overview.md) (pick accessible primitive) → [Layout](references/layout/overview.md) & [Typography](references/typography/overview.md) (token mapping) → [Animate](references/emil/animate/overview.md) / [Apple Design](references/emil/apple-design/overview.md) (press feedback & fluid curves) → [Accessibility](references/accessibility/overview.md) & [Mobile Native](references/emil/mobile-native/overview.md) (WCAG & touch platform hygiene) → [Break UI](references/emil/break-ui/overview.md) (stress-test with realistic worst-case data).
+   [Library Selection](references/emil/pick-ui-library/overview.md) (pick accessible primitive) → [Layout](references/layout/overview.md) & [Typography](references/typography/overview.md) (token mapping) → [Animate](references/emil/animate/overview.md) / [Apple Design](references/emil/apple-design/overview.md) (press feedback & fluid curves) → [Accessibility](references/accessibility/overview.md) & [Mobile Native](references/emil/mobile-native/overview.md) (WCAG & touch platform hygiene) → [Break UI](references/emil/break-ui/overview.md) (stress-test with realistic worst-case data); integrate [Technical drawing](references/technical-drawing/overview.md) when precision vector linework or geometric blueprints are required.
 
 2. **Motion Polish & Craft**:
-   [Opportunities](references/emil/find-animation-opportunities/overview.md) (filter candidates through frequency/purpose gate) → [Animate](references/emil/animate/overview.md) / [Animate Expo](references/emil/animate-expo/overview.md) (implement with `--ease-out`, no `scale(0)`, GPU-only) → [Performance cheatsheet](references/emil/performance-cheatsheet.md) (ensure zero layout thrash) → [Review Animations](references/emil/review-animations/overview.md) (verify against 10 craft standards).
+   [Opportunities](references/emil/find-animation-opportunities/overview.md) (filter candidates through frequency/purpose gate) → [Animate](references/emil/animate/overview.md) / [Animate Expo](references/emil/animate-expo/overview.md) (implement with `--ease-out`, no `scale(0)`, GPU-only) → [Animation Performance](references/emil/animation-performance/overview.md) & [Performance cheatsheet](references/emil/performance-cheatsheet.md) (diagnose dropped frames, enforce layout/paint/composite pipeline, eliminate recalc storms) → [Review Animations](references/emil/review-animations/overview.md) (verify against 10 craft standards).
 
 3. **Design Exploration**:
    [Variants](references/variant/overview.md) & [Prototype](references/emil/prototype/overview.md) (choose 1 divergence axis: density, structure, voice, personality; build 3–5 working candidates behind the floating pill picker) → ensure every variant clears the accessibility floor → user chooses winner for production integration.
