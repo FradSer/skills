@@ -19,6 +19,7 @@ TRIGGERS = {
     "gitflow": ("gitflow start feature", "gitflow finish release", "create-pr"),
     "lark": ("lark-cli",),
     "loop": ("/loop",),
+    "marketing": ("marketing strategy", "copywriting", "SEO", "conversion"),
     "missav": ("missav", "/cn/search/{query}"),
     "patent-architect": ("patent", "prior-art"),
     "resolve-issues": ("resolve an issue", "fix issue"),

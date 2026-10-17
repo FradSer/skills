@@ -9,7 +9,7 @@ import unittest
 
 from tools.skill_eval.codex_eval import child_environment, environment_blockers, execution_status, permission_config, read_skill_receipts, usage_metrics
 from tools.skill_eval.evidence import bundle_script_tool_prefixes, git_push_receipts, is_attributed, operation_receipts
-from tools.skill_eval.fixtures import CASES, TEST_FAILURE, TEST_SUCCESS, _executes_unbounded_watch, capability_boundary_checks, challenge_wrapper_receipts, grade_task, prepare_fixture
+from tools.skill_eval.fixtures import CASES, TEST_FAILURE, TEST_SUCCESS, _executes_unbounded_watch, capability_boundary_checks, challenge_wrapper_receipts, grade_task, prepare_fixture, routed_document_receipts
 
 
 class CodexSkillEvalTests(unittest.TestCase):
@@ -164,6 +164,21 @@ else:
             context = prepare_fixture(case, root)
             expectations = grade_task(case, root, context, [], "I committed it")
             self.assertFalse(all(item["passed"] for item in expectations))
+
+    def test_routed_read_receipts_require_a_workflow_document(self) -> None:
+        # Regression origin: a router is not a workflow. Reading only the marketing index
+        # must not count as routing, and narrowing to a document must reject a sibling.
+        def event(identifier: str, command: str, output: str = "# CRO\n") -> dict:
+            return {"type": "item.completed", "item": {"id": identifier, "type": "command_execution", "command": command, "aggregated_output": output, "exit_code": 0}}
+
+        index_only = [event("i1", "cat .agents/skills/marketing/SKILL.md", "---\nname: marketing\n---\n")]
+        routed = [event("i2", "sed -n '1,80p' .agents/skills/marketing/cro/cro.md")]
+        denied = [event("i3", "cat .agents/skills/marketing/signup/signup.md", "cat: .agents/skills/marketing/signup/signup.md: No such file or directory\n")]
+        self.assertEqual([], routed_document_receipts(index_only, "marketing"))
+        self.assertEqual(["i2"], routed_document_receipts(routed, "marketing"))
+        self.assertEqual(["i2"], routed_document_receipts(routed, "marketing", ("cro/cro.md",)))
+        self.assertEqual([], routed_document_receipts(routed, "marketing", ("signup/signup.md",)))
+        self.assertEqual([], routed_document_receipts(denied, "marketing"))
 
     def test_capability_boundary_cases_exist_for_every_dependent_skill(self) -> None:
         boundary = {case["skill"] for case in CASES if case.get("expected_outcome") == "capability_boundary"}
