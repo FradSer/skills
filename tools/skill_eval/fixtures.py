@@ -11,7 +11,7 @@ import shutil
 import subprocess
 from typing import Any
 
-from tools.skill_eval.evidence import bundle_script_tool_prefixes, git_push_receipts, is_attributed, operation_receipts, service_receipts, trusted_argvs
+from tools.skill_eval.evidence import bundle_script_tool_prefixes, command_items, git_push_receipts, is_attributed, operation_receipts, service_receipts, trusted_argvs
 
 
 # Harness-specific tool names that were tried in this collection and verified absent from the
@@ -53,6 +53,37 @@ def _executes_unbounded_watch(command: str) -> bool:
         if head == "review-loop.sh" and "--once" not in segment:
             return True
     return False
+
+
+def routed_document_receipts(
+    events: list[dict[str, Any]], skill: str, documents: tuple[str, ...] = ()
+) -> list[str]:
+    """Read receipts for routed documents under `.agents/skills/<skill>/`.
+
+    The router index is not a workflow, so a read of `SKILL.md` alone is not routing
+    evidence: a routed read names a document beside it. Passing `documents` narrows the
+    receipt to those relative documents, which is how a case checks the selected workflow.
+    """
+    prefix = f".agents/skills/{skill}/"
+    wanted = tuple(f"{prefix}{document}" for document in documents)
+    read_error = re.compile(r"No such file|Permission denied|Is a directory")
+    receipts: list[str] = []
+    for item in command_items(events):
+        command = item.get("command", "")
+        if prefix not in command or read_error.search(item.get("aggregated_output", "")):
+            continue
+        for reader in ("cat", "sed", "head", "tail", "less", "more", "bat"):
+            executable = Path(shutil.which(reader)) if shutil.which(reader) else None
+            for argv in trusted_argvs(command, reader, executable):
+                values = [value for value in argv[1:] if prefix in value]
+                if any(
+                    not value.endswith("/SKILL.md")
+                    and (not wanted or value.endswith(wanted))
+                    for value in values
+                ):
+                    receipts.append(str(item.get("id", "unknown")))
+                    break
+    return list(dict.fromkeys(receipts))
 
 
 def capability_boundary_checks(check, commands: list[dict[str, Any]], final: str, subject: str) -> None:
@@ -110,6 +141,7 @@ CASES: list[dict[str, Any]] = [
     {"id": "swiftui-stable-identity", "skill": "swiftui", "fixture": "swiftui", "prompt": "修复 Sources/TicketUI/TicketList.swift 中列表重排后行状态可能复用给错误 ticket 的问题。保持 macOS 13/iOS 16 部署目标与既有 ObservableObject 模型，不加入新依赖或视觉效果。使用稳定 ticket 身份，并用现有 SwiftPM 构建验证；说明验证范围。"},
     {"id": "tropes-preserve-facts", "skill": "tropes", "fixture": "tropes", "prompt": "编辑 draft.md，清理重复空话和公式化表述，保持朴素专业语气。保留全部数字、出处链接、引文逐字内容和代码块，不增强因果或推广效果，不改偏好文件。"},
     {"id": "interface-accessibility-review", "skill": "design-engineering", "fixture": "interface", "readonly": True, "prompt": "仅审查 src/Dialog.tsx 的无障碍问题（quick 范围）：报告具体问题、所在位置和修复建议，并说明涉及的 WCAG 要求。现在不修改任何文件，也不要新建文件、安装依赖或打开浏览器。"},
+    {"id": "marketing-conversion-route", "skill": "marketing", "fixture": "marketing", "readonly": True, "prompt": "只审查 src/landing.html 的转化问题（quick 范围）：先读取路由到的工作流文档，再报告具体问题、所在位置和修复建议。现在不修改任何文件，也不要新建文件、安装依赖或联网。"},
     {"id": "readme-nested-only", "skill": "update-readme", "fixture": "readme", "prompt": "根据 packages/cli/taskbox.py 更新 packages/cli/README.md，补充实际可用的 CSV 导出命令。保留英文、标题、Usage 和 License 结构；根 README.md 和中文 README.zh-CN.md 都不在范围内，源代码不要改。执行命令确认文档准确。"},
     {"id": "creator-local-revision", "skill": "skill-creator", "fixture": "creator", "prompt": "改进当前项目 .agents/skills/csv-cleaner/SKILL.md：能力是清理已有 CSV 的空白单元格并报告所做修改，明确只在用户要求 CSV 清理时使用，普通数据分析或 JSON 工作不应触发。保留 name、disable-model-invocation、agents/openai.yaml 的现有策略和 references/cleaning.md。只优化这个本地 skill 并验证元数据，不安装、迁移目录或调用额外模型。"},
     {"id": "commit-detached-boundary", "skill": "commit", "fixture": "detached", "expected_outcome": "authorization_boundary", "prompt": "提交 formatter.py 当前修改。当前 HEAD detached，尚未指定目标分支；请遵守 skill 的处理规则，说明需要的分支决定，不推送、不随意选分支。"},
@@ -264,6 +296,8 @@ def prepare_fixture(case: dict[str, Any], root: Path) -> dict[str, Any]:
     if kind == "interface":
         write_file(root, "src/icons.tsx", "export function CloseIcon() {\n  return <svg aria-hidden=\"true\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\"><path d=\"M2 2l12 12M14 2L2 14\" /></svg>;\n}\n")
         write_file(root, "src/Dialog.tsx", 'import { CloseIcon } from "./icons";\n\nexport function Dialog({ onClose }: { onClose: () => void }) {\n  return (\n    <div className="dialog-overlay">\n      <div className="dialog" role="dialog">\n        <h2>Confirm deletion</h2>\n        <p>This action cannot be undone.</p>\n        <button onClick={onClose}>\n          <CloseIcon />\n        </button>\n      </div>\n    </div>\n  );\n}\n')
+    if kind == "marketing":
+        write_file(root, "src/landing.html", '<!doctype html>\n<html lang="en">\n<head><meta charset="utf-8"><title>Home</title></head>\n<body>\n  <h1>We build the future of work</h1>\n  <p>Synergy for modern teams.</p>\n  <form action="/signup" method="post">\n    <input name="first_name" placeholder="First name">\n    <input name="last_name" placeholder="Last name">\n    <input name="work_email" placeholder="Work email">\n    <input name="company" placeholder="Company">\n    <input name="company_size" placeholder="Company size">\n    <input name="phone" placeholder="Phone">\n    <input name="country" placeholder="Country">\n    <input name="role" placeholder="Role">\n    <input name="password" type="password" placeholder="Password">\n    <button type="submit">Submit</button>\n  </form>\n  <p>Trusted by teams.</p>\n</body>\n</html>\n')
     if kind == "readme":
         write_file(root, "packages/cli/README.md", "# Taskbox CLI\n\n## Usage\n\nUse `python3 taskbox.py list` to list tasks.\n\n## License\n\nMIT\n")
         write_file(root, "packages/cli/taskbox.py", "import argparse\nimport csv\nimport json\nimport sys\n\nparser = argparse.ArgumentParser()\nparser.add_argument('command', choices=['list', 'export'])\nparser.add_argument('--format', choices=['json', 'csv'], default='json')\nargs = parser.parse_args()\nrows = [{'title': 'Fixture task'}]\nif args.format == 'csv':\n    writer = csv.DictWriter(sys.stdout, fieldnames=['title'])\n    writer.writeheader()\n    writer.writerows(rows)\nelse:\n    print(json.dumps(rows))\n")
@@ -385,9 +419,20 @@ def grade_task(case: dict[str, Any], root: Path, context: dict[str, Any], events
             substantive = sum(phrase.lower() in final.lower() for phrase in phrases) >= 2 and bool(re.search(r"重复|空话|删|建议|redundan|remove|filler|suggest", final, re.I))
         elif kind == "interface":
             substantive = "Dialog.tsx" in final and bool(re.search(r"aria-label|accessible name|可访问名称|无障碍名称", final, re.I)) and bool(re.search(r"focus|焦点", final, re.I))
+        elif kind == "marketing":
+            substantive = (
+                "landing.html" in final
+                and bool(re.search(r"value proposition|价值主张|headline|标题", final, re.I))
+                and bool(re.search(r"form|表单|field|字段|CTA|行动号召", final, re.I))
+            )
         else:
             substantive = False
         check("Give concrete findings about the actual source", substantive, final[:1500])
+        if kind == "marketing":
+            routed = routed_document_receipts(events, "marketing")
+            conversion = routed_document_receipts(events, "marketing", ("cro/cro.md",))
+            check("Route through a bundled workflow document", bool(routed), routed)
+            check("Use the conversion workflow for a page conversion audit", bool(conversion), conversion)
         return checks
     if kind in {"commit", "push"}:
         head = git(root, "rev-parse", "HEAD")

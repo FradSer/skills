@@ -16,7 +16,8 @@ from pathlib import Path
 
 import yaml
 
-EXCLUDED_DIRS = {".backup"}
+# Metadata and tooling directories are never routed children of a router.
+EXCLUDED_DIRS = {".backup", "agents", "scripts"}
 INDEX_START_MARKER = "## Sub-skill Index"
 INDEX_END_MARKER = "## Routing Rules"
 
