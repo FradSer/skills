@@ -6,12 +6,12 @@
 
 面向多种 agent 运行环境的技能集合，包含专项工作流与领域知识。
 
-以下发布目录包含 17 个技能；仓库内部的
+以下发布目录包含 18 个技能；仓库内部的
 [skill-creator](.agents/skills/skill-creator/SKILL.md) 用于编写和验证技能。
 
 ## Codex 中的触发方式
 
-`commit`、`design-engineering`、`lark` 和 `swiftui` 允许根据任务自动匹配，其他技能需要明确点名，例如
+`commit`、`design-engineering`、`lark`、`marketing` 和 `swiftui` 允许根据任务自动匹配，其他技能需要明确点名，例如
 `$create-pr`。在 Codex CLI 和 IDE 中使用 `$` 或 `/skills` 选择技能，在桌面应用中使用 `@`。
 
 每个技能通过 `agents/openai.yaml` 声明触发策略；安装或建立软链接时应保留这个目录。
@@ -99,6 +99,15 @@ npx skills add https://github.com/FradSer/skills --skill lark
 **安装命令：**
 ```bash
 npx skills add https://github.com/FradSer/skills --skill loop
+```
+
+### [marketing](skills/marketing/)
+
+把营销请求路由到 50 个内置工作流，覆盖定位、文案、SEO 与 AI 搜索、转化优化、广告、生命周期邮件、定价、发布、分析与增长，同时只暴露一个技能。
+
+**安装命令：**
+```bash
+npx skills add https://github.com/FradSer/skills --skill marketing
 ```
 
 ### [missav](skills/missav/)

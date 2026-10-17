@@ -6,12 +6,13 @@
 
 A collection of agent skills: specialized workflows and domain knowledge that can be used across agent runtimes.
 
-The distributable catalog below contains 17 skills. The repository's internal
+The distributable catalog below contains 18 skills. The repository's internal
 [skill-creator](.agents/skills/skill-creator/SKILL.md) supports authoring and validation.
 
 ## Invocation in Codex
 
-`commit`, `design-engineering`, `lark`, and `swiftui` allow automatic matching to a task. The other
+`commit`, `design-engineering`, `lark`, `marketing`, and `swiftui` allow automatic matching to a
+task. The other
 skills require an explicit mention, such as `$create-pr`. Select a skill with
 `$` or `/skills` in Codex CLI and the IDE, or with `@` in the desktop app.
 
@@ -101,6 +102,15 @@ Repeats a prompt or skill on a fixed or variable interval using the host's suppo
 **Installation:**
 ```bash
 npx skills add https://github.com/FradSer/skills --skill loop
+```
+
+### [marketing](skills/marketing/)
+
+Routes marketing requests to 50 bundled workflows for positioning, copy, SEO and AI search, conversion, ads, lifecycle email, pricing, launch, analytics, and growth, while exposing only one skill.
+
+**Installation:**
+```bash
+npx skills add https://github.com/FradSer/skills --skill marketing
 ```
 
 ### [missav](skills/missav/)
