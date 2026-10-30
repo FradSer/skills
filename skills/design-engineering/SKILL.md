@@ -1,6 +1,6 @@
 ---
 name: design-engineering
-description: "Design, build, polish or review product interfaces with coherent visual taste, purposeful motion, usability and accessibility. Use for UI implementation, holistic or change reviews, prototypes, animation and mobile interaction work; route specialized tasks through references."
+description: "Specialized interface motion engineering: web animation and Apple-style fluid design, React Native/Expo motion, animation performance audits and opportunity sweeps, variant/prototype exploration, stress-test harnesses, UI library selection, and Swift implementation. General UI design, redesign, review, polish, accessibility, and design-system capture trigger the impeccable skill first; come here when the request is motion-, animation-, or prototype-specific or needs these reference packs."
 ---
 
 # Design and review the interface as one system
